@@ -22185,3 +22185,57 @@ if (
   observerV17.observe(document.body, {childList:true, subtree:true});
   document.addEventListener("focusin", () => installMidMatchKeyboardNextV17());
 })();
+
+
+// ========================================
+// iPhone PWA 復帰時 viewport 根本対策 Ver.24
+// ========================================
+(() => {
+  const standaloneV24 = () =>
+    window.matchMedia && window.matchMedia("(display-mode: standalone)").matches;
+
+  function applyViewportV24() {
+    let width = window.innerWidth;
+    let height = window.innerHeight;
+
+    if (window.visualViewport) {
+      width = Math.max(width, window.visualViewport.width || 0);
+      height = Math.max(height, window.visualViewport.height || 0);
+    }
+
+    // ホーム画面PWAでは screen の長辺/短辺がアプリの物理的な表示領域。
+    // iOS復帰直後に innerHeight / dvh だけが小さいまま残るケースを補正する。
+    if (standaloneV24() && screen) {
+      const sw = Number(screen.width) || 0;
+      const sh = Number(screen.height) || 0;
+      if (sw && sh) {
+        width = Math.max(width, sw, sh);
+        height = Math.max(height, Math.min(sw, sh));
+      }
+    }
+
+    document.documentElement.style.setProperty("--app-width-v24", `${Math.round(width)}px`);
+    document.documentElement.style.setProperty("--app-height-v24", `${Math.round(height)}px`);
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+    window.scrollTo(0, 0);
+    void document.documentElement.offsetHeight;
+  }
+
+  function recoverViewportV24() {
+    applyViewportV24();
+    requestAnimationFrame(applyViewportV24);
+    [50, 150, 350, 700, 1200, 2000].forEach(ms => setTimeout(applyViewportV24, ms));
+  }
+
+  window.addEventListener("load", recoverViewportV24);
+  window.addEventListener("pageshow", recoverViewportV24);
+  window.addEventListener("orientationchange", recoverViewportV24);
+  window.addEventListener("resize", applyViewportV24, { passive: true });
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener("resize", applyViewportV24, { passive: true });
+  }
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") recoverViewportV24();
+  });
+})();
