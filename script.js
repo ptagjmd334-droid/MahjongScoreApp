@@ -22188,54 +22188,47 @@ if (
 
 
 // ========================================
-// iPhone PWA 復帰時 viewport 根本対策 Ver.24
+// iPhone PWA viewport補正 Ver.25
 // ========================================
 (() => {
-  const standaloneV24 = () =>
-    window.matchMedia && window.matchMedia("(display-mode: standalone)").matches;
+  function measureViewportV25() {
+    const vv = window.visualViewport;
+    let width = vv && vv.width > 0 ? vv.width : window.innerWidth;
+    let height = vv && vv.height > 0 ? vv.height : window.innerHeight;
 
-  function applyViewportV24() {
-    let width = window.innerWidth;
-    let height = window.innerHeight;
-
-    if (window.visualViewport) {
-      width = Math.max(width, window.visualViewport.width || 0);
-      height = Math.max(height, window.visualViewport.height || 0);
+    // visualViewport が一時的に縦向き値を返す瞬間は、innerWidth/Height の
+    // 横向き値を優先する。screen値は端末物理寸法なので使用しない。
+    if (window.innerWidth > window.innerHeight && width < height) {
+      width = window.innerWidth;
+      height = window.innerHeight;
     }
 
-    // ホーム画面PWAでは screen の長辺/短辺がアプリの物理的な表示領域。
-    // iOS復帰直後に innerHeight / dvh だけが小さいまま残るケースを補正する。
-    if (standaloneV24() && screen) {
-      const sw = Number(screen.width) || 0;
-      const sh = Number(screen.height) || 0;
-      if (sw && sh) {
-        width = Math.max(width, sw, sh);
-        height = Math.max(height, Math.min(sw, sh));
-      }
-    }
-
-    document.documentElement.style.setProperty("--app-width-v24", `${Math.round(width)}px`);
-    document.documentElement.style.setProperty("--app-height-v24", `${Math.round(height)}px`);
-    document.documentElement.scrollTop = 0;
-    document.body.scrollTop = 0;
+    if (!(width > 0 && height > 0)) return;
+    document.documentElement.style.setProperty("--app-width-v25", `${Math.floor(width)}px`);
+    document.documentElement.style.setProperty("--app-height-v25", `${Math.floor(height)}px`);
     window.scrollTo(0, 0);
-    void document.documentElement.offsetHeight;
+    document.documentElement.scrollLeft = 0;
+    document.documentElement.scrollTop = 0;
+    document.body.scrollLeft = 0;
+    document.body.scrollTop = 0;
   }
 
-  function recoverViewportV24() {
-    applyViewportV24();
-    requestAnimationFrame(applyViewportV24);
-    [50, 150, 350, 700, 1200, 2000].forEach(ms => setTimeout(applyViewportV24, ms));
+  let rafV25 = 0;
+  function scheduleViewportV25() {
+    cancelAnimationFrame(rafV25);
+    rafV25 = requestAnimationFrame(measureViewportV25);
+    [80, 250, 600, 1200].forEach(ms => setTimeout(measureViewportV25, ms));
   }
 
-  window.addEventListener("load", recoverViewportV24);
-  window.addEventListener("pageshow", recoverViewportV24);
-  window.addEventListener("orientationchange", recoverViewportV24);
-  window.addEventListener("resize", applyViewportV24, { passive: true });
+  window.addEventListener("load", scheduleViewportV25);
+  window.addEventListener("pageshow", scheduleViewportV25);
+  window.addEventListener("orientationchange", scheduleViewportV25);
+  window.addEventListener("resize", scheduleViewportV25, { passive: true });
   if (window.visualViewport) {
-    window.visualViewport.addEventListener("resize", applyViewportV24, { passive: true });
+    window.visualViewport.addEventListener("resize", scheduleViewportV25, { passive: true });
+    window.visualViewport.addEventListener("scroll", scheduleViewportV25, { passive: true });
   }
   document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "visible") recoverViewportV24();
+    if (document.visibilityState === "visible") scheduleViewportV25();
   });
 })();
