@@ -77,6 +77,7 @@ const normalFuList = [
 
 
 const highFuList = [
+  60,
   70,
   80,
   90,
@@ -2345,7 +2346,7 @@ function renderScoreTable() {
 
             ? "20〜50符に戻す"
 
-            : "70符以上を表示"
+            : "60〜110符を表示"
         }
 
       </button>
