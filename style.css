@@ -1,0 +1,4512 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family:
+    -apple-system,
+    BlinkMacSystemFont,
+    "Hiragino Sans",
+    "Yu Gothic",
+    sans-serif;
+
+  background: #071c16;
+  color: white;
+
+  overflow: hidden;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+
+/* ========================================
+   共通
+======================================== */
+
+.screen {
+  display: none;
+
+  width: 100vw;
+  height: 100vh;
+}
+
+.screen.active {
+  display: flex;
+}
+
+
+/* ========================================
+   対局設定
+======================================== */
+
+#setup-screen {
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+
+  padding: 20px;
+
+  background:
+    radial-gradient(
+      circle at center,
+      #14714d,
+      #07442f 60%,
+      #052b20
+    );
+}
+
+.setup-header {
+  text-align: center;
+
+  margin-bottom: 15px;
+}
+
+.setup-header h1 {
+  margin-bottom: 4px;
+
+  font-size:
+    clamp(
+      24px,
+      3vw,
+      42px
+    );
+}
+
+.setup-header p {
+  opacity: 0.82;
+}
+
+.setup-table {
+  position: relative;
+
+  width: min(850px, 75vw);
+  height: min(480px, 62vh);
+
+  border: 8px solid #17352c;
+  border-radius: 30px;
+
+  background:
+    linear-gradient(
+      135deg,
+      #126846,
+      #0e5b3e
+    );
+
+  box-shadow:
+    inset 0 0 50px rgba(0,0,0,0.28),
+    0 15px 50px rgba(0,0,0,0.30);
+}
+
+.setup-player {
+  position: absolute;
+
+  width: 190px;
+
+  display: flex;
+  flex-direction: column;
+
+  gap: 6px;
+}
+
+.setup-player label {
+  font-size: 13px;
+
+  opacity: 0.82;
+}
+
+.setup-player input {
+  width: 100%;
+
+  padding: 10px;
+
+  border: none;
+  border-radius: 10px;
+
+  font-size: 16px;
+}
+
+.dealer-select {
+  padding: 7px;
+
+  border:
+    1px solid
+    rgba(255,255,255,0.4);
+
+  border-radius: 8px;
+
+  background:
+    rgba(255,255,255,0.08);
+
+  color: white;
+}
+
+.dealer-select.active {
+  border-color: #f2b632;
+
+  background: #f2b632;
+  color: #222;
+
+  font-weight: bold;
+}
+
+.setup-top {
+  top: 18px;
+  left: 50%;
+
+  transform:
+    translateX(-50%);
+}
+
+.setup-bottom {
+  bottom: 18px;
+  left: 50%;
+
+  transform:
+    translateX(-50%);
+}
+
+.setup-left {
+  left: 20px;
+  top: 50%;
+
+  transform:
+    translateY(-50%);
+}
+
+.setup-right {
+  right: 20px;
+  top: 50%;
+
+  transform:
+    translateY(-50%);
+}
+
+.setup-center {
+  position: absolute;
+
+  left: 50%;
+  top: 50%;
+
+  transform:
+    translate(-50%, -50%);
+
+  width: 130px;
+  height: 130px;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 18px;
+
+  background:
+    rgba(0,0,0,0.28);
+
+  box-shadow:
+    inset 0 0 0 2px
+    rgba(255,255,255,0.1);
+}
+
+.setup-center span {
+  font-size: 26px;
+  font-weight: bold;
+}
+
+.setup-center small {
+  margin-top: 6px;
+
+  opacity: 0.7;
+}
+
+.main-button {
+  margin-top: 16px;
+
+  min-width: 240px;
+
+  padding:
+    13px
+    30px;
+
+  border: none;
+  border-radius: 14px;
+
+  background: #1ebd75;
+  color: white;
+
+  font-size: 20px;
+  font-weight: bold;
+
+  box-shadow:
+    0 6px 20px
+    rgba(0,0,0,0.20);
+}
+
+.no-margin {
+  margin-top: 0;
+}
+
+.secondary-button {
+  min-width: 190px;
+
+  padding:
+    13px
+    24px;
+
+  border:
+    1px solid
+    rgba(255,255,255,0.35);
+
+  border-radius: 14px;
+
+  background:
+    rgba(255,255,255,0.12);
+
+  color: white;
+
+  font-size: 18px;
+  font-weight: bold;
+}
+
+.error-message {
+  height: 22px;
+
+  margin-top: 8px;
+
+  color: #ffb1b1;
+
+  font-size: 14px;
+}
+
+
+/* ========================================
+   開始前確認
+======================================== */
+
+#confirm-screen {
+  align-items: center;
+  justify-content: center;
+
+  padding: 20px;
+
+  background:
+    radial-gradient(
+      circle at center,
+      #126849,
+      #063c2c
+    );
+}
+
+.confirm-container {
+  width: min(950px, 92vw);
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.confirm-header {
+  margin-bottom: 14px;
+
+  text-align: center;
+}
+
+.confirm-header h2 {
+  margin-bottom: 5px;
+
+  font-size: 32px;
+}
+
+.confirm-header p {
+  opacity: 0.78;
+}
+
+.confirm-table {
+  position: relative;
+
+  width: min(800px, 76vw);
+  height: min(430px, 58vh);
+
+  border: 8px solid #153b30;
+  border-radius: 30px;
+
+  background:
+    linear-gradient(
+      135deg,
+      #136a48,
+      #0e5a3e
+    );
+
+  box-shadow:
+    inset 0 0 45px rgba(0,0,0,0.28),
+    0 15px 40px rgba(0,0,0,0.25);
+}
+
+.confirm-player {
+  position: absolute;
+
+  min-width: 190px;
+
+  padding: 12px;
+
+  display: grid;
+
+  grid-template-columns:
+    42px
+    1fr;
+
+  gap: 2px 8px;
+
+  border:
+    2px solid
+    rgba(255,255,255,0.25);
+
+  border-radius: 14px;
+
+  background:
+    rgba(255,255,255,0.94);
+
+  color: #173129;
+
+  box-shadow:
+    0 5px 15px
+    rgba(0,0,0,0.18);
+}
+
+.confirm-player strong {
+  font-size: 17px;
+}
+
+.confirm-player > span:last-child {
+  grid-column: 2;
+}
+
+.confirm-wind {
+  grid-row: 1 / 3;
+
+  width: 38px;
+  height: 38px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 8px;
+
+  background: #183c31;
+
+  color: white;
+
+  font-size: 21px;
+  font-weight: bold;
+}
+
+.dealer-highlight {
+  border: 4px solid #f2b632;
+}
+
+.confirm-top {
+  top: 18px;
+  left: 50%;
+
+  transform:
+    translateX(-50%);
+}
+
+.confirm-bottom {
+  bottom: 18px;
+  left: 50%;
+
+  transform:
+    translateX(-50%);
+}
+
+.confirm-left {
+  left: 18px;
+  top: 50%;
+
+  transform:
+    translateY(-50%);
+}
+
+.confirm-right {
+  right: 18px;
+  top: 50%;
+
+  transform:
+    translateY(-50%);
+}
+
+.confirm-center {
+  position: absolute;
+
+  left: 50%;
+  top: 50%;
+
+  transform:
+    translate(-50%, -50%);
+
+  width: 150px;
+  min-height: 145px;
+
+  padding: 15px;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+
+  gap: 5px;
+
+  border-radius: 18px;
+
+  background:
+    rgba(0,0,0,0.30);
+
+  box-shadow:
+    inset 0 0 0 2px
+    rgba(255,255,255,0.10);
+}
+
+.confirm-center strong {
+  margin-bottom: 4px;
+
+  font-size: 27px;
+}
+
+.confirm-buttons {
+  margin-top: 17px;
+
+  display: flex;
+
+  gap: 14px;
+}
+
+
+/* ========================================
+   メイン対局画面
+======================================== */
+
+#game-screen {
+  position: relative;
+
+  background:
+    radial-gradient(
+      circle at center,
+      #13724d 0%,
+      #0d5b3f 55%,
+      #07402f 100%
+    );
+}
+
+#game-screen::after {
+  content: "";
+
+  position: absolute;
+
+  inset: 20px;
+
+  border:
+    4px solid
+    rgba(255,255,255,0.08);
+
+  border-radius: 30px;
+
+  pointer-events: none;
+}
+
+
+/* 左上 */
+
+.round-info {
+  position: absolute;
+
+  top: 20px;
+  left: 24px;
+
+  padding:
+    10px
+    14px;
+
+  display: flex;
+  align-items: center;
+
+  gap: 10px;
+
+  border-radius: 12px;
+
+  background:
+    rgba(0,0,0,0.28);
+
+  z-index: 10;
+}
+
+.round-info strong {
+  font-size: 21px;
+}
+
+
+/* 右上 */
+
+.top-actions {
+  position: absolute;
+
+  top: 20px;
+  right: 24px;
+
+  display: flex;
+
+  gap: 8px;
+
+  z-index: 10;
+}
+
+.small-button {
+  min-width: 54px;
+
+  padding: 10px;
+
+  border: none;
+  border-radius: 10px;
+
+  background:
+    rgba(255,255,255,0.14);
+
+  color: white;
+}
+
+
+/* ========================================
+   プレイヤー
+======================================== */
+
+.player-panel {
+  position: absolute;
+
+  width: 245px;
+  min-height: 100px;
+
+  padding: 10px;
+
+  display: grid;
+
+  grid-template-columns:
+    45px
+    1fr;
+
+  gap: 6px;
+
+  border:
+    2px solid
+    rgba(255,255,255,0.25);
+
+  border-radius: 15px;
+
+  background:
+    rgba(250,250,250,0.94);
+
+  color: #13231e;
+
+  box-shadow:
+    0 8px 20px
+    rgba(0,0,0,0.18);
+
+  z-index: 5;
+
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.player-panel.dealer {
+  border: 4px solid #f0bc3d;
+}
+
+.wind {
+  grid-row: 1 / 3;
+
+  width: 40px;
+  height: 40px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 9px;
+
+  background: #183a31;
+
+  color: white;
+
+  font-size: 22px;
+  font-weight: bold;
+}
+
+.player-main {
+  display: grid;
+
+  grid-template-columns:
+    1fr
+    auto;
+
+  align-items: center;
+
+  gap:
+    3px
+    8px;
+}
+
+.player-name {
+  font-size: 18px;
+  font-weight: bold;
+}
+
+.player-score {
+  grid-column: 1 / 2;
+
+  font-size: 24px;
+}
+
+.player-rank {
+  grid-column: 2 / 3;
+  grid-row: 1 / 3;
+
+  padding:
+    5px
+    8px;
+
+  border-radius: 8px;
+
+  background: #e7ece9;
+
+  font-size: 14px;
+  font-weight: bold;
+}
+
+.player-rank.rank-1 {
+  background: #ffd75e;
+
+  color: #3b2b00;
+}
+
+.riichi-button {
+  grid-column: 1 / 3;
+
+  padding: 7px;
+
+  border: none;
+  border-radius: 8px;
+
+  background: #e5ece8;
+
+  color: #173b31;
+
+  font-weight: bold;
+}
+
+.riichi-button.active {
+  background: #ef5350;
+  color: white;
+
+  box-shadow:
+    0 0 0 3px
+    rgba(239,83,80,0.22);
+}
+
+.riichi-button:disabled {
+  opacity: 0.4;
+
+  cursor: not-allowed;
+}
+
+
+/* ========================================
+   プレイヤー選択
+======================================== */
+
+.player-panel.selection-enabled {
+  cursor: pointer;
+
+  box-shadow:
+    0 0 0 3px
+    rgba(255,255,255,0.18),
+    0 8px 20px
+    rgba(0,0,0,0.18);
+}
+
+.player-panel.selected-player {
+  border-color: #61e693;
+
+  box-shadow:
+    0 0 0 6px
+    rgba(76,220,130,0.42),
+    0 8px 22px
+    rgba(0,0,0,0.25);
+}
+
+.player-panel.selected-player::after {
+  content: "✓";
+
+  position: absolute;
+
+  top: -16px;
+  right: -16px;
+
+  width: 38px;
+  height: 38px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 50%;
+
+  background: #28c76f;
+
+  color: white;
+
+  font-size: 24px;
+  font-weight: bold;
+
+  box-shadow:
+    0 4px 12px
+    rgba(0,0,0,0.25);
+}
+
+
+/* ========================================
+   放銃者選択
+======================================== */
+
+.player-panel.discarder-player {
+  border-color: #ffad42;
+
+  box-shadow:
+    0 0 0 6px
+    rgba(255,173,66,0.42),
+    0 8px 22px
+    rgba(0,0,0,0.25);
+}
+
+.player-panel.discarder-player::before {
+  content: "放";
+
+  position: absolute;
+
+  top: -16px;
+  right: -16px;
+
+  width: 38px;
+  height: 38px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 50%;
+
+  background: #ff9f32;
+
+  color: white;
+
+  font-size: 21px;
+  font-weight: bold;
+
+  box-shadow:
+    0 4px 12px
+    rgba(0,0,0,0.25);
+}
+
+
+/* ========================================
+   プレイヤー位置
+======================================== */
+
+.player-top {
+  top: 9%;
+  left: 50%;
+
+  transform:
+    translateX(-50%)
+    rotate(180deg);
+}
+
+.player-bottom {
+  bottom: 7%;
+  left: 50%;
+
+  transform:
+    translateX(-50%);
+}
+
+.player-left {
+  top: 50%;
+  left: 3%;
+
+  transform:
+    translateY(-50%)
+    rotate(90deg);
+}
+
+.player-right {
+  top: 50%;
+  right: 3%;
+
+  transform:
+    translateY(-50%)
+    rotate(-90deg);
+}
+
+
+/* ========================================
+   中央
+======================================== */
+
+.center-actions {
+  position: absolute;
+
+  left: 50%;
+  top: 50%;
+
+  transform:
+    translate(-50%, -50%);
+
+  display: flex;
+
+  gap: 20px;
+}
+
+.center-actions button {
+  width: 150px;
+  height: 90px;
+
+  border: none;
+  border-radius: 20px;
+
+  color: white;
+
+  font-size: 26px;
+  font-weight: bold;
+
+  box-shadow:
+    0 10px 24px
+    rgba(0,0,0,0.25);
+}
+
+.center-actions button:disabled {
+  opacity: 0.3;
+
+  cursor: not-allowed;
+}
+
+.agari-button {
+  background:
+    linear-gradient(
+      135deg,
+      #f35e59,
+      #cf342f
+    );
+}
+
+.ryukyoku-button {
+  background:
+    linear-gradient(
+      135deg,
+      #4b8ff1,
+      #2563d4
+    );
+}
+
+
+/* ========================================
+   アガリ入力
+======================================== */
+
+.agari-overlay {
+  position: absolute;
+
+  left: 50%;
+  top: 50%;
+
+  transform:
+    translate(-50%, -50%);
+
+  width:
+    min(
+      520px,
+      46vw
+    );
+
+  z-index: 40;
+}
+
+.agari-overlay.hidden {
+  display: none;
+}
+
+.agari-flow-card {
+  padding: 18px;
+
+  border:
+    2px solid
+    rgba(255,255,255,0.20);
+
+  border-radius: 20px;
+
+  background:
+    rgba(8,35,28,0.95);
+
+  box-shadow:
+    0 20px 55px
+    rgba(0,0,0,0.38);
+
+  backdrop-filter:
+    blur(8px);
+}
+
+.agari-flow-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  margin-bottom: 16px;
+}
+
+.agari-flow-top strong {
+  font-size: 22px;
+}
+
+.flow-cancel-button {
+  padding:
+    7px
+    10px;
+
+  border: none;
+  border-radius: 9px;
+
+  background:
+    rgba(255,255,255,0.11);
+
+  color: white;
+}
+
+.agari-flow-content {
+  display: flex;
+  flex-direction: column;
+
+  gap: 14px;
+}
+
+.agari-type-buttons {
+  display: grid;
+
+  grid-template-columns:
+    1fr
+    1fr;
+
+  gap: 14px;
+}
+
+.agari-type-button {
+  padding:
+    22px
+    15px;
+
+  border: none;
+  border-radius: 16px;
+
+  color: white;
+
+  font-size: 25px;
+  font-weight: bold;
+}
+
+.ron-button {
+  background:
+    linear-gradient(
+      135deg,
+      #f25c57,
+      #cd332e
+    );
+}
+
+.tsumo-button {
+  background:
+    linear-gradient(
+      135deg,
+      #4a91f1,
+      #2465d7
+    );
+}
+
+.selection-guide {
+  text-align: center;
+
+  font-size: 18px;
+  font-weight: bold;
+}
+
+.selection-subtext {
+  text-align: center;
+
+  color:
+    rgba(255,255,255,0.70);
+
+  font-size: 14px;
+}
+
+.selected-winners {
+  min-height: 40px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  flex-wrap: wrap;
+
+  gap: 7px;
+}
+
+.winner-chip {
+  padding:
+    7px
+    11px;
+
+  border-radius: 999px;
+
+  background:
+    rgba(65,214,120,0.18);
+
+  border:
+    1px solid
+    rgba(65,214,120,0.55);
+
+  color: #a6f7c4;
+
+  font-weight: bold;
+}
+
+.agari-flow-actions {
+  display: flex;
+
+  justify-content: space-between;
+
+  gap: 10px;
+
+  margin-top: 4px;
+}
+
+.flow-button {
+  flex: 1;
+
+  padding:
+    11px
+    14px;
+
+  border: none;
+  border-radius: 11px;
+
+  font-weight: bold;
+}
+
+.flow-back {
+  background:
+    rgba(255,255,255,0.11);
+
+  color: white;
+}
+
+.flow-add {
+  background: #d69e2e;
+
+  color: #211900;
+}
+
+.flow-next {
+  background: #22bd70;
+
+  color: white;
+}
+
+.flow-button:disabled {
+  opacity: 0.35;
+
+  cursor: not-allowed;
+}
+
+.flow-placeholder {
+  padding: 18px;
+
+  border-radius: 14px;
+
+  background:
+    rgba(255,255,255,0.08);
+
+  text-align: center;
+}
+
+.flow-placeholder strong {
+  display: block;
+
+  margin-bottom: 8px;
+
+  font-size: 20px;
+}
+
+
+/* ========================================
+   点数差分
+======================================== */
+
+.score-delta {
+  position: absolute;
+
+  top: -18px;
+  left: 50%;
+
+  transform:
+    translateX(-50%);
+
+  opacity: 0;
+
+  padding:
+    5px
+    9px;
+
+  border-radius: 8px;
+
+  background:
+    rgba(0,0,0,0.78);
+
+  color: white;
+
+  font-size: 17px;
+  font-weight: bold;
+
+  pointer-events: none;
+}
+
+.score-delta.show {
+  animation:
+    scoreDeltaAnimation
+    2.4s
+    ease
+    forwards;
+}
+
+@keyframes scoreDeltaAnimation {
+
+  0% {
+    opacity: 0;
+
+    transform:
+      translate(-50%, 5px);
+  }
+
+  15% {
+    opacity: 1;
+
+    transform:
+      translate(-50%, 0);
+  }
+
+  80% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+
+    transform:
+      translate(-50%, -5px);
+  }
+
+}
+
+
+/* ========================================
+   一時強調
+======================================== */
+
+.flash-highlight {
+  animation:
+    flashAnimation
+    0.7s
+    ease;
+}
+
+@keyframes flashAnimation {
+
+  0% {
+    box-shadow:
+      0 0 0 0
+      rgba(255,210,70,0);
+  }
+
+  50% {
+    box-shadow:
+      0 0 0 7px
+      rgba(255,210,70,0.75);
+  }
+
+  100% {
+    box-shadow:
+      0 0 0 0
+      rgba(255,210,70,0);
+  }
+
+}
+
+
+/* ========================================
+   モーダル
+======================================== */
+
+.modal {
+  position: fixed;
+
+  inset: 0;
+
+  z-index: 1000;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  background:
+    rgba(0,0,0,0.58);
+
+  backdrop-filter:
+    blur(3px);
+}
+
+.modal.hidden {
+  display: none;
+}
+
+.modal-card {
+  width:
+    min(
+      430px,
+      90vw
+    );
+
+  padding: 26px;
+
+  border-radius: 20px;
+
+  background: white;
+  color: #17231f;
+
+  text-align: center;
+
+  box-shadow:
+    0 20px 60px
+    rgba(0,0,0,0.35);
+}
+
+.modal-card h2 {
+  margin-bottom: 10px;
+}
+
+.modal-card p {
+  margin-bottom: 22px;
+
+  color: #5d6763;
+}
+
+.modal-buttons {
+  display: flex;
+
+  justify-content: center;
+
+  gap: 12px;
+}
+
+.modal-buttons button {
+  min-width: 130px;
+
+  padding:
+    11px
+    20px;
+
+  border: none;
+  border-radius: 11px;
+
+  font-weight: bold;
+}
+
+.modal-secondary {
+  background: #e7ece9;
+
+  color: #23342e;
+}
+
+.modal-danger {
+  background: #e44d49;
+
+  color: white;
+}
+
+
+/* ========================================
+   小さい画面
+======================================== */
+
+@media (max-width: 800px) {
+
+  .player-panel {
+    width: 185px;
+    min-height: 80px;
+  }
+
+  .player-score {
+    font-size: 18px;
+  }
+
+  .center-actions button {
+    width: 110px;
+    height: 70px;
+
+    font-size: 20px;
+  }
+
+  .round-info {
+    font-size: 12px;
+  }
+
+  .agari-overlay {
+    width: 44vw;
+  }
+
+}
+/* アガリ者・放銃者選択中は
+   リーチボタン部分もプレイヤーパネルとしてタップ可能にする */
+
+.player-panel.selection-enabled .riichi-button {
+  pointer-events: none;
+}
+/* ========================================
+   点数表
+======================================== */
+
+.score-input-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.score-input-header strong {
+  font-size: 18px;
+}
+
+.score-progress {
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.12);
+  font-size: 13px;
+}
+
+.score-selected-summary {
+  min-height: 48px;
+  padding: 10px 12px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 12px;
+
+  background: rgba(255,255,255,0.08);
+
+  text-align: center;
+  font-weight: bold;
+}
+
+.score-table-scroll {
+  max-height: 300px;
+  overflow: auto;
+}
+
+.score-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 5px;
+}
+
+.score-table th {
+  padding: 5px;
+  font-size: 12px;
+  color: rgba(255,255,255,0.7);
+}
+
+.score-table td {
+  padding: 0;
+}
+
+.score-cell {
+  width: 100%;
+  min-height: 42px;
+
+  padding: 7px 4px;
+
+  border: 1px solid rgba(255,255,255,0.18);
+  border-radius: 9px;
+
+  background: rgba(255,255,255,0.08);
+  color: white;
+
+  font-size: 13px;
+  font-weight: bold;
+}
+
+.score-cell:hover {
+  background: rgba(255,255,255,0.15);
+}
+
+.score-cell.selected {
+  border-color: #48df8b;
+
+  background: rgba(48,210,116,0.28);
+
+  box-shadow:
+    0 0 0 2px
+    rgba(48,210,116,0.25);
+}
+
+.score-cell:disabled {
+  opacity: 0.15;
+  cursor: default;
+}
+
+.limit-title {
+  margin-top: 3px;
+
+  font-size: 13px;
+  color: rgba(255,255,255,0.7);
+}
+
+.limit-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
+}
+
+.limit-button {
+  min-height: 52px;
+
+  padding: 6px;
+
+  border: 1px solid rgba(255,255,255,0.18);
+  border-radius: 10px;
+
+  background: rgba(255,255,255,0.08);
+  color: white;
+
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.limit-button span {
+  display: block;
+
+  margin-top: 3px;
+
+  font-size: 11px;
+  opacity: 0.8;
+}
+
+.limit-button.selected {
+  border-color: #48df8b;
+
+  background: rgba(48,210,116,0.28);
+
+  box-shadow:
+    0 0 0 2px
+    rgba(48,210,116,0.25);
+}
+
+
+/* ========================================
+   点数直接入力
+======================================== */
+
+.direct-score-area {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.direct-score-description {
+  text-align: center;
+
+  font-size: 14px;
+  color: rgba(255,255,255,0.75);
+}
+
+.direct-score-fields {
+  display: grid;
+  gap: 10px;
+}
+
+.direct-score-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.direct-score-field label {
+  font-size: 13px;
+  color: rgba(255,255,255,0.75);
+}
+
+.direct-score-field input {
+  width: 100%;
+
+  padding: 11px;
+
+  border: none;
+  border-radius: 9px;
+
+  background: white;
+  color: #16241f;
+
+  font-size: 18px;
+  font-weight: bold;
+}
+
+.score-error {
+  min-height: 20px;
+
+  color: #ffaaa7;
+
+  text-align: center;
+  font-size: 13px;
+}
+
+
+/* ========================================
+   点数入力完了
+======================================== */
+
+.score-result-list {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.score-result-row {
+  padding: 9px 11px;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 10px;
+
+  border-radius: 10px;
+
+  background: rgba(255,255,255,0.08);
+}
+
+.score-result-row strong {
+  font-size: 14px;
+}
+
+.score-result-row span {
+  font-size: 13px;
+  color: #aef4ca;
+}
+
+
+/* 選択中はリーチ部分もパネルとして押せる */
+
+.player-panel.selection-enabled .riichi-button {
+  pointer-events: none;
+}
+/* ========================================
+   点数表を横画面1画面に収める
+======================================== */
+
+.agari-overlay {
+  width: min(820px, 92vw);
+}
+
+.agari-flow-card {
+  padding: 12px;
+}
+
+.agari-flow-content {
+  gap: 8px;
+}
+
+.score-selected-summary {
+  min-height: 36px;
+  padding: 6px 10px;
+}
+
+.score-table-scroll {
+  max-height: none;
+  overflow: visible;
+}
+
+.score-dual-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+
+  gap: 8px;
+}
+
+.score-mini-table {
+  width: 100%;
+
+  border-collapse: separate;
+  border-spacing: 2px;
+}
+
+.score-mini-table th {
+  padding: 2px;
+
+  font-size: 10px;
+
+  color: rgba(255,255,255,0.7);
+}
+
+.score-mini-table td {
+  padding: 0;
+}
+
+.score-mini-table .score-cell {
+  min-height: 30px;
+
+  padding: 4px 2px;
+
+  font-size: 11px;
+}
+
+.limit-grid {
+  gap: 4px;
+}
+
+.limit-button {
+  min-height: 42px;
+
+  padding: 4px;
+
+  font-size: 11px;
+}
+
+.limit-button span {
+  font-size: 10px;
+}
+
+.agari-flow-actions {
+  gap: 6px;
+}
+
+.flow-button {
+  padding: 8px 10px;
+}
+
+
+/* iPhone横画面など高さが低いとき */
+
+@media (max-height: 500px) {
+
+  .agari-flow-card {
+    padding: 9px;
+  }
+
+  .agari-flow-top {
+    margin-bottom: 7px;
+  }
+
+  .agari-flow-top strong {
+    font-size: 18px;
+  }
+
+  .score-input-header strong {
+    font-size: 15px;
+  }
+
+  .score-selected-summary {
+    min-height: 30px;
+
+    padding: 4px 7px;
+
+    font-size: 12px;
+  }
+
+  .score-mini-table .score-cell {
+    min-height: 25px;
+
+    padding: 2px;
+
+    font-size: 10px;
+  }
+
+  .score-mini-table th {
+    font-size: 9px;
+  }
+
+  .limit-button {
+    min-height: 35px;
+
+    font-size: 10px;
+  }
+
+  .limit-button span {
+    margin-top: 1px;
+
+    font-size: 9px;
+  }
+
+  .limit-title {
+    font-size: 11px;
+  }
+
+  .flow-button {
+    padding: 6px 8px;
+
+    font-size: 12px;
+  }
+
+}
+/* ========================================
+   中央画面の幅を用途ごとに変更
+======================================== */
+
+/* 普段のアガリ者・放銃者選択は細くする */
+.agari-overlay {
+  width: min(520px, 46vw);
+}
+
+
+/* 点数表を表示している時だけ広げる */
+.agari-overlay:has(.score-dual-grid) {
+  width: min(720px, 68vw);
+}
+
+
+/* 直接点数入力も細めでOK */
+.agari-overlay:has(.direct-score-area) {
+  width: min(520px, 46vw);
+}
+/* ========================================
+   点数表 Ver.2
+   通常符 / 高符を切り替えて表示
+======================================== */
+
+/* 点数入力時も横に広げすぎない */
+.agari-overlay:has(.score-switch-table) {
+  width: min(610px, 58vw);
+}
+
+
+/* 以前の左右2分割を無効化 */
+.score-dual-grid {
+  display: block;
+}
+
+
+/* 点数表本体 */
+.score-switch-table {
+  width: 100%;
+}
+
+.score-switch-table table {
+  width: 100%;
+
+  border-collapse: separate;
+  border-spacing: 4px;
+}
+
+.score-switch-table th {
+  padding: 3px;
+
+  color: rgba(255,255,255,0.72);
+
+  font-size: 11px;
+}
+
+.score-switch-table td {
+  padding: 0;
+}
+
+.score-switch-table .score-cell {
+  min-height: 36px;
+
+  padding: 5px 3px;
+
+  font-size: 12px;
+}
+
+
+/* 70符以上切替ボタン */
+.fu-switch-area {
+  display: flex;
+  justify-content: center;
+
+  margin-top: 5px;
+}
+
+.fu-switch-button {
+  min-width: 180px;
+
+  padding: 8px 15px;
+
+  border:
+    1px solid
+    rgba(255,255,255,0.22);
+
+  border-radius: 10px;
+
+  background:
+    rgba(255,255,255,0.10);
+
+  color: white;
+
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.fu-switch-button:hover {
+  background:
+    rgba(255,255,255,0.17);
+}
+
+
+/* 横画面で高さが小さい場合 */
+@media (max-height: 500px) {
+
+  .agari-overlay:has(.score-switch-table) {
+    width: min(600px, 58vw);
+  }
+
+  .score-switch-table table {
+    border-spacing: 2px;
+  }
+
+  .score-switch-table .score-cell {
+    min-height: 28px;
+
+    padding: 2px;
+
+    font-size: 10px;
+  }
+
+  .score-switch-table th {
+    font-size: 9px;
+  }
+
+  .fu-switch-button {
+    padding: 5px 10px;
+
+    font-size: 10px;
+  }
+
+}
+/* ========================================
+   点数移動確認
+======================================== */
+
+.movement-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.movement-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+
+  align-items: center;
+  gap: 12px;
+
+  padding: 10px 12px;
+
+  border-radius: 11px;
+
+  background:
+    rgba(255,255,255,0.08);
+}
+
+.movement-name {
+  font-weight: bold;
+}
+
+.movement-delta {
+  min-width: 75px;
+
+  text-align: right;
+
+  font-size: 18px;
+  font-weight: bold;
+}
+
+.movement-delta.plus {
+  color: #81f0ad;
+}
+
+.movement-delta.minus {
+  color: #ff9b97;
+}
+
+.movement-after {
+  min-width: 90px;
+
+  text-align: right;
+
+  color:
+    rgba(255,255,255,0.72);
+
+  font-size: 13px;
+}
+
+.movement-bonus {
+  padding: 9px 12px;
+
+  border-radius: 10px;
+
+  background:
+    rgba(255,193,61,0.12);
+
+  border:
+    1px solid
+    rgba(255,193,61,0.25);
+
+  font-size: 13px;
+
+  text-align: center;
+}
+
+.movement-warning {
+  font-size: 12px;
+
+  color:
+    rgba(255,255,255,0.65);
+
+  text-align: center;
+}
+
+
+/* ========================================
+   点数反映後
+======================================== */
+
+.applied-result {
+  padding: 16px;
+
+  border-radius: 14px;
+
+  background:
+    rgba(255,255,255,0.08);
+
+  text-align: center;
+}
+
+.applied-result strong {
+  display: block;
+
+  margin-bottom: 7px;
+
+  font-size: 23px;
+}
+
+.applied-result p {
+  color:
+    rgba(255,255,255,0.72);
+}
+
+.next-round-placeholder {
+  margin-top: 5px;
+
+  padding: 12px;
+
+  border-radius: 12px;
+
+  background:
+    rgba(31,189,112,0.13);
+
+  text-align: center;
+
+  font-size: 13px;
+}
+
+
+/* 横画面の高さが低い場合 */
+
+@media (max-height: 500px) {
+
+  .movement-row {
+    padding: 6px 9px;
+  }
+
+  .movement-delta {
+    font-size: 15px;
+  }
+
+  .movement-bonus {
+    padding: 6px 8px;
+
+    font-size: 11px;
+  }
+
+}
+/* =========================
+   点数ボタンの役名表示
+========================= */
+
+.score-cell-main {
+  display: block;
+  font-size: 18px;
+  font-weight: bold;
+  line-height: 1.15;
+}
+
+.score-cell-sub {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  color: rgba(255,255,255,0.78);
+  line-height: 1.1;
+}
+
+.score-button.limit-hand .score-cell-main {
+  font-size: 16px;
+}
+
+.score-button.limit-hand .score-cell-sub {
+  font-size: 11px;
+}
+/* ========================================
+   符×翻表の満貫表示
+======================================== */
+
+.score-cell.limit-score-cell {
+  padding-top: 3px;
+  padding-bottom: 3px;
+}
+
+.score-limit-name {
+  display: block;
+
+  font-size: 13px;
+  font-weight: 800;
+
+  line-height: 1.05;
+
+  color: #ffe08a;
+}
+
+.score-limit-payment {
+  display: block;
+
+  margin-top: 3px;
+
+  font-size: 10px;
+  font-weight: 700;
+
+  line-height: 1.05;
+
+  color: white;
+}
+
+
+/* 高さの小さい横画面 */
+
+@media (max-height: 500px) {
+
+  .score-limit-name {
+    font-size: 11px;
+  }
+
+  .score-limit-payment {
+    margin-top: 1px;
+
+    font-size: 9px;
+  }
+
+}
+/* ========================================
+   局進行
+======================================== */
+
+.round-next-info {
+  padding: 12px;
+
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+
+  border-radius: 12px;
+
+  background:
+    rgba(255,255,255,0.08);
+
+  text-align: center;
+}
+
+.round-next-info strong {
+  font-size: 18px;
+}
+
+.round-next-info span {
+  color:
+    rgba(255,255,255,0.72);
+
+  font-size: 13px;
+}
+
+.next-hand-button {
+  width: 100%;
+
+  padding: 12px 18px;
+
+  border: none;
+  border-radius: 12px;
+
+  background: #20bd70;
+  color: white;
+
+  font-size: 16px;
+  font-weight: bold;
+}
+
+.next-hand-button:hover {
+  opacity: 0.92;
+}
+/* ========================================
+   流局処理 Ver.1
+======================================== */
+
+#ryuukyoku-flow-overlay {
+  position: fixed;
+
+  left: 50%;
+  top: 50%;
+
+  transform: translate(-50%, -50%);
+
+  width: clamp(280px, 34vw, 360px);
+  max-height: 78vh;
+
+  overflow-y: auto;
+
+  padding: 18px;
+
+  border-radius: 18px;
+
+  background:
+    rgba(20, 35, 32, 0.97);
+
+  color: white;
+
+  box-shadow:
+    0 10px 35px
+    rgba(0, 0, 0, 0.35);
+
+  z-index: 5000;
+}
+
+
+#ryuukyoku-flow-overlay h2 {
+  margin:
+    0
+    0
+    8px;
+
+  text-align: center;
+
+  font-size: 22px;
+}
+
+
+.ryuukyoku-description {
+  margin:
+    0
+    0
+    12px;
+
+  text-align: center;
+
+  color:
+    rgba(255,255,255,0.72);
+
+  font-size: 13px;
+}
+
+
+.ryuukyoku-selected-info {
+  padding: 10px;
+
+  margin-bottom: 12px;
+
+  border-radius: 10px;
+
+  background:
+    rgba(255,255,255,0.08);
+
+  text-align: center;
+
+  font-weight: bold;
+}
+
+
+.ryuukyoku-button-row {
+  display: flex;
+
+  gap: 8px;
+
+  margin-top: 14px;
+}
+
+
+.ryuukyoku-button-row button {
+  flex: 1;
+
+  padding: 11px;
+
+  border: none;
+  border-radius: 10px;
+
+  font-weight: bold;
+
+  cursor: pointer;
+}
+
+
+.ryuukyoku-back-button {
+  background: #626b68;
+
+  color: white;
+}
+
+
+.ryuukyoku-next-button {
+  background: #2785e8;
+
+  color: white;
+}
+
+
+.ryuukyoku-confirm-button {
+  background: #20bd70;
+
+  color: white;
+}
+
+
+.draw-tenpai-selected {
+  outline:
+    4px solid
+    #43c6ff !important;
+
+  outline-offset:
+    2px;
+}
+
+
+.draw-tenpai-badge {
+  position: absolute;
+
+  top: 5px;
+  right: 5px;
+
+  padding:
+    3px
+    7px;
+
+  border-radius: 999px;
+
+  background: #2785e8;
+
+  color: white;
+
+  font-size: 10px;
+  font-weight: bold;
+
+  z-index: 10;
+}
+
+
+.player-panel {
+  position: relative;
+}
+
+
+.draw-delta-chip {
+  position: absolute;
+
+  left: 50%;
+  bottom: -15px;
+
+  transform:
+    translateX(-50%);
+
+  padding:
+    4px
+    8px;
+
+  border-radius: 999px;
+
+  background:
+    rgba(0,0,0,0.78);
+
+  color: white;
+
+  font-size: 12px;
+  font-weight: bold;
+
+  white-space: nowrap;
+
+  z-index: 20;
+}
+
+
+.ryuukyoku-result-list {
+  display: flex;
+
+  flex-direction: column;
+
+  gap: 6px;
+
+  margin:
+    10px
+    0;
+}
+
+
+.ryuukyoku-result-row {
+  display: flex;
+
+  justify-content: space-between;
+
+  align-items: center;
+
+  padding:
+    7px
+    9px;
+
+  border-radius: 8px;
+
+  background:
+    rgba(255,255,255,0.07);
+}
+
+
+.ryuukyoku-plus {
+  font-weight: bold;
+
+  color: #8fe7b7;
+}
+
+
+.ryuukyoku-minus {
+  font-weight: bold;
+
+  color: #ff9b9b;
+}
+
+
+.ryuukyoku-zero {
+  color:
+    rgba(255,255,255,0.6);
+}
+
+
+.ryuukyoku-next-state {
+  margin-top: 12px;
+
+  padding: 10px;
+
+  border-radius: 10px;
+
+  background:
+    rgba(255,255,255,0.08);
+
+  text-align: center;
+}
+
+
+.ryuukyoku-next-state strong {
+  display: block;
+
+  margin-bottom: 3px;
+
+  font-size: 16px;
+}
+
+
+.ryuukyoku-next-state span {
+  font-size: 12px;
+
+  color:
+    rgba(255,255,255,0.72);
+}
+/* ========================================
+   4方向プレイヤーパネル配置 修正
+======================================== */
+
+.player-panel {
+  position: absolute;
+}
+/* ========================================
+   Undo / Redo Ver.1
+======================================== */
+
+.undo-history-overlay {
+  position: fixed;
+  inset: 0;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  background: rgba(0, 0, 0, 0.35);
+
+  z-index: 9000;
+}
+
+.undo-history-card {
+  width: min(390px, 82vw);
+
+  padding: 18px;
+
+  border-radius: 18px;
+
+  background: rgba(24, 39, 36, 0.98);
+  color: white;
+
+  box-shadow:
+    0 15px 45px
+    rgba(0, 0, 0, 0.4);
+}
+
+.undo-history-card h2 {
+  margin: 0 0 6px;
+
+  text-align: center;
+
+  font-size: 21px;
+}
+
+.undo-history-help {
+  margin: 0 0 12px;
+
+  text-align: center;
+
+  font-size: 12px;
+
+  color:
+    rgba(255, 255, 255, 0.68);
+}
+
+.undo-history-list {
+  display: flex;
+  flex-direction: column;
+
+  gap: 7px;
+}
+
+.undo-history-item {
+  width: 100%;
+
+  padding: 10px 12px;
+
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+
+  border: none;
+  border-radius: 10px;
+
+  background:
+    rgba(255, 255, 255, 0.09);
+
+  color: white;
+
+  cursor: pointer;
+}
+
+.undo-history-item:hover {
+  background:
+    rgba(255, 255, 255, 0.15);
+}
+
+.undo-history-item strong {
+  font-size: 14px;
+}
+
+.undo-history-item span {
+  font-size: 11px;
+
+  color:
+    rgba(255, 255, 255, 0.62);
+}
+
+.undo-history-buttons {
+  display: flex;
+
+  gap: 8px;
+
+  margin-top: 14px;
+}
+
+.undo-history-buttons button {
+  flex: 1;
+
+  padding: 10px;
+
+  border: none;
+  border-radius: 10px;
+
+  color: white;
+
+  font-weight: bold;
+}
+
+.undo-close-button {
+  background: #626b68;
+}
+
+.undo-execute-button {
+  background: #d9534f;
+}
+
+.undo-confirm-text {
+  padding: 12px;
+
+  border-radius: 10px;
+
+  background:
+    rgba(255, 255, 255, 0.08);
+
+  text-align: center;
+
+  line-height: 1.6;
+}
+
+.undo-toast {
+  position: fixed;
+
+  left: 50%;
+  top: 18px;
+
+  transform:
+    translateX(-50%);
+
+  padding:
+    9px
+    15px;
+
+  border-radius: 999px;
+
+  background:
+    rgba(20, 30, 28, 0.94);
+
+  color: white;
+
+  font-size: 13px;
+  font-weight: bold;
+
+  z-index: 10000;
+
+  pointer-events: none;
+
+  opacity: 0;
+
+  transition:
+    opacity 0.2s ease;
+}
+
+.undo-toast.show {
+  opacity: 1;
+}
+
+.undo-redo-button {
+  padding:
+    8px
+    12px;
+
+  border: none;
+  border-radius: 12px;
+
+  background:
+    rgba(255, 255, 255, 0.16);
+
+  color: white;
+
+  font-size: 14px;
+  font-weight: bold;
+
+  cursor: pointer;
+}
+
+.undo-redo-button[hidden] {
+  display: none;
+}
+/* ========================================
+   入力途中の復旧
+======================================== */
+
+.draft-restore-overlay {
+  position: fixed;
+  inset: 0;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  background: rgba(0, 0, 0, 0.48);
+
+  z-index: 12000;
+}
+
+.draft-restore-card {
+  width: min(390px, 82vw);
+
+  padding: 20px;
+
+  border-radius: 18px;
+
+  background: rgba(24, 39, 36, 0.98);
+  color: white;
+
+  box-shadow:
+    0 15px 45px
+    rgba(0, 0, 0, 0.45);
+
+  text-align: center;
+}
+
+.draft-restore-card h2 {
+  margin:
+    0
+    0
+    8px;
+
+  font-size: 21px;
+}
+
+.draft-restore-card p {
+  margin:
+    0
+    0
+    16px;
+
+  color:
+    rgba(255,255,255,0.72);
+
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.draft-restore-buttons {
+  display: flex;
+
+  gap: 8px;
+}
+
+.draft-restore-buttons button {
+  flex: 1;
+
+  padding: 11px;
+
+  border: none;
+  border-radius: 10px;
+
+  color: white;
+
+  font-weight: bold;
+
+  cursor: pointer;
+}
+
+.draft-discard-button {
+  background: #626b68;
+}
+
+.draft-continue-button {
+  background: #20bd70;
+}
+/* ========================================
+   点数修正 Ver.1
+======================================== */
+
+.point-correction-overlay {
+  position: fixed;
+
+  left: 50%;
+  top: 50%;
+
+  transform:
+    translate(-50%, -50%);
+
+  width:
+    min(370px, 78vw);
+
+  padding: 18px;
+
+  border-radius: 18px;
+
+  background:
+    rgba(24, 39, 36, 0.97);
+
+  color: white;
+
+  box-shadow:
+    0 15px 45px
+    rgba(0, 0, 0, 0.4);
+
+  z-index: 8000;
+}
+
+
+.point-correction-overlay h2 {
+  margin:
+    0
+    0
+    8px;
+
+  text-align: center;
+
+  font-size: 21px;
+}
+
+
+.point-correction-description {
+  margin:
+    0
+    0
+    12px;
+
+  text-align: center;
+
+  color:
+    rgba(255,255,255,0.7);
+
+  font-size: 13px;
+}
+
+
+.point-correction-mode-grid {
+  display: grid;
+
+  grid-template-columns:
+    1fr 1fr;
+
+  gap: 8px;
+}
+
+
+.point-correction-mode-grid button {
+  padding: 12px;
+
+  border: none;
+  border-radius: 10px;
+
+  background:
+    rgba(255,255,255,0.11);
+
+  color: white;
+
+  font-weight: bold;
+}
+
+
+.point-correction-field {
+  margin-top: 12px;
+}
+
+
+.point-correction-field label {
+  display: block;
+
+  margin-bottom: 6px;
+
+  font-size: 12px;
+
+  color:
+    rgba(255,255,255,0.7);
+}
+
+
+.point-correction-field input {
+  width: 100%;
+
+  box-sizing: border-box;
+
+  padding: 11px;
+
+  border: none;
+  border-radius: 10px;
+
+  font-size: 18px;
+  font-weight: bold;
+
+  text-align: center;
+}
+
+
+.point-correction-preview {
+  margin-top: 12px;
+
+  padding: 12px;
+
+  border-radius: 10px;
+
+  background:
+    rgba(255,255,255,0.08);
+
+  text-align: center;
+}
+
+
+.point-correction-preview strong {
+  display: block;
+
+  margin-bottom: 5px;
+
+  font-size: 18px;
+}
+
+
+.point-correction-delta-plus {
+  color: #8fe7b7;
+}
+
+
+.point-correction-delta-minus {
+  color: #ff9b9b;
+}
+
+
+.point-correction-actions {
+  display: flex;
+
+  gap: 8px;
+
+  margin-top: 14px;
+}
+
+
+.point-correction-actions button {
+  flex: 1;
+
+  padding: 11px;
+
+  border: none;
+  border-radius: 10px;
+
+  color: white;
+
+  font-weight: bold;
+}
+
+
+.point-correction-back {
+  background: #626b68;
+}
+
+
+.point-correction-next {
+  background: #2785e8;
+}
+
+
+.point-correction-confirm {
+  background: #20bd70;
+}
+
+
+.point-correction-error {
+  min-height: 16px;
+
+  margin:
+    8px
+    0
+    0;
+
+  color: #ff9b9b;
+
+  text-align: center;
+
+  font-size: 12px;
+}
+
+
+.point-correction-player-selected {
+  outline:
+    4px solid
+    #43c6ff !important;
+
+  outline-offset:
+    2px;
+}
+
+
+/* ========================================
+   ︙メニュー Ver.1
+======================================== */
+
+.simple-game-menu {
+  position: fixed;
+
+  right: 28px;
+  top: 70px;
+
+  width: 190px;
+
+  padding: 10px;
+
+  border-radius: 14px;
+
+  background:
+    rgba(24, 39, 36, 0.98);
+
+  box-shadow:
+    0 10px 35px
+    rgba(0, 0, 0, 0.4);
+
+  z-index: 8500;
+}
+
+
+.simple-game-menu button {
+  width: 100%;
+
+  padding: 11px;
+
+  border: none;
+  border-radius: 9px;
+
+  background:
+    rgba(255,255,255,0.09);
+
+  color: white;
+
+  font-weight: bold;
+
+  text-align: left;
+}
+
+
+.simple-game-menu button + button {
+  margin-top: 6px;
+}
+/* ========================================
+   点数修正 ＋ / − 選択
+======================================== */
+
+.point-correction-sign-row {
+  display: grid;
+
+  grid-template-columns:
+    1fr 1fr;
+
+  gap: 8px;
+
+  margin-bottom: 10px;
+}
+
+
+.point-correction-sign-button {
+  padding: 10px;
+
+  border:
+    2px solid
+    rgba(255,255,255,0.15);
+
+  border-radius: 10px;
+
+  background:
+    rgba(255,255,255,0.08);
+
+  color: white;
+
+  font-size: 20px;
+  font-weight: bold;
+
+  cursor: pointer;
+}
+
+
+.point-correction-sign-button.active {
+  border-color: #43c6ff;
+
+  background:
+    rgba(67,198,255,0.22);
+}
+/* ========================================
+   対局終了・最終結果 Ver.1
+======================================== */
+
+.match-end-overlay-v1 {
+  position: fixed;
+  inset: 0;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  background: rgba(0, 0, 0, 0.52);
+
+  z-index: 15000;
+}
+
+.match-end-card-v1 {
+  width: min(390px, 82vw);
+
+  padding: 20px;
+
+  border-radius: 18px;
+
+  background: rgba(24, 39, 36, 0.98);
+  color: white;
+
+  box-shadow:
+    0 15px 45px
+    rgba(0, 0, 0, 0.45);
+
+  text-align: center;
+}
+
+.match-end-card-v1 h2 {
+  margin: 0 0 8px;
+
+  font-size: 22px;
+}
+
+.match-end-card-v1 p {
+  margin: 0 0 16px;
+
+  color:
+    rgba(255,255,255,0.72);
+
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.match-end-actions-v1 {
+  display: flex;
+  flex-direction: column;
+
+  gap: 8px;
+}
+
+.match-end-actions-v1 button {
+  width: 100%;
+
+  padding: 11px;
+
+  border: none;
+  border-radius: 10px;
+
+  color: white;
+
+  font-weight: bold;
+
+  cursor: pointer;
+}
+
+.match-end-save-v1 {
+  background: #2785e8;
+}
+
+.match-end-discard-v1 {
+  background: #ba4b4b;
+}
+
+.match-end-back-v1 {
+  background: #626b68;
+}
+
+
+/* ========================================
+   最終結果
+======================================== */
+
+.final-result-overlay-v1 {
+  position: fixed;
+  inset: 0;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  background:
+    linear-gradient(
+      145deg,
+      #14342f,
+      #102824
+    );
+
+  z-index: 16000;
+}
+
+.final-result-card-v1 {
+  width: min(440px, 86vw);
+
+  padding: 20px;
+
+  border-radius: 20px;
+
+  background:
+    rgba(255,255,255,0.07);
+
+  color: white;
+
+  box-shadow:
+    0 15px 50px
+    rgba(0,0,0,0.35);
+}
+
+.final-result-title-v1 {
+  text-align: center;
+
+  margin-bottom: 15px;
+}
+
+.final-result-title-v1 h2 {
+  margin: 0;
+
+  font-size: 24px;
+}
+
+.final-result-status-v1 {
+  display: inline-block;
+
+  margin-top: 6px;
+
+  padding:
+    4px
+    9px;
+
+  border-radius: 999px;
+
+  background:
+    rgba(255,255,255,0.12);
+
+  font-size: 11px;
+}
+
+.final-result-list-v1 {
+  display: flex;
+  flex-direction: column;
+
+  gap: 7px;
+}
+
+.final-result-row-v1 {
+  display: grid;
+
+  grid-template-columns:
+    48px 1fr auto;
+
+  align-items: center;
+
+  gap: 8px;
+
+  padding:
+    11px
+    12px;
+
+  border-radius: 12px;
+
+  background:
+    rgba(255,255,255,0.08);
+}
+
+.final-result-row-v1.first {
+  background:
+    rgba(255, 215, 90, 0.16);
+}
+
+.final-result-rank-v1 {
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.final-result-name-v1 {
+  font-size: 15px;
+  font-weight: bold;
+}
+
+.final-result-score-v1 {
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.final-result-info-v1 {
+  margin-top: 12px;
+
+  padding: 9px;
+
+  border-radius: 10px;
+
+  background:
+    rgba(255,255,255,0.06);
+
+  text-align: center;
+
+  color:
+    rgba(255,255,255,0.68);
+
+  font-size: 12px;
+}
+
+.final-result-actions-v1 {
+  display: grid;
+
+  grid-template-columns:
+    1fr 1fr 1fr;
+
+  gap: 7px;
+
+  margin-top: 15px;
+}
+
+.final-result-actions-v1 button {
+  padding:
+    10px
+    6px;
+
+  border: none;
+  border-radius: 10px;
+
+  background:
+    rgba(255,255,255,0.12);
+
+  color: white;
+
+  font-size: 12px;
+  font-weight: bold;
+
+  cursor: pointer;
+}
+
+
+/* ========================================
+   簡易ホーム
+======================================== */
+
+.simple-home-overlay-v1 {
+  position: fixed;
+  inset: 0;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  background:
+    linear-gradient(
+      145deg,
+      #14342f,
+      #102824
+    );
+
+  z-index: 16000;
+}
+
+.simple-home-card-v1 {
+  width: min(390px, 84vw);
+
+  padding: 22px;
+
+  border-radius: 20px;
+
+  background:
+    rgba(255,255,255,0.07);
+
+  color: white;
+
+  text-align: center;
+}
+
+.simple-home-card-v1 h1 {
+  margin:
+    0
+    0
+    18px;
+
+  font-size: 24px;
+}
+
+.simple-home-card-v1 button {
+  width: 100%;
+
+  padding: 12px;
+
+  margin-top: 8px;
+
+  border: none;
+  border-radius: 10px;
+
+  background:
+    rgba(255,255,255,0.12);
+
+  color: white;
+
+  font-weight: bold;
+}
+/* ========================================
+   中断対局 Ver.1
+======================================== */
+
+.interrupted-match-card-v1 {
+  margin-top: 14px;
+
+  padding: 14px;
+
+  border-radius: 14px;
+
+  background:
+    rgba(255,255,255,0.08);
+
+  text-align: left;
+}
+
+.interrupted-match-card-v1 h3 {
+  margin:
+    0
+    0
+    7px;
+
+  font-size: 15px;
+}
+
+.interrupted-match-round-v1 {
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.interrupted-match-players-v1 {
+  margin-top: 5px;
+
+  color:
+    rgba(255,255,255,0.68);
+
+  font-size: 12px;
+}
+
+.interrupted-match-warning-v1 {
+  margin-top: 7px;
+
+  color: #ffcf72;
+
+  font-size: 11px;
+  font-weight: bold;
+}
+
+.interrupted-match-actions-v1 {
+  display: grid;
+
+  grid-template-columns:
+    1fr 1fr;
+
+  gap: 7px;
+
+  margin-top: 10px;
+}
+
+.interrupted-match-actions-v1 button {
+  margin: 0;
+
+  text-align: center;
+}
+
+.interrupted-resume-v1 {
+  background:
+    #2785e8 !important;
+}
+
+.interrupted-end-v1 {
+  background:
+    #a84b4b !important;
+}
+/* ========================================
+   中断対局 Ver.1
+======================================== */
+
+.interrupted-match-card-v1 {
+  margin-top: 14px;
+
+  padding: 14px;
+
+  border-radius: 14px;
+
+  background:
+    rgba(255,255,255,0.08);
+
+  text-align: left;
+}
+
+.interrupted-match-card-v1 h3 {
+  margin:
+    0
+    0
+    7px;
+
+  font-size: 15px;
+}
+
+.interrupted-match-round-v1 {
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.interrupted-match-players-v1 {
+  margin-top: 5px;
+
+  color:
+    rgba(255,255,255,0.68);
+
+  font-size: 12px;
+}
+
+.interrupted-match-warning-v1 {
+  margin-top: 7px;
+
+  color: #ffcf72;
+
+  font-size: 11px;
+  font-weight: bold;
+}
+
+.interrupted-match-actions-v1 {
+  display: grid;
+
+  grid-template-columns:
+    1fr 1fr;
+
+  gap: 7px;
+
+  margin-top: 10px;
+}
+
+.interrupted-match-actions-v1 button {
+  margin: 0;
+
+  text-align: center;
+}
+
+.interrupted-resume-v1 {
+  background:
+    #2785e8 !important;
+}
+
+.interrupted-end-v1 {
+  background:
+    #a84b4b !important;
+}
+/* 途中開始：プレイヤー入力欄の表示順を 上→左→下→右 にする */
+.mid-match-player-grid-v2 > .mid-match-player-card-v2:nth-child(1) {
+  order: 1;
+}
+
+.mid-match-player-grid-v2 > .mid-match-player-card-v2:nth-child(2) {
+  order: 4;
+}
+
+.mid-match-player-grid-v2 > .mid-match-player-card-v2:nth-child(3) {
+  order: 3;
+}
+
+.mid-match-player-grid-v2 > .mid-match-player-card-v2:nth-child(4) {
+  order: 2;
+}
+
+/* ========================================
+   M6 実機スマホ横画面対応 Ver.1
+   ======================================== */
+
+/* 画面高さが低いスマホ横画面向けに全体を圧縮 */
+@media (orientation: landscape) and (max-height: 520px) {
+
+  body {
+    overflow: hidden;
+  }
+
+  #setup-screen {
+    padding:
+      max(6px, env(safe-area-inset-top))
+      max(10px, env(safe-area-inset-right))
+      max(6px, env(safe-area-inset-bottom))
+      max(10px, env(safe-area-inset-left));
+    justify-content: flex-start;
+    gap: 4px;
+  }
+
+  .setup-header {
+    margin-bottom: 4px;
+  }
+
+  .setup-header h1 {
+    margin-bottom: 0;
+    font-size: clamp(18px, 4vh, 26px);
+    line-height: 1.05;
+  }
+
+  .setup-header p {
+    margin-top: 2px;
+    font-size: clamp(10px, 2.2vh, 14px);
+    line-height: 1.1;
+  }
+
+  .setup-table {
+    width: min(760px, 88vw);
+    height: min(310px, 70vh);
+    min-height: 250px;
+    border-width: 5px;
+    border-radius: 20px;
+  }
+
+  .setup-player {
+    width: min(165px, 20vw);
+    gap: 3px;
+  }
+
+  .setup-player label {
+    font-size: 11px;
+    line-height: 1;
+  }
+
+  .setup-player input {
+    padding: 6px 8px;
+    border-radius: 8px;
+    font-size: 13px;
+    height: 34px;
+  }
+
+  .dealer-select {
+    padding: 5px 6px;
+    border-radius: 7px;
+    font-size: 12px;
+    line-height: 1.1;
+  }
+
+  .setup-top {
+    top: 8px;
+  }
+
+  .setup-bottom {
+    bottom: 8px;
+  }
+
+  .setup-left {
+    left: 12px;
+  }
+
+  .setup-right {
+    right: 12px;
+  }
+
+  .setup-center {
+    width: 104px;
+    height: 92px;
+    border-radius: 13px;
+  }
+
+  .setup-center span {
+    font-size: 19px;
+  }
+
+  .setup-center small {
+    margin-top: 3px;
+    font-size: 10px;
+  }
+
+  #go-confirm-button {
+    margin-top: 5px;
+    min-width: 180px;
+    padding: 7px 18px;
+    border-radius: 10px;
+    font-size: 14px;
+  }
+
+  #setup-error {
+    margin-top: 2px;
+    height: 14px;
+    font-size: 10px;
+  }
+
+  /* 開始前確認も低い高さに収める */
+  #confirm-screen {
+    padding:
+      max(6px, env(safe-area-inset-top))
+      max(10px, env(safe-area-inset-right))
+      max(6px, env(safe-area-inset-bottom))
+      max(10px, env(safe-area-inset-left));
+  }
+
+  .confirm-header {
+    margin-bottom: 4px;
+  }
+
+  .confirm-header h2 {
+    margin-bottom: 1px;
+    font-size: 20px;
+  }
+
+  .confirm-header p {
+    font-size: 11px;
+  }
+
+  .confirm-table {
+    width: min(740px, 86vw);
+    height: min(285px, 64vh);
+    border-width: 5px;
+    border-radius: 20px;
+  }
+
+  .confirm-player {
+    min-width: 150px;
+    padding: 7px;
+    grid-template-columns: 34px 1fr;
+    gap: 1px 5px;
+  }
+
+  .confirm-player strong {
+    font-size: 13px;
+  }
+
+  .confirm-player > span:last-child {
+    font-size: 11px;
+  }
+
+  .confirm-wind {
+    width: 30px;
+    height: 30px;
+    font-size: 16px;
+  }
+
+  .confirm-top {
+    top: 8px;
+  }
+
+  .confirm-bottom {
+    bottom: 8px;
+  }
+
+  .confirm-left {
+    left: 10px;
+  }
+
+  .confirm-right {
+    right: 10px;
+  }
+
+  .confirm-center {
+    width: 115px;
+    min-height: 100px;
+    padding: 8px;
+    border-radius: 13px;
+  }
+
+  .confirm-center strong {
+    font-size: 20px;
+  }
+
+  .confirm-center span {
+    font-size: 11px;
+  }
+
+  .confirm-buttons {
+    margin-top: 5px;
+    gap: 8px;
+  }
+
+  .confirm-buttons .secondary-button,
+  .confirm-buttons .main-button {
+    min-width: 145px;
+    padding: 7px 12px;
+    border-radius: 9px;
+    font-size: 13px;
+  }
+}
+
+/* iPhoneのノッチ・ホームインジケータを避ける */
+@supports (padding: max(0px)) {
+  #game-screen {
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+}
+
+/* 縦持ちでは操作画面を出さず、横向きを促す */
+#landscape-orientation-guard {
+  display: none;
+}
+
+@media (orientation: portrait) {
+  #landscape-orientation-guard {
+    position: fixed;
+    inset: 0;
+    z-index: 2147483647;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: #071c16;
+    color: white;
+  }
+
+  .landscape-orientation-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    padding: 24px 28px;
+    border: 1px solid rgba(255,255,255,0.18);
+    border-radius: 20px;
+    background: rgba(255,255,255,0.08);
+    text-align: center;
+  }
+
+  .landscape-orientation-card strong {
+    font-size: 24px;
+  }
+
+  .landscape-orientation-card span {
+    opacity: 0.8;
+    font-size: 14px;
+  }
+
+  .landscape-phone-icon {
+    font-size: 46px;
+    line-height: 1;
+  }
+}
+
+
+/* ========================================
+   M6 iPhone PWA レイアウト修正 Ver.3
+   - 上側の余白をなくす
+   - 名前入力時の勝手な拡大/大きな移動を抑える
+   ======================================== */
+
+/* iOS Safariは16px未満のinputにフォーカスすると自動ズームしやすい */
+input,
+textarea,
+select {
+  font-size: 16px !important;
+}
+
+/* PWA起動時は画面上端からアプリを使う */
+@media (display-mode: standalone) {
+  html,
+  body {
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    min-height: 100% !important;
+    background: #071c16;
+  }
+
+  body {
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .screen {
+    width: 100vw;
+    min-width: 100vw;
+    min-height: 100dvh;
+    margin: 0 !important;
+  }
+
+  #setup-screen,
+  #confirm-screen,
+  #game-screen {
+    box-sizing: border-box;
+    margin: 0 !important;
+  }
+}
+
+/* iPhone横画面の設定画面を画面上端から詰めて表示 */
+@media (display-mode: standalone) and (orientation: landscape) and (max-height: 520px) {
+  #setup-screen {
+    min-height: 100dvh !important;
+    height: auto !important;
+    padding:
+      4px
+      max(10px, env(safe-area-inset-right))
+      6px
+      max(10px, env(safe-area-inset-left)) !important;
+    justify-content: flex-start !important;
+  }
+
+  .setup-header {
+    margin-top: 0 !important;
+    margin-bottom: 2px !important;
+  }
+
+  .setup-header h1 {
+    margin-top: 0 !important;
+    font-size: 20px !important;
+    line-height: 1 !important;
+  }
+
+  .setup-header p {
+    margin-top: 2px !important;
+    font-size: 11px !important;
+  }
+
+  .setup-table {
+    margin-top: 2px !important;
+    height: min(300px, 72dvh) !important;
+  }
+
+  /* フォーカス時の自動ズームを防ぐため16pxを維持 */
+  .setup-player input {
+    font-size: 16px !important;
+    height: 38px !important;
+    padding: 6px 8px !important;
+  }
+
+  #go-confirm-button {
+    flex: 0 0 auto;
+    margin-top: 4px !important;
+  }
+}
+
+/* キーボード表示時にブラウザが大きくスクロールしても、
+   フォーカス解除時に元位置へ戻りやすくする */
+html {
+  scroll-behavior: auto !important;
+}
+
+
+/* ========================================
+   M6 iPhone PWA 再起動時の上余白修正 Ver.4
+   ======================================== */
+@media (display-mode: standalone) {
+  html,
+  body {
+    position: relative !important;
+    inset: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    min-width: 100% !important;
+    min-height: 100dvh !important;
+    overflow-x: hidden !important;
+    background: #071c16 !important;
+  }
+
+  body {
+    top: 0 !important;
+    transform: none !important;
+  }
+
+  .screen.active,
+  #game-screen.active,
+  #setup-screen.active,
+  #confirm-screen.active {
+    margin-top: 0 !important;
+    top: 0 !important;
+    transform-origin: top center !important;
+  }
+}
+
+
+/* ========================================
+   M6 縦向きガード強化 Ver.2
+   ======================================== */
+#landscape-orientation-guard {
+  display: none;
+}
+
+@media (orientation: portrait) {
+  html,
+  body {
+    overflow: hidden !important;
+    background: #071c16 !important;
+  }
+
+  #landscape-orientation-guard {
+    position: fixed;
+    inset: 0;
+    z-index: 2147483647;
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    padding:
+      max(24px, env(safe-area-inset-top))
+      max(24px, env(safe-area-inset-right))
+      max(24px, env(safe-area-inset-bottom))
+      max(24px, env(safe-area-inset-left));
+    background:
+      radial-gradient(
+        circle at center,
+        #0f5f43 0%,
+        #083e2f 55%,
+        #071c16 100%
+      );
+    color: white;
+  }
+
+  .landscape-orientation-card {
+    width: min(86vw, 420px);
+    min-height: 250px;
+    padding: 28px 26px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    border:
+      1px solid
+      rgba(255,255,255,0.22);
+    border-radius: 24px;
+    background:
+      rgba(0,0,0,0.18);
+    text-align: center;
+    box-shadow:
+      0 18px 55px
+      rgba(0,0,0,0.28);
+  }
+
+  .landscape-phone-icon {
+    font-size: 62px !important;
+    line-height: 1;
+  }
+
+  .landscape-orientation-card strong {
+    font-size: 30px !important;
+    line-height: 1.2;
+  }
+
+  .landscape-orientation-card span {
+    font-size: 16px !important;
+    opacity: 0.86;
+  }
+
+  .landscape-orientation-card::after {
+    content: "端末を横向きにすると自動で続きます";
+    margin-top: 4px;
+    font-size: 13px;
+    opacity: 0.68;
+  }
+}
+
+
+/* ========================================
+   M6 設定画面ホームボタン Ver.4
+   ======================================== */
+#setup-screen {
+  position: relative;
+}
+
+.setup-home-button-v4 {
+  position: fixed;
+  top: max(10px, env(safe-area-inset-top));
+  left: max(12px, env(safe-area-inset-left));
+  z-index: 1200;
+  min-width: 112px;
+  padding: 9px 14px;
+  border: 1px solid rgba(255,255,255,0.32);
+  border-radius: 14px;
+  background: rgba(5,50,37,0.82);
+  color: white;
+  font-size: 14px;
+  font-weight: 700;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+
+/* ========================================
+   M6 iPhone 対局画面タップ保証 Ver.8
+   ======================================== */
+
+/* 横向き時の向きガードは絶対にタップを奪わない */
+@media (orientation: landscape) {
+  #landscape-orientation-guard {
+    display: none !important;
+    pointer-events: none !important;
+    visibility: hidden !important;
+  }
+}
+
+/* 対局画面の主要操作は必ずタップ可能 */
+#game-screen.active {
+  pointer-events: auto !important;
+}
+
+#game-screen.active .center-actions,
+#game-screen.active .top-actions,
+#game-screen.active .player-panel {
+  pointer-events: auto !important;
+}
+
+#game-screen.active #agari-button,
+#game-screen.active #ryukyoku-button,
+#game-screen.active .top-actions button,
+#game-screen.active .riichi-button {
+  position: relative;
+  z-index: 30001 !important;
+  pointer-events: auto !important;
+  touch-action: manipulation !important;
+}
+
+
+/* ========================================
+   M6 対局画面タップ層整理 Ver.9
+   ======================================== */
+#game-screen.active .center-actions,
+#game-screen.active .top-actions,
+#game-screen.active .player-panel {
+  z-index: 100 !important;
+}
+
+#game-screen.active #agari-button,
+#game-screen.active #ryukyoku-button,
+#game-screen.active .top-actions button,
+#game-screen.active .riichi-button {
+  pointer-events: auto !important;
+  touch-action: manipulation !important;
+}
+
+/* iPhone/PWA 画面高さ修正 Ver.11 */
+html,body{width:100%;min-height:100%;margin:0;padding:0}
+@supports(height:100dvh){
+ html,body,#app,.app,#game-screen,#game-screen.active,#setup-screen,#setup-screen.active{
+   min-height:100dvh!important;
+ }
+}
+@media(orientation:landscape){
+ body{min-height:100dvh;overflow-x:hidden}
+ #game-screen.active{min-height:100dvh!important;height:auto!important}
+}
+
+/* ========================================
+   iPhone横画面 実機レイアウト Ver.12
+   844x390級の画面でも中央UIと4人のパネルを重ねない
+   ======================================== */
+@media (orientation: landscape) and (max-height: 500px) {
+  html, body {
+    width: 100%;
+    height: 100%;
+    min-height: 100%;
+    overflow: hidden !important;
+    background: #071c16 !important;
+  }
+
+  .screen,
+  #game-screen,
+  #game-screen.active {
+    width: 100vw !important;
+    height: 100dvh !important;
+    min-height: 100dvh !important;
+    max-height: 100dvh !important;
+    overflow: hidden !important;
+    box-sizing: border-box !important;
+  }
+
+  #game-screen.active {
+    transform: none !important;
+  }
+
+  .player-panel {
+    scale: .82;
+  }
+
+  .player-top { top: 7px !important; }
+  .player-bottom { bottom: 7px !important; }
+  .player-left { left: 12px !important; }
+  .player-right { right: 12px !important; }
+
+  .center-actions {
+    gap: 10px !important;
+    z-index: 35 !important;
+  }
+
+  .center-actions button {
+    min-width: 108px !important;
+    padding: 14px 18px !important;
+    font-size: 20px !important;
+  }
+
+  .agari-overlay {
+    position: fixed !important;
+    left: 50% !important;
+    top: 50% !important;
+    width: min(500px, 58vw) !important;
+    max-height: calc(100dvh - 24px) !important;
+    transform: translate(-50%, -50%) !important;
+    z-index: 5000 !important;
+  }
+
+  .agari-flow-card {
+    max-height: calc(100dvh - 24px) !important;
+    overflow: auto !important;
+    padding: 10px !important;
+  }
+
+  .agari-overlay:has(.score-switch-table),
+  .agari-overlay:has(.score-dual-grid) {
+    width: min(590px, 70vw) !important;
+  }
+}
+
+/* 縦向きガードはJSのinline styleに依存せずCSSが必ず勝つ */
+@media (orientation: portrait) {
+  #landscape-orientation-guard {
+    display: flex !important;
+    visibility: visible !important;
+    pointer-events: auto !important;
+  }
+}
+
+/* ========================================
+   iPhone実機 操作層 Ver.13
+   ======================================== */
+#simple-game-menu-v1,
+.game-menu,
+[class*="game-menu"] {
+  pointer-events: auto !important;
+  z-index: 9000 !important;
+}
+
+#simple-game-menu-v1 button,
+.game-menu button,
+[class*="game-menu"] button {
+  pointer-events: auto !important;
+  touch-action: manipulation !important;
+}
+
+#game-screen.active {
+  contain: layout paint;
+  background: inherit;
+}
+
+/* アガリ処理中のリーチは選択不可であることを視覚的にも示す */
+body:has(.agari-overlay:not(.hidden)) .riichi-button {
+  pointer-events: none !important;
+  opacity: .45 !important;
+}
+
+/* ========================================
+   iPhone実機レイアウト Ver.14
+   ======================================== */
+@media (display-mode: standalone) and (orientation: landscape),
+       (orientation: landscape) and (max-height: 500px) {
+  html, body {
+    width: 100% !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
+    overscroll-behavior: none !important;
+  }
+
+  .screen.active,
+  #game-screen.active {
+    position: fixed !important;
+    inset: 0 !important;
+    width: auto !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    margin: 0 !important;
+    overflow: hidden !important;
+  }
+
+  /* 点数表をiPhone横画面1枚に収める */
+  .agari-overlay:has(.score-switch-table) {
+    width: min(560px, 64vw) !important;
+    max-height: calc(100% - 12px) !important;
+  }
+
+  .agari-overlay:has(.score-switch-table) .agari-flow-card {
+    padding: 7px 9px !important;
+    max-height: calc(100dvh - 12px) !important;
+    overflow: hidden !important;
+  }
+
+  .score-switch-table table {
+    border-spacing: 2px !important;
+  }
+
+  .score-switch-table th {
+    padding: 1px !important;
+    font-size: 9px !important;
+  }
+
+  .score-switch-table .score-cell {
+    min-height: 25px !important;
+    padding: 1px 2px !important;
+    font-size: 10px !important;
+    line-height: 1.05 !important;
+  }
+
+  .fu-switch-area {
+    margin-top: 3px !important;
+  }
+
+  .fu-switch-button {
+    min-width: 150px !important;
+    padding: 4px 8px !important;
+    font-size: 10px !important;
+  }
+
+  /* アガリ者/放銃者選択中はリーチ部分もプレイヤーパネルへのタップとして通す */
+  body:has(.agari-overlay:not(.hidden)) .riichi-button {
+    pointer-events: auto !important;
+    opacity: .55 !important;
+  }
+}
+
+/* ========================================
+   iPhone横画面 1画面完結 Ver.15
+   ======================================== */
+@media (orientation: landscape) and (max-height: 500px) {
+  html, body {
+    position: fixed !important;
+    inset: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    overflow: hidden !important;
+  }
+
+  /* メニューはNetlifyバッジに隠れないよう上寄せ・小型化 */
+  #simple-game-menu-v1 {
+    top: 62px !important;
+    bottom: auto !important;
+    right: 34px !important;
+    max-height: calc(100dvh - 74px) !important;
+    overflow: hidden !important;
+    padding: 8px !important;
+  }
+  #simple-game-menu-v1 button {
+    min-height: 42px !important;
+    padding: 7px 12px !important;
+    font-size: 15px !important;
+    margin: 3px 0 !important;
+  }
+
+  /* アガリの点数表：下の確定操作まで必ず1画面 */
+  .agari-overlay:has(.score-switch-table),
+  .agari-overlay:has(.score-dual-grid) {
+    width: min(540px, 62vw) !important;
+    max-height: calc(100dvh - 8px) !important;
+  }
+  .agari-overlay:has(.score-switch-table) .agari-flow-card,
+  .agari-overlay:has(.score-dual-grid) .agari-flow-card {
+    max-height: calc(100dvh - 8px) !important;
+    overflow: hidden !important;
+    padding: 5px 8px !important;
+    transform-origin: center center;
+  }
+  .score-switch-table {
+    margin: 2px 0 !important;
+  }
+  .score-switch-table .score-cell {
+    min-height: 21px !important;
+    height: 21px !important;
+    padding: 0 2px !important;
+    font-size: 9px !important;
+  }
+  .score-switch-table th {
+    height: 15px !important;
+    padding: 0 !important;
+    font-size: 8px !important;
+  }
+  .fu-switch-area {
+    margin: 2px 0 !important;
+  }
+  .fu-switch-button {
+    padding: 3px 6px !important;
+    min-height: 24px !important;
+  }
+  .agari-flow-card .flow-actions,
+  .agari-flow-card .action-row,
+  .agari-flow-card .confirm-actions {
+    margin-top: 3px !important;
+    gap: 6px !important;
+  }
+  .agari-flow-card .flow-actions button,
+  .agari-flow-card .action-row button,
+  .agari-flow-card .confirm-actions button {
+    min-height: 30px !important;
+    padding: 4px 10px !important;
+  }
+
+  /* 流局結果など中央ダイアログもスクロール不要で収める */
+  .modal-overlay .modal,
+  .dialog-overlay .dialog,
+  [class*="result-modal"],
+  [class*="result-dialog"] {
+    max-height: calc(100dvh - 12px) !important;
+    overflow: hidden !important;
+    padding-top: 8px !important;
+    padding-bottom: 8px !important;
+  }
+
+  .modal-overlay .modal h2,
+  .dialog-overlay .dialog h2,
+  [class*="result-modal"] h2,
+  [class*="result-dialog"] h2 {
+    margin: 3px 0 7px !important;
+    font-size: 21px !important;
+  }
+
+  .modal-overlay .modal button,
+  .dialog-overlay .dialog button,
+  [class*="result-modal"] button,
+  [class*="result-dialog"] button {
+    min-height: 32px !important;
+    padding: 5px 10px !important;
+  }
+}
+
+/* iPhone横画面 全画面1枚化 Ver.16 */
+@media (orientation: landscape) and (max-height: 500px) {
+  html,body{
+    position:fixed!important;inset:0!important;width:100vw!important;height:100dvh!important;
+    min-height:0!important;max-height:100dvh!important;overflow:hidden!important;
+  }
+  #setup-screen.active,#game-screen.active,.screen.active{
+    position:fixed!important;inset:0!important;width:100vw!important;height:100dvh!important;
+    min-height:0!important;max-height:100dvh!important;overflow:hidden!important;margin:0!important;
+  }
+
+  .agari-overlay:has(.score-switch-table),.agari-overlay:has(.score-dual-grid){
+    width:min(700px,82vw)!important;max-height:none!important;zoom:.68;
+  }
+  .agari-overlay:has(.score-switch-table) .agari-flow-card,
+  .agari-overlay:has(.score-dual-grid) .agari-flow-card{
+    max-height:none!important;overflow:visible!important;padding:8px 10px!important;
+  }
+
+  #ryuukyoku-flow-overlay{
+    width:min(430px,58vw)!important;max-height:none!important;overflow:visible!important;
+    padding:10px!important;zoom:.82;
+  }
+  #ryuukyoku-flow-overlay h2{font-size:18px!important;margin-bottom:4px!important}
+  .ryuukyoku-description{margin-bottom:5px!important;font-size:11px!important}
+  .ryuukyoku-selected-info,.ryuukyoku-next-state{padding:6px!important;margin:5px 0!important}
+  .ryuukyoku-result-list{gap:3px!important;margin:5px 0!important}
+  .ryuukyoku-result-row{padding:4px 7px!important}
+  .ryuukyoku-button-row{margin-top:6px!important}
+  .ryuukyoku-button-row button{padding:7px!important}
+
+  .mid-match-setup-overlay-v2{padding:4px!important;overflow:hidden!important}
+  .mid-match-setup-card-v2{
+    width:min(1120px,94vw)!important;max-height:none!important;overflow:visible!important;
+    padding:10px 14px!important;zoom:.78;
+  }
+  .mid-match-setup-card-v2 h2{font-size:19px!important;margin-bottom:3px!important}
+  .mid-match-setup-note-v2{font-size:10px!important;line-height:1.25!important;margin:2px 0!important}
+  .mid-match-player-grid-v2{margin-top:6px!important;gap:6px!important;grid-template-columns:repeat(4,1fr)!important}
+  .mid-match-player-card-v2{padding:6px!important}
+  .mid-match-player-card-v2 strong{margin-bottom:3px!important;font-size:11px!important}
+  .mid-match-player-card-v2 input,.mid-match-setting-grid-v2 select,.mid-match-setting-grid-v2 input{
+    padding:6px!important;font-size:13px!important
+  }
+  .mid-match-player-card-v2 input+input{margin-top:4px!important}
+  .mid-match-setting-grid-v2{margin-top:6px!important;gap:6px!important;grid-template-columns:repeat(4,1fr)!important}
+  .mid-match-setting-item-v2 label{margin-bottom:2px!important;font-size:10px!important}
+  .mid-match-total-v2{margin-top:5px!important;padding:5px!important;font-size:11px!important}
+  .mid-match-error-v2{min-height:12px!important;margin-top:2px!important;font-size:10px!important}
+  .mid-match-setup-actions-v2{margin-top:4px!important}
+  .mid-match-setup-actions-v2 button{padding:7px!important}
+
+  .final-result-card-v1{max-height:none!important;overflow:visible!important;zoom:.82}
+  body:has(.agari-overlay:not(.hidden)) .riichi-button{
+    pointer-events:auto!important;opacity:.55!important;touch-action:manipulation!important
+  }
+}
+
+/* ========================================
+   iPhone操作性調整 Ver.17
+   ======================================== */
+@media (orientation: landscape) and (max-height: 500px) {
+  /* 点数表：1画面維持のまま、押す領域を最大限大きくする */
+  .agari-overlay:has(.score-switch-table),
+  .agari-overlay:has(.score-dual-grid) {
+    zoom: .82 !important;
+    width: min(650px, 76vw) !important;
+  }
+  .score-switch-table .score-cell {
+    min-height: 30px !important;
+    height: 30px !important;
+    padding: 2px 4px !important;
+    font-size: 12px !important;
+  }
+  .score-switch-table th {
+    height: 19px !important;
+    font-size: 10px !important;
+  }
+  .fu-switch-button {
+    min-height: 30px !important;
+    font-size: 11px !important;
+  }
+
+  /* 途中から開始：小さすぎない、画面いっぱい寄り */
+  .mid-match-setup-card-v2 {
+    zoom: .94 !important;
+    width: min(1180px, 96vw) !important;
+    padding: 10px 14px !important;
+  }
+  .mid-match-setup-card-v2 h2 {
+    font-size: 21px !important;
+  }
+  .mid-match-setup-note-v2 {
+    font-size: 11px !important;
+  }
+  .mid-match-player-card-v2 {
+    padding: 7px !important;
+  }
+  .mid-match-player-card-v2 strong {
+    font-size: 12px !important;
+  }
+  .mid-match-player-card-v2 input,
+  .mid-match-setting-grid-v2 select,
+  .mid-match-setting-grid-v2 input {
+    min-height: 34px !important;
+    padding: 6px 8px !important;
+    font-size: 14px !important;
+  }
+  .mid-match-total-v2 {
+    font-size: 12px !important;
+    padding: 6px !important;
+  }
+  .mid-match-setup-actions-v2 button {
+    min-height: 38px !important;
+    font-size: 14px !important;
+  }
+}
+
+
+/* ========================================
+   点数入力 下部3ボタンのみ調整 Ver.20
+   モーダル本体の位置・サイズには触れない
+   ======================================== */
+@media (orientation: landscape) and (max-height: 500px) {
+  .agari-actions {
+    position: relative !important;
+    bottom: 8px !important;
+  }
+}
+
+
+/* 点数入力 Ver.22: 通常表は20〜50符。空いた分を下部操作の余白に使用 */
+@media (orientation: landscape) and (max-height: 500px) {
+  .agari-overlay:has(.score-switch-table) .agari-flow-actions {
+    margin-top: 10px !important;
+    padding-bottom: max(12px, env(safe-area-inset-bottom)) !important;
+  }
+}
