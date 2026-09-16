@@ -72,12 +72,12 @@ const normalFuList = [
   25,
   30,
   40,
-  50,
-  60
+  50
 ];
 
 
 const highFuList = [
+  60,
   70,
   80,
   90,
@@ -1333,6 +1333,8 @@ playerPanels.forEach(
           event.target.closest(
             ".riichi-button"
           )
+          &&
+          !agariFlow.active
         ) {
 
           return;
@@ -2342,9 +2344,9 @@ function renderScoreTable() {
         ${
           agariFlow.showHighFu
 
-            ? "20〜60符に戻す"
+            ? "20〜50符に戻す"
 
-            : "70符以上を表示"
+            : "60〜110符を表示"
         }
 
       </button>
@@ -21878,76 +21880,7 @@ if (
 })();
 
 
-// ========================================
-// M6 横向き復帰制御 Ver.2
-// 縦で開いた場合はガードを出し、横向きになった瞬間に
-// そのまま元の画面へ復帰。対応環境ではlandscape lockも試す。
-// ========================================
-(() => {
-  function isLandscapeV2() {
-    return window.matchMedia("(orientation: landscape)").matches;
-  }
 
-  function resetViewportAfterRotateV2() {
-    if (!isLandscapeV2()) return;
-
-    try {
-      document.documentElement.scrollTop = 0;
-      document.body.scrollTop = 0;
-      window.scrollTo({ left: 0, top: 0, behavior: "instant" });
-    } catch (_) {
-      window.scrollTo(0, 0);
-    }
-
-    // iOSのレイアウト再計算はブラウザに任せる。
-    // resizeを自分で再発火すると無限ループになるため行わない。
-    requestAnimationFrame(() => {
-      void document.documentElement.offsetHeight;
-    });
-  }
-
-  async function tryLandscapeLockV2() {
-    try {
-      if (
-        screen.orientation &&
-        typeof screen.orientation.lock === "function"
-      ) {
-        await screen.orientation.lock("landscape");
-      }
-    } catch (_) {
-      // iPhone Safari/PWAでは失敗することがあるため無視
-    }
-  }
-
-  window.addEventListener("orientationchange", () => {
-    setTimeout(resetViewportAfterRotateV2, 120);
-    setTimeout(resetViewportAfterRotateV2, 350);
-  });
-
-  window.addEventListener("resize", () => {
-    if (isLandscapeV2()) {
-      resetViewportAfterRotateV2();
-    }
-  });
-
-  document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "visible") {
-      tryLandscapeLockV2();
-      if (isLandscapeV2()) {
-        setTimeout(resetViewportAfterRotateV2, 80);
-      }
-    }
-  });
-
-  window.addEventListener("pageshow", () => {
-    tryLandscapeLockV2();
-    if (isLandscapeV2()) {
-      setTimeout(resetViewportAfterRotateV2, 80);
-      setTimeout(resetViewportAfterRotateV2, 250);
-    }
-  });
-
-})();
 
 
 // ========================================
@@ -22028,8 +21961,14 @@ if (
     button.onclick = () => issueCloudCodeMidMatchV4(button);
   }
 
-  const menuObserverV4 = new MutationObserver(installMidMatchCloudButtonV4);
-  menuObserverV4.observe(document.body, { childList: true, subtree: true });
+  // Ver.14: MutationObserverは使用しない。
+  // メニューを開いた時だけクラウドボタンを取り付ける。
+  const originalOpenSimpleGameMenuV14 = openSimpleGameMenuV1;
+  openSimpleGameMenuV1 = function (...args) {
+    const result = originalOpenSimpleGameMenuV14.apply(this, args);
+    installMidMatchCloudButtonV4();
+    return result;
+  };
 
   // A(上) → B(右) → C(下) → D(左) → キーボードを閉じる
   const nameOrder = ["name-top", "name-left", "name-bottom", "name-right"];
@@ -22066,134 +22005,632 @@ if (
 })();
 
 
+
+
+
+
+
+
+
+
+
+
+
+
 // ========================================
-// M6 対局開始時の残留オーバーレイ除去 Ver.8
-// iPhone/PWAで設定画面の透明レイヤーが残り、
-// アガリ・流局・メニューのタップを奪うケースを防ぐ。
+// iPhone実機操作安定化 Ver.13
 // ========================================
 (() => {
-  const staleOverlayIdsV8 = [
-    "simple-home-overlay-v1",
-    "new-match-mode-overlay-v2",
-    "mid-match-setup-overlay-v2"
-  ];
+  // 「何もない卓面」だけをキャンセル扱いにする。
+  // プレイヤーパネル・リーチ・メニュー等の操作UIは除外。
+  const interactiveV13 = [
+    ".player-panel",
+    ".riichi-button",
+    "#agari-button",
+    "#ryukyoku-button",
+    ".top-actions",
+    "button",
+    "input",
+    "select",
+    "label",
+    ".agari-overlay",
+    ".agari-flow-card",
+    ".game-menu",
+    "#simple-game-menu-v1"
+  ].join(",");
 
-  function clearStaleGameOverlaysV8() {
-    if (!gameScreen || !gameScreen.classList.contains("active")) {
-      return;
+  document.addEventListener("pointerup", (event) => {
+    if (!agariFlow || !agariFlow.active || agariFlow.committed) return;
+    const t = event.target;
+    if (!(t instanceof Element)) return;
+
+    // 選択対象や各種UIを押した時は絶対に閉じない。
+    if (t.closest(interactiveV13)) return;
+
+    // 卓の背景を直接押した時だけ閉じる。
+    if (t.closest("#game-screen")) {
+      closeAgariFlow();
     }
+  }, false);
 
-    staleOverlayIdsV8.forEach((id) => {
-      const node = document.getElementById(id);
-      if (node) {
-        node.remove();
-      }
-    });
-
-    // 横画面では向きガードが存在してもイベントを受け取らせない。
-    const guard = document.getElementById("landscape-orientation-guard");
-    if (
-      guard &&
-      window.matchMedia("(orientation: landscape)").matches
-    ) {
-      guard.style.pointerEvents = "none";
-      guard.style.display = "none";
-      guard.style.visibility = "hidden";
-    }
-
-    [
-      document.getElementById("agari-button"),
-      document.getElementById("ryukyoku-button"),
-      ...document.querySelectorAll(".top-actions button"),
-      ...document.querySelectorAll(".riichi-button")
-    ].forEach((button) => {
-      if (!button) return;
-      button.style.pointerEvents = "auto";
-      button.style.touchAction = "manipulation";
-    });
+  // iOSでホーム/別アプリから復帰した時に白画面化しにくいよう、
+  // 復帰時は再描画だけを要求する。DOMの作り直しやresize再発火はしない。
+  function repaintV13() {
+    document.documentElement.style.setProperty("--resume-tick-v13", String(Date.now()));
+    void document.documentElement.offsetHeight;
   }
-
-  // 対局開始ボタンの既存処理が終わった直後に掃除
-  if (typeof startGameButton !== "undefined" && startGameButton) {
-    startGameButton.addEventListener("click", () => {
-      setTimeout(clearStaleGameOverlaysV8, 0);
-      setTimeout(clearStaleGameOverlaysV8, 80);
-      setTimeout(clearStaleGameOverlaysV8, 250);
-    });
-  }
-
-  // 途中開始・復旧・クラウド参加でも同様に監視
-  const observerV8 = new MutationObserver(() => {
-    if (gameScreen && gameScreen.classList.contains("active")) {
-      clearStaleGameOverlaysV8();
+  window.addEventListener("pageshow", repaintV13);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") {
+      requestAnimationFrame(repaintV13);
     }
   });
+})();
 
-  observerV8.observe(document.body, {
-    childList: true,
-    subtree: true
-  });
+// ========================================
+// iPhone viewport復帰 Ver.14
+// ========================================
+(() => {
+  function normalizeViewportV14() {
+    window.scrollTo(0, 0);
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+  }
 
   window.addEventListener("pageshow", () => {
-    setTimeout(clearStaleGameOverlaysV8, 100);
+    requestAnimationFrame(normalizeViewportV14);
+    setTimeout(normalizeViewportV14, 120);
   });
 
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible") {
-      setTimeout(clearStaleGameOverlaysV8, 100);
+      requestAnimationFrame(normalizeViewportV14);
+      setTimeout(normalizeViewportV14, 120);
     }
+  });
+
+  window.addEventListener("orientationchange", () => {
+    setTimeout(normalizeViewportV14, 120);
   });
 })();
 
 
 
-
-
 // ========================================
-// M6 対局開始時クリーンアップ Ver.10
-// 対局開始・復帰後に一度だけ残留UIを掃除する。
-// MutationObserverでstyle/classを書き換え続けない。
+// iPhone実機UI統一 Ver.16
 // ========================================
 (() => {
-  function cleanupGameInteractionV10() {
-    if (!gameScreen || !gameScreen.classList.contains("active")) {
+  document.addEventListener("pointerup", (event) => {
+    if (!agariFlow || !agariFlow.active) return;
+    if (agariFlow.step !== "winner" && agariFlow.step !== "discarder") return;
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    const riichi = target.closest(".riichi-button");
+    if (!riichi) return;
+    const panel = riichi.closest(".player-panel");
+    if (!panel) return;
+
+    event.preventDefault();
+    event.stopImmediatePropagation();
+
+    const position = panel.dataset.position;
+    if (agariFlow.step === "winner") handleWinnerSelection(position);
+    else handleDiscarderSelection(position);
+  }, true);
+
+  function forceViewportV16() {
+    window.scrollTo(0,0);
+    document.documentElement.scrollTop=0;
+    document.documentElement.scrollLeft=0;
+    document.body.scrollTop=0;
+    document.body.scrollLeft=0;
+    document.documentElement.style.height="100%";
+    document.body.style.height="100%";
+    void document.body.offsetHeight;
+  }
+  function runViewportFixV16() {
+    requestAnimationFrame(forceViewportV16);
+    [50,150,350,700,1200].forEach(ms=>setTimeout(forceViewportV16,ms));
+  }
+  window.addEventListener("load",runViewportFixV16);
+  window.addEventListener("pageshow",runViewportFixV16);
+  window.addEventListener("orientationchange",runViewportFixV16);
+  document.addEventListener("visibilitychange",()=>{
+    if(document.visibilityState==="visible") runViewportFixV16();
+  });
+})();
+
+// ========================================
+// 途中対局 キーボード次項目 Ver.17
+// ========================================
+(() => {
+  function installMidMatchKeyboardNextV17() {
+    const card = document.querySelector(".mid-match-setup-card-v2");
+    if (!card) return;
+
+    const fields = Array.from(
+      card.querySelectorAll('input:not([type="hidden"]), select')
+    ).filter(el => !el.disabled && el.offsetParent !== null);
+
+    fields.forEach((field, index) => {
+      if (field.tagName === "INPUT") {
+        field.setAttribute("enterkeyhint", index === fields.length - 1 ? "done" : "next");
+      }
+      if (field.dataset.nextInstalledV17 === "1") return;
+      field.dataset.nextInstalledV17 = "1";
+
+      field.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter") return;
+        event.preventDefault();
+        const current = Array.from(
+          card.querySelectorAll('input:not([type="hidden"]), select')
+        ).filter(el => !el.disabled && el.offsetParent !== null);
+        const i = current.indexOf(field);
+        const next = current[i + 1];
+        if (next) {
+          next.focus();
+          if (typeof next.select === "function") next.select();
+        } else {
+          field.blur();
+        }
+      });
+    });
+  }
+
+  const observerV17 = new MutationObserver(() => {
+    if (document.querySelector(".mid-match-setup-card-v2")) {
+      installMidMatchKeyboardNextV17();
+    }
+  });
+  observerV17.observe(document.body, {childList:true, subtree:true});
+  document.addEventListener("focusin", () => installMidMatchKeyboardNextV17());
+})();
+
+
+// ========================================
+// iPhone PWA viewport補正 Ver.25
+// ========================================
+(() => {
+  function measureViewportV25() {
+    const vv = window.visualViewport;
+    let width = vv && vv.width > 0 ? vv.width : window.innerWidth;
+    let height = vv && vv.height > 0 ? vv.height : window.innerHeight;
+
+    // visualViewport が一時的に縦向き値を返す瞬間は、innerWidth/Height の
+    // 横向き値を優先する。screen値は端末物理寸法なので使用しない。
+    if (window.innerWidth > window.innerHeight && width < height) {
+      width = window.innerWidth;
+      height = window.innerHeight;
+    }
+
+    if (!(width > 0 && height > 0)) return;
+    document.documentElement.style.setProperty("--app-width-v25", `${Math.floor(width)}px`);
+    document.documentElement.style.setProperty("--app-height-v25", `${Math.floor(height)}px`);
+    window.scrollTo(0, 0);
+    document.documentElement.scrollLeft = 0;
+    document.documentElement.scrollTop = 0;
+    document.body.scrollLeft = 0;
+    document.body.scrollTop = 0;
+  }
+
+  let rafV25 = 0;
+  function scheduleViewportV25() {
+    cancelAnimationFrame(rafV25);
+    rafV25 = requestAnimationFrame(measureViewportV25);
+    [80, 250, 600, 1200].forEach(ms => setTimeout(measureViewportV25, ms));
+  }
+
+  window.addEventListener("load", scheduleViewportV25);
+  window.addEventListener("pageshow", scheduleViewportV25);
+  window.addEventListener("orientationchange", scheduleViewportV25);
+  window.addEventListener("resize", scheduleViewportV25, { passive: true });
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener("resize", scheduleViewportV25, { passive: true });
+    window.visualViewport.addEventListener("scroll", scheduleViewportV25, { passive: true });
+  }
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") scheduleViewportV25();
+  });
+})();
+
+/* ========================================
+   M7 手牌撮影フロー Ver.1
+   撮影 → プレビュー → この画像を使う
+   ======================================== */
+(() => {
+  let handPhotoObjectUrlM7 = null;
+
+  function closeHandPhotoPreviewM7() {
+    const overlay = document.getElementById("hand-photo-preview-m7");
+    if (overlay) overlay.remove();
+    if (handPhotoObjectUrlM7) {
+      URL.revokeObjectURL(handPhotoObjectUrlM7);
+      handPhotoObjectUrlM7 = null;
+    }
+  }
+
+  function openHandCameraM7() {
+    let input = document.getElementById("hand-camera-input-m7");
+    if (!input) {
+      input = document.createElement("input");
+      input.id = "hand-camera-input-m7";
+      input.type = "file";
+      input.accept = "image/*";
+      input.setAttribute("capture", "environment");
+      input.hidden = true;
+      document.body.appendChild(input);
+
+      input.addEventListener("change", () => {
+        const file = input.files && input.files[0];
+        if (!file) return;
+        showHandPhotoPreviewM7(file);
+        input.value = "";
+      });
+    }
+    input.click();
+  }
+
+  function showHandPhotoPreviewM7(file) {
+    closeHandPhotoPreviewM7();
+    handPhotoObjectUrlM7 = URL.createObjectURL(file);
+
+    const overlay = document.createElement("div");
+    overlay.id = "hand-photo-preview-m7";
+    overlay.className = "hand-photo-preview-m7";
+    overlay.innerHTML = `
+      <div class="hand-photo-card-m7" role="dialog" aria-modal="true" aria-label="手牌写真の確認">
+        <div class="hand-photo-title-m7">手牌写真を確認</div>
+        <div class="hand-photo-guide-m7">13〜14枚すべてが写っていることを確認してください</div>
+        <img class="hand-photo-image-m7" alt="撮影した手牌" src="${handPhotoObjectUrlM7}">
+        <div class="hand-photo-actions-m7">
+          <button type="button" id="cancel-hand-photo-m7">キャンセル</button>
+          <button type="button" id="retake-hand-photo-m7">撮り直す</button>
+          <button type="button" id="use-hand-photo-m7" class="primary">この画像を使う</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+
+    document.getElementById("cancel-hand-photo-m7").onclick = closeHandPhotoPreviewM7;
+    document.getElementById("retake-hand-photo-m7").onclick = () => {
+      closeHandPhotoPreviewM7();
+      openHandCameraM7();
+    };
+    document.getElementById("use-hand-photo-m7").onclick = () => {
+      // M7 Ver.1では解析器へ渡す入口まで。実牌取得後に切り出し処理を接続する。
+      window.mahjongHandPhotoM7 = file;
+      closeHandPhotoPreviewM7();
+      alert("画像を読み込みました。\n次の工程で牌の切り出し・認識を行います。");
+    };
+  }
+
+  function installHandCameraButtonM7() {
+    const menu = document.getElementById("simple-game-menu-v1");
+    if (!menu || document.getElementById("open-hand-camera-m7")) return;
+
+    const button = document.createElement("button");
+    button.type = "button";
+    button.id = "open-hand-camera-m7";
+    button.textContent = "手牌を撮影";
+
+    const pointButton = document.getElementById("open-point-correction-v1");
+    if (pointButton) menu.insertBefore(button, pointButton);
+    else menu.appendChild(button);
+
+    button.onclick = () => {
+      if (typeof closeSimpleGameMenuV1 === "function") closeSimpleGameMenuV1();
+      openHandCameraM7();
+    };
+  }
+
+  const previousOpenMenuM7 = openSimpleGameMenuV1;
+  openSimpleGameMenuV1 = function (...args) {
+    const result = previousOpenMenuM7.apply(this, args);
+    installHandCameraButtonM7();
+    return result;
+  };
+})();
+
+/* ========================================
+   M7 手牌候補切り出し Ver.2
+   実牌テスト前の土台: 画像をcanvasへ読み込み、牌候補を矩形として抽出する。
+   ======================================== */
+(() => {
+  function loadImageM7V2(file) {
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("画像を読み込めませんでした")); };
+      img.src = url;
+    });
+  }
+
+  function detectTileCandidatesM7V2(ctx, w, h) {
+    const data = ctx.getImageData(0, 0, w, h).data;
+    const mask = new Uint8Array(w * h);
+    // 麻雀牌は一般に明るく低彩度。実牌取得後にここを撮影条件に合わせて調整する。
+    for (let i = 0, p = 0; i < data.length; i += 4, p++) {
+      const r = data[i], g = data[i + 1], b = data[i + 2];
+      const max = Math.max(r, g, b), min = Math.min(r, g, b);
+      const lum = (r + g + b) / 3;
+      if (lum > 135 && (max - min) < 95) mask[p] = 1;
+    }
+
+    const seen = new Uint8Array(w * h);
+    const comps = [];
+    const stack = [];
+    const minPixels = Math.max(20, Math.floor(w * h * 0.00035));
+    for (let y = 1; y < h - 1; y++) {
+      for (let x = 1; x < w - 1; x++) {
+        const start = y * w + x;
+        if (!mask[start] || seen[start]) continue;
+        seen[start] = 1; stack.length = 0; stack.push(start);
+        let minX=x,maxX=x,minY=y,maxY=y,count=0;
+        while (stack.length) {
+          const q = stack.pop(); count++;
+          const qx=q%w, qy=(q/w)|0;
+          if(qx<minX)minX=qx;if(qx>maxX)maxX=qx;if(qy<minY)minY=qy;if(qy>maxY)maxY=qy;
+          const ns=[q-1,q+1,q-w,q+w];
+          for(const n of ns){ if(n>=0&&n<mask.length&&mask[n]&&!seen[n]){seen[n]=1;stack.push(n);} }
+        }
+        if (count < minPixels) continue;
+        const bw=maxX-minX+1,bh=maxY-minY+1;
+        const area=bw*bh, fill=count/area;
+        if (bw < w*0.018 || bh < h*0.10 || bw > w*0.18 || bh > h*0.88) continue;
+        if (bh/bw < 0.8 || bh/bw > 3.2 || fill < 0.32) continue;
+        comps.push({x:minX,y:minY,w:bw,h:bh,area});
+      }
+    }
+    comps.sort((a,b)=>a.x-b.x);
+    return comps.slice(0, 20);
+  }
+
+  async function analyzeHandPhotoM7V2(file) {
+    const img = await loadImageM7V2(file);
+    const maxW = 720;
+    const scale = Math.min(1, maxW / img.naturalWidth);
+    const w = Math.max(1, Math.round(img.naturalWidth * scale));
+    const h = Math.max(1, Math.round(img.naturalHeight * scale));
+    const work = document.createElement("canvas"); work.width=w; work.height=h;
+    const ctx=work.getContext("2d", {willReadFrequently:true});
+    ctx.drawImage(img,0,0,w,h);
+    const boxes=detectTileCandidatesM7V2(ctx,w,h);
+
+    const overlay=document.createElement("div");
+    overlay.className="tile-detect-overlay-m7v2";
+    overlay.innerHTML=`<div class="tile-detect-card-m7v2"><div class="tile-detect-head-m7v2"><b>牌候補の切り出し</b><span>${boxes.length}個の候補</span></div><div class="tile-detect-canvas-wrap-m7v2"></div><div class="tile-detect-note-m7v2">※ 今日は検出処理の土台確認です。実牌を使って明日、13〜14枚を正しく囲めるよう調整します。</div><button type="button" class="tile-detect-close-m7v2">閉じる</button></div>`;
+    document.body.appendChild(overlay);
+    const view=document.createElement("canvas"); view.width=w; view.height=h; view.className="tile-detect-canvas-m7v2";
+    const vctx=view.getContext("2d"); vctx.drawImage(img,0,0,w,h);
+    vctx.lineWidth=Math.max(2,Math.round(w/300)); vctx.strokeStyle="#ffb000"; vctx.font=`bold ${Math.max(12,Math.round(w/45))}px sans-serif`; vctx.fillStyle="#ffb000";
+    boxes.forEach((b,i)=>{vctx.strokeRect(b.x,b.y,b.w,b.h);vctx.fillText(String(i+1),b.x+3,Math.max(14,b.y+16));});
+    overlay.querySelector(".tile-detect-canvas-wrap-m7v2").appendChild(view);
+    overlay.querySelector(".tile-detect-close-m7v2").onclick=()=>overlay.remove();
+  }
+
+  // Ver.1の「この画像を使う」ボタンへ、解析をcapture phaseで接続。
+  document.addEventListener("click", (event) => {
+    const button=event.target.closest && event.target.closest("#use-hand-photo-m7");
+    if(!button) return;
+    const file=window.mahjongHandPhotoPendingM7 || null;
+    // Ver.1ではfileがクロージャ内なので、プレビュー画像からblob化するフォールバックを使う。
+    const img=document.querySelector(".hand-photo-image-m7");
+    if(!img) return;
+    fetch(img.src).then(r=>r.blob()).then(blob=>analyzeHandPhotoM7V2(blob)).catch(()=>{});
+  }, true);
+})();
+
+/* ========================================
+   M7 リアルタイムカメラ Ver.3
+   実牌前の土台: アプリ内にカメラ映像を表示し、認識数UIを重ねる。
+   ======================================== */
+(() => {
+  let streamM7V3 = null;
+
+  function stopRealtimeCameraM7V3() {
+    if (streamM7V3) {
+      streamM7V3.getTracks().forEach(track => track.stop());
+      streamM7V3 = null;
+    }
+    document.getElementById("realtime-hand-camera-m7v3")?.remove();
+  }
+
+  async function openRealtimeCameraM7V3() {
+    stopRealtimeCameraM7V3();
+    if (!navigator.mediaDevices?.getUserMedia) {
+      alert("この端末ではアプリ内カメラを利用できません。HTTPSの公開ページから開いてください。");
       return;
     }
 
-    [
-      "simple-home-overlay-v1",
-      "new-match-mode-overlay-v2",
-      "mid-match-setup-overlay-v2"
-    ].forEach((id) => {
-      const node = document.getElementById(id);
-      if (node) node.remove();
-    });
+    const overlay = document.createElement("div");
+    overlay.id = "realtime-hand-camera-m7v3";
+    overlay.className = "realtime-hand-camera-m7v3";
+    overlay.innerHTML = `
+      <video class="realtime-hand-video-m7v3" autoplay playsinline muted></video>
+      <div class="realtime-hand-guide-m7v3" aria-hidden="true">
+        <div class="realtime-hand-guide-box-m7v3"></div>
+      </div>
+      <div class="realtime-hand-status-m7v3">
+        <b>手牌を枠内に並べてください</b>
+        <span id="realtime-hand-count-m7v3">0 / 14</span>
+        <small>実牌テスト後、認識できた牌をここで自動カウントします</small>
+      </div>
+      <button type="button" class="realtime-hand-cancel-m7v3">キャンセル</button>`;
+    document.body.appendChild(overlay);
+    overlay.querySelector(".realtime-hand-cancel-m7v3").onclick = stopRealtimeCameraM7V3;
 
-    const guard = document.getElementById("landscape-orientation-guard");
-    if (
-      guard &&
-      window.matchMedia("(orientation: landscape)").matches
-    ) {
-      guard.style.display = "none";
-      guard.style.pointerEvents = "none";
-      guard.style.visibility = "hidden";
+    try {
+      streamM7V3 = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } },
+        audio: false
+      });
+      const video = overlay.querySelector("video");
+      video.srcObject = streamM7V3;
+      await video.play().catch(() => {});
+    } catch (error) {
+      stopRealtimeCameraM7V3();
+      alert("カメラを起動できませんでした。カメラの使用を許可して、もう一度お試しください。");
     }
   }
 
-  if (typeof startGameButton !== "undefined" && startGameButton) {
-    startGameButton.addEventListener("click", () => {
-      setTimeout(cleanupGameInteractionV10, 0);
-      setTimeout(cleanupGameInteractionV10, 100);
-    });
+  function installRealtimeCameraButtonM7V3() {
+    const menu = document.getElementById("simple-game-menu-v1");
+    if (!menu || document.getElementById("open-realtime-hand-camera-m7v3")) return;
+    const button = document.createElement("button");
+    button.type = "button";
+    button.id = "open-realtime-hand-camera-m7v3";
+    button.textContent = "手牌を読み取る";
+    const photoButton = document.getElementById("open-hand-camera-m7");
+    if (photoButton) menu.insertBefore(button, photoButton);
+    else menu.appendChild(button);
+    button.onclick = () => {
+      if (typeof closeSimpleGameMenuV1 === "function") closeSimpleGameMenuV1();
+      openRealtimeCameraM7V3();
+    };
   }
 
-  window.addEventListener("pageshow", () => {
-    setTimeout(cleanupGameInteractionV10, 100);
-  });
+  const previousOpenMenuM7V3 = openSimpleGameMenuV1;
+  openSimpleGameMenuV1 = function (...args) {
+    const result = previousOpenMenuM7V3.apply(this, args);
+    installRealtimeCameraButtonM7V3();
+    return result;
+  };
 
-  document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "visible") {
-      setTimeout(cleanupGameInteractionV10, 100);
-    }
+  window.addEventListener("pagehide", () => {
+    if (streamM7V3) stopRealtimeCameraM7V3();
   });
+})();
+
+/* ========================================
+   M7 リアルタイム候補検出 Ver.4
+   実牌前の仮検出。映像中の縦長・高コントラスト領域を数え、
+   13〜14牌の実牌テスト時に閾値を調整する。
+   ======================================== */
+(() => {
+  let timerM7V4 = null;
+
+  function stopLiveDetectM7V4() {
+    if (timerM7V4) clearInterval(timerM7V4);
+    timerM7V4 = null;
+  }
+
+  function detectCandidatesM7V4(ctx, w, h) {
+    const data = ctx.getImageData(0,0,w,h).data;
+    const gray = new Uint8Array(w*h);
+    for(let i=0,p=0;i<data.length;i+=4,p++) gray[p]=(data[i]*3+data[i+1]*6+data[i+2])/10;
+    const mask = new Uint8Array(w*h);
+    for(let y=1;y<h-1;y++) for(let x=1;x<w-1;x++){
+      const p=y*w+x;
+      const gx=Math.abs(gray[p+1]-gray[p-1]);
+      const gy=Math.abs(gray[p+w]-gray[p-w]);
+      if(gx+gy>72) mask[p]=1;
+    }
+    // Count edge density in vertical strips; adjacent active strips are merged.
+    const strips=28, sw=w/strips, active=[];
+    for(let s=0;s<strips;s++){
+      const x0=Math.floor(s*sw), x1=Math.min(w,Math.ceil((s+1)*sw)); let n=0;
+      for(let y=Math.floor(h*.12);y<Math.floor(h*.9);y+=2) for(let x=x0;x<x1;x+=2) n+=mask[y*w+x];
+      const denom=Math.max(1,Math.ceil((x1-x0)/2)*Math.ceil(h*.78/2));
+      if(n/denom>.055) active.push(s);
+    }
+    const groups=[];
+    active.forEach(s=>{const g=groups[groups.length-1]; if(g&&s<=g[1]+1) g[1]=s; else groups.push([s,s]);});
+    return groups.filter(g=>g[1]-g[0]<=4).map(g=>({x:g[0]*sw,w:(g[1]-g[0]+1)*sw})).slice(0,14);
+  }
+
+  function startLiveDetectM7V4(overlay) {
+    stopLiveDetectM7V4();
+    const video=overlay.querySelector('.realtime-hand-video-m7v3');
+    const count=overlay.querySelector('#realtime-hand-count-m7v3');
+    const note=overlay.querySelector('.realtime-hand-status-m7v3 small');
+    if(note){note.textContent='仮検出中：実牌テストで13〜14枚に調整します';note.classList.add('live-m7v4');}
+    const draw=document.createElement('canvas'); draw.className='realtime-hand-live-canvas-m7v4'; overlay.appendChild(draw);
+    const work=document.createElement('canvas'); work.width=320; work.height=150; const wctx=work.getContext('2d',{willReadFrequently:true});
+    timerM7V4=setInterval(()=>{
+      if(!document.body.contains(overlay)||video.readyState<2) return;
+      // approximate the visible guide rectangle used by CSS
+      wctx.drawImage(video,0,0,video.videoWidth,video.videoHeight,0,0,320,150);
+      const boxes=detectCandidatesM7V4(wctx,320,150);
+      count.textContent=`${boxes.length} / 14`;
+      draw.width=overlay.clientWidth; draw.height=overlay.clientHeight;
+      const d=draw.getContext('2d'); d.clearRect(0,0,draw.width,draw.height);
+      const gx=draw.width*.07, gy=draw.height*.17, gw=draw.width*.86, gh=draw.height*.63;
+      d.strokeStyle='#ffb000'; d.lineWidth=2;
+      boxes.forEach(b=>d.strokeRect(gx+(b.x/320)*gw,gy,Math.max(10,(b.w/320)*gw),gh));
+    },500);
+  }
+
+  document.addEventListener('click',e=>{
+    if(!e.target.closest?.('#open-realtime-hand-camera-m7v3')) return;
+    setTimeout(()=>{const overlay=document.getElementById('realtime-hand-camera-m7v3');if(overlay) startLiveDetectM7V4(overlay);},700);
+  },true);
+  document.addEventListener('click',e=>{if(e.target.closest?.('.realtime-hand-cancel-m7v3')) stopLiveDetectM7V4();},true);
+  window.addEventListener('pagehide',stopLiveDetectM7V4);
+})();
+
+/* ========================================
+   M7 認識結果確認 Ver.5
+   実牌なしでも確認できる結果UI。牌種認識は実牌テスト後に接続する。
+   ======================================== */
+(() => {
+  const TILE_OPTIONS_M7V5 = [
+    '1萬','2萬','3萬','4萬','5萬','6萬','7萬','8萬','9萬',
+    '1筒','2筒','3筒','4筒','5筒','6筒','7筒','8筒','9筒',
+    '1索','2索','3索','4索','5索','6索','7索','8索','9索',
+    '東','南','西','北','白','發','中'
+  ];
+
+  function closeResultM7V5(){ document.getElementById('hand-result-overlay-m7v5')?.remove(); }
+
+  function openTilePickerM7V5(index, tileButton){
+    document.getElementById('tile-picker-m7v5')?.remove();
+    const picker=document.createElement('div');
+    picker.id='tile-picker-m7v5'; picker.className='tile-picker-m7v5';
+    picker.innerHTML=`<div class="tile-picker-card-m7v5"><div class="tile-picker-title-m7v5">${index+1}枚目を修正</div><div class="tile-picker-grid-m7v5"></div><button type="button" class="tile-picker-cancel-m7v5">閉じる</button></div>`;
+    const grid=picker.querySelector('.tile-picker-grid-m7v5');
+    TILE_OPTIONS_M7V5.forEach(name=>{
+      const b=document.createElement('button'); b.type='button'; b.textContent=name;
+      b.onclick=()=>{ tileButton.textContent=name; tileButton.dataset.tile=name; picker.remove(); updateResultStatusM7V5(); };
+      grid.appendChild(b);
+    });
+    picker.querySelector('.tile-picker-cancel-m7v5').onclick=()=>picker.remove();
+    document.body.appendChild(picker);
+  }
+
+  function updateResultStatusM7V5(){
+    const root=document.getElementById('hand-result-overlay-m7v5'); if(!root) return;
+    const buttons=[...root.querySelectorAll('.hand-result-tile-m7v5')];
+    const fixed=buttons.filter(b=>b.dataset.tile).length;
+    const status=root.querySelector('.hand-result-status-m7v5');
+    if(status) status.textContent = fixed===14 ? '14枚確認済み ✓' : `${fixed} / 14枚を確認済み`;
+    const ok=root.querySelector('.hand-result-ok-m7v5'); if(ok) ok.disabled=fixed!==14;
+  }
+
+  window.showHandResultM7V5 = function(tiles){
+    document.getElementById('hand-result-overlay-m7v5')?.remove();
+    const values=Array.from({length:14},(_,i)=>tiles?.[i]||'');
+    const overlay=document.createElement('div'); overlay.id='hand-result-overlay-m7v5'; overlay.className='hand-result-overlay-m7v5';
+    overlay.innerHTML=`<div class="hand-result-card-m7v5">
+      <div class="hand-result-head-m7v5"><div><b>認識した手牌を確認</b><small>間違っている牌だけタップして修正できます</small></div><span class="hand-result-status-m7v5">0 / 14枚を確認済み</span></div>
+      <div class="hand-result-tiles-m7v5"></div>
+      <div class="hand-result-note-m7v5">※ 現在は画面の土台確認です。実牌テスト後、認識した牌名を自動でここへ入れます。</div>
+      <div class="hand-result-actions-m7v5"><button type="button" class="hand-result-back-m7v5">読み取り直す</button><button type="button" class="hand-result-ok-m7v5" disabled>この手牌で進む</button></div>
+    </div>`;
+    const row=overlay.querySelector('.hand-result-tiles-m7v5');
+    values.forEach((name,i)=>{const b=document.createElement('button');b.type='button';b.className='hand-result-tile-m7v5';b.textContent=name||'?';if(name)b.dataset.tile=name;b.onclick=()=>openTilePickerM7V5(i,b);row.appendChild(b);});
+    overlay.querySelector('.hand-result-back-m7v5').onclick=()=>{closeResultM7V5(); document.getElementById('open-realtime-hand-camera-m7v3')?.click();};
+    overlay.querySelector('.hand-result-ok-m7v5').onclick=()=>{const result=[...overlay.querySelectorAll('.hand-result-tile-m7v5')].map(b=>b.dataset.tile); window.lastRecognizedHandM7=result; closeResultM7V5(); alert('手牌14枚を確認しました。\n次の工程でアガリ判定へ接続します。');};
+    document.body.appendChild(overlay); updateResultStatusM7V5();
+  };
+
+  // 実牌がない間でも結果画面を実機確認できる開発用ボタン。
+  document.addEventListener('click',e=>{
+    if(!e.target.closest?.('#open-realtime-hand-camera-m7v3')) return;
+    setTimeout(()=>{
+      const overlay=document.getElementById('realtime-hand-camera-m7v3'); if(!overlay||overlay.querySelector('.realtime-hand-test-result-m7v5')) return;
+      const b=document.createElement('button'); b.type='button'; b.className='realtime-hand-test-result-m7v5'; b.textContent='確認画面テスト';
+      b.onclick=()=>{ overlay.querySelector('.realtime-hand-cancel-m7v3')?.click(); setTimeout(()=>window.showHandResultM7V5(),80); };
+      overlay.appendChild(b);
+    },800);
+  },true);
 })();
