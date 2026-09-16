@@ -22329,3 +22329,93 @@ if (
     return result;
   };
 })();
+
+/* ========================================
+   M7 手牌候補切り出し Ver.2
+   実牌テスト前の土台: 画像をcanvasへ読み込み、牌候補を矩形として抽出する。
+   ======================================== */
+(() => {
+  function loadImageM7V2(file) {
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("画像を読み込めませんでした")); };
+      img.src = url;
+    });
+  }
+
+  function detectTileCandidatesM7V2(ctx, w, h) {
+    const data = ctx.getImageData(0, 0, w, h).data;
+    const mask = new Uint8Array(w * h);
+    // 麻雀牌は一般に明るく低彩度。実牌取得後にここを撮影条件に合わせて調整する。
+    for (let i = 0, p = 0; i < data.length; i += 4, p++) {
+      const r = data[i], g = data[i + 1], b = data[i + 2];
+      const max = Math.max(r, g, b), min = Math.min(r, g, b);
+      const lum = (r + g + b) / 3;
+      if (lum > 135 && (max - min) < 95) mask[p] = 1;
+    }
+
+    const seen = new Uint8Array(w * h);
+    const comps = [];
+    const stack = [];
+    const minPixels = Math.max(20, Math.floor(w * h * 0.00035));
+    for (let y = 1; y < h - 1; y++) {
+      for (let x = 1; x < w - 1; x++) {
+        const start = y * w + x;
+        if (!mask[start] || seen[start]) continue;
+        seen[start] = 1; stack.length = 0; stack.push(start);
+        let minX=x,maxX=x,minY=y,maxY=y,count=0;
+        while (stack.length) {
+          const q = stack.pop(); count++;
+          const qx=q%w, qy=(q/w)|0;
+          if(qx<minX)minX=qx;if(qx>maxX)maxX=qx;if(qy<minY)minY=qy;if(qy>maxY)maxY=qy;
+          const ns=[q-1,q+1,q-w,q+w];
+          for(const n of ns){ if(n>=0&&n<mask.length&&mask[n]&&!seen[n]){seen[n]=1;stack.push(n);} }
+        }
+        if (count < minPixels) continue;
+        const bw=maxX-minX+1,bh=maxY-minY+1;
+        const area=bw*bh, fill=count/area;
+        if (bw < w*0.018 || bh < h*0.10 || bw > w*0.18 || bh > h*0.88) continue;
+        if (bh/bw < 0.8 || bh/bw > 3.2 || fill < 0.32) continue;
+        comps.push({x:minX,y:minY,w:bw,h:bh,area});
+      }
+    }
+    comps.sort((a,b)=>a.x-b.x);
+    return comps.slice(0, 20);
+  }
+
+  async function analyzeHandPhotoM7V2(file) {
+    const img = await loadImageM7V2(file);
+    const maxW = 720;
+    const scale = Math.min(1, maxW / img.naturalWidth);
+    const w = Math.max(1, Math.round(img.naturalWidth * scale));
+    const h = Math.max(1, Math.round(img.naturalHeight * scale));
+    const work = document.createElement("canvas"); work.width=w; work.height=h;
+    const ctx=work.getContext("2d", {willReadFrequently:true});
+    ctx.drawImage(img,0,0,w,h);
+    const boxes=detectTileCandidatesM7V2(ctx,w,h);
+
+    const overlay=document.createElement("div");
+    overlay.className="tile-detect-overlay-m7v2";
+    overlay.innerHTML=`<div class="tile-detect-card-m7v2"><div class="tile-detect-head-m7v2"><b>牌候補の切り出し</b><span>${boxes.length}個の候補</span></div><div class="tile-detect-canvas-wrap-m7v2"></div><div class="tile-detect-note-m7v2">※ 今日は検出処理の土台確認です。実牌を使って明日、13〜14枚を正しく囲めるよう調整します。</div><button type="button" class="tile-detect-close-m7v2">閉じる</button></div>`;
+    document.body.appendChild(overlay);
+    const view=document.createElement("canvas"); view.width=w; view.height=h; view.className="tile-detect-canvas-m7v2";
+    const vctx=view.getContext("2d"); vctx.drawImage(img,0,0,w,h);
+    vctx.lineWidth=Math.max(2,Math.round(w/300)); vctx.strokeStyle="#ffb000"; vctx.font=`bold ${Math.max(12,Math.round(w/45))}px sans-serif`; vctx.fillStyle="#ffb000";
+    boxes.forEach((b,i)=>{vctx.strokeRect(b.x,b.y,b.w,b.h);vctx.fillText(String(i+1),b.x+3,Math.max(14,b.y+16));});
+    overlay.querySelector(".tile-detect-canvas-wrap-m7v2").appendChild(view);
+    overlay.querySelector(".tile-detect-close-m7v2").onclick=()=>overlay.remove();
+  }
+
+  // Ver.1の「この画像を使う」ボタンへ、解析をcapture phaseで接続。
+  document.addEventListener("click", (event) => {
+    const button=event.target.closest && event.target.closest("#use-hand-photo-m7");
+    if(!button) return;
+    const file=window.mahjongHandPhotoPendingM7 || null;
+    // Ver.1ではfileがクロージャ内なので、プレビュー画像からblob化するフォールバックを使う。
+    const img=document.querySelector(".hand-photo-image-m7");
+    if(!img) return;
+    fetch(img.src).then(r=>r.blob()).then(blob=>analyzeHandPhotoM7V2(blob)).catch(()=>{});
+  }, true);
+})();

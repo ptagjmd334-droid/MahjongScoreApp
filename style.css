@@ -4597,3 +4597,12 @@ body:has(.agari-overlay:not(.hidden)) .riichi-button {
   .hand-photo-guide-m7 { font-size: 11px; }
   .hand-photo-actions-m7 button { min-height: 36px; }
 }
+
+/* M7 手牌候補切り出し Ver.2 */
+.tile-detect-overlay-m7v2{position:fixed;inset:0;z-index:10100;display:flex;align-items:center;justify-content:center;padding:10px 14px;background:rgba(0,0,0,.82);box-sizing:border-box}
+.tile-detect-card-m7v2{width:min(980px,94vw);height:min(94vh,650px);display:flex;flex-direction:column;gap:7px;padding:10px 12px;border-radius:16px;background:#f7f3e8;color:#172019;box-sizing:border-box}
+.tile-detect-head-m7v2{display:flex;justify-content:space-between;align-items:center;font-size:17px}.tile-detect-head-m7v2 span{font-size:14px;font-weight:800}
+.tile-detect-canvas-wrap-m7v2{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;overflow:hidden;border-radius:10px;background:#111}
+.tile-detect-canvas-m7v2{display:block;max-width:100%;max-height:100%;object-fit:contain}
+.tile-detect-note-m7v2{font-size:11px;text-align:center}.tile-detect-close-m7v2{min-height:38px;font-size:14px;font-weight:800}
+@media (orientation:landscape) and (max-height:500px){.tile-detect-card-m7v2{height:94vh}.tile-detect-head-m7v2{font-size:15px}.tile-detect-note-m7v2{font-size:10px}.tile-detect-close-m7v2{min-height:34px}}
