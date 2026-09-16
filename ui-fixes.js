@@ -53,7 +53,6 @@ console.log("ui-fixes.js loaded");
   document.addEventListener('click',()=>setTimeout(()=>decorate(),0),true);
   new MutationObserver(()=>decorate()).observe(document.body,{childList:true,subtree:true});
 
-  // v7 test helper: 実牌認識前でも、14枚側の牌画像表示を確認できる。
   const demo=['1萬','2萬','3萬','4萬','5筒','5筒','6筒','7筒','2索','3索','4索','東','東','中'];
   document.addEventListener('click',e=>{
     const target=e.target.closest?.('.hand-result-head-m7v5');
@@ -64,5 +63,52 @@ console.log("ui-fixes.js loaded");
     buttons.forEach((b,i)=>{b.dataset.tile=demo[i];b.dataset.tileGlyph=glyphs[demo[i]];b.textContent=demo[i];b.setAttribute('aria-label',demo[i]);});
     const status=root.querySelector('.hand-result-status-m7v5');if(status)status.textContent='14枚確認済み ✓';
     const ok=root.querySelector('.hand-result-ok-m7v5');if(ok)ok.disabled=false;
+  },true);
+})();
+
+// ========================================
+// M7 v7.2 iPhone表示安定化 + 読み取り直し導線
+// ========================================
+(() => {
+  const style=document.createElement('style');
+  style.textContent=`
+    @supports(height:100dvh){
+      html,body{height:100dvh!important;max-height:100dvh!important;overflow:hidden!important}
+      #game-screen.screen.active{height:100dvh!important;min-height:100dvh!important;max-height:100dvh!important;overflow:hidden!important}
+      .agari-overlay:not(.hidden){height:100dvh!important;max-height:100dvh!important;overflow:hidden!important}
+    }
+  `;
+  document.head.appendChild(style);
+
+  function normalizeV72(){
+    const h=document.documentElement.clientHeight||window.innerHeight;
+    const w=document.documentElement.clientWidth||window.innerWidth;
+    if(w>h&&w>0&&h>0){
+      document.documentElement.style.setProperty('--app-width-v25',`${w}px`);
+      document.documentElement.style.setProperty('--app-height-v25',`${h}px`);
+    }
+    window.scrollTo(0,0);
+    document.documentElement.scrollTop=0;
+    document.body.scrollTop=0;
+  }
+  ['pageshow','resize','orientationchange'].forEach(name=>window.addEventListener(name,()=>{
+    requestAnimationFrame(normalizeV72);setTimeout(normalizeV72,120);setTimeout(normalizeV72,500);
+  },{passive:true}));
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'){requestAnimationFrame(normalizeV72);setTimeout(normalizeV72,150);}});
+
+  // 既存の「読み取り直す」は閉じたメニュー内のボタンを探していたため対局画面へ戻っていた。
+  // メニューを一瞬再生成して、リアルタイムカメラを直接起動する。
+  document.addEventListener('click',e=>{
+    const back=e.target.closest?.('.hand-result-back-m7v5');
+    if(!back) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    document.getElementById('hand-result-overlay-m7v5')?.remove();
+    if(typeof openSimpleGameMenuV1==='function') openSimpleGameMenuV1();
+    requestAnimationFrame(()=>{
+      const camera=document.getElementById('open-realtime-hand-camera-m7v3');
+      if(camera) camera.click();
+      else if(typeof closeSimpleGameMenuV1==='function') closeSimpleGameMenuV1();
+    });
   },true);
 })();
