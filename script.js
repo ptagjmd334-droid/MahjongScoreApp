@@ -22419,3 +22419,84 @@ if (
     fetch(img.src).then(r=>r.blob()).then(blob=>analyzeHandPhotoM7V2(blob)).catch(()=>{});
   }, true);
 })();
+
+/* ========================================
+   M7 リアルタイムカメラ Ver.3
+   実牌前の土台: アプリ内にカメラ映像を表示し、認識数UIを重ねる。
+   ======================================== */
+(() => {
+  let streamM7V3 = null;
+
+  function stopRealtimeCameraM7V3() {
+    if (streamM7V3) {
+      streamM7V3.getTracks().forEach(track => track.stop());
+      streamM7V3 = null;
+    }
+    document.getElementById("realtime-hand-camera-m7v3")?.remove();
+  }
+
+  async function openRealtimeCameraM7V3() {
+    stopRealtimeCameraM7V3();
+    if (!navigator.mediaDevices?.getUserMedia) {
+      alert("この端末ではアプリ内カメラを利用できません。HTTPSの公開ページから開いてください。");
+      return;
+    }
+
+    const overlay = document.createElement("div");
+    overlay.id = "realtime-hand-camera-m7v3";
+    overlay.className = "realtime-hand-camera-m7v3";
+    overlay.innerHTML = `
+      <video class="realtime-hand-video-m7v3" autoplay playsinline muted></video>
+      <div class="realtime-hand-guide-m7v3" aria-hidden="true">
+        <div class="realtime-hand-guide-box-m7v3"></div>
+      </div>
+      <div class="realtime-hand-status-m7v3">
+        <b>手牌を枠内に並べてください</b>
+        <span id="realtime-hand-count-m7v3">0 / 14</span>
+        <small>実牌テスト後、認識できた牌をここで自動カウントします</small>
+      </div>
+      <button type="button" class="realtime-hand-cancel-m7v3">キャンセル</button>`;
+    document.body.appendChild(overlay);
+    overlay.querySelector(".realtime-hand-cancel-m7v3").onclick = stopRealtimeCameraM7V3;
+
+    try {
+      streamM7V3 = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } },
+        audio: false
+      });
+      const video = overlay.querySelector("video");
+      video.srcObject = streamM7V3;
+      await video.play().catch(() => {});
+    } catch (error) {
+      stopRealtimeCameraM7V3();
+      alert("カメラを起動できませんでした。カメラの使用を許可して、もう一度お試しください。");
+    }
+  }
+
+  function installRealtimeCameraButtonM7V3() {
+    const menu = document.getElementById("simple-game-menu-v1");
+    if (!menu || document.getElementById("open-realtime-hand-camera-m7v3")) return;
+    const button = document.createElement("button");
+    button.type = "button";
+    button.id = "open-realtime-hand-camera-m7v3";
+    button.textContent = "手牌を読み取る";
+    const photoButton = document.getElementById("open-hand-camera-m7");
+    if (photoButton) menu.insertBefore(button, photoButton);
+    else menu.appendChild(button);
+    button.onclick = () => {
+      if (typeof closeSimpleGameMenuV1 === "function") closeSimpleGameMenuV1();
+      openRealtimeCameraM7V3();
+    };
+  }
+
+  const previousOpenMenuM7V3 = openSimpleGameMenuV1;
+  openSimpleGameMenuV1 = function (...args) {
+    const result = previousOpenMenuM7V3.apply(this, args);
+    installRealtimeCameraButtonM7V3();
+    return result;
+  };
+
+  window.addEventListener("pagehide", () => {
+    if (streamM7V3) stopRealtimeCameraM7V3();
+  });
+})();
