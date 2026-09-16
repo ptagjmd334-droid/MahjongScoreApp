@@ -34,20 +34,38 @@ console.log("ui-fixes.js loaded");
 })();
 
 // ========================================
-// M8 v2 アガリ形判定
-// 通常形 + 七対子 + 国士無双
+// M8 v4 アガリ形 + 手牌だけで確定できる基本役判定
+// 通常形 / 七対子 / 国士無双
+// タンヤオ / 役牌(白發中) / 対々和 / 混一色 / 清一色 / 小三元 / 大三元
 // ========================================
 (() => {
   const tileOrder=['1萬','2萬','3萬','4萬','5萬','6萬','7萬','8萬','9萬','1筒','2筒','3筒','4筒','5筒','6筒','7筒','8筒','9筒','1索','2索','3索','4索','5索','6索','7索','8索','9索','東','南','西','北','白','發','中'];
   const index=new Map(tileOrder.map((t,i)=>[t,i]));
+  const honors=new Set(['東','南','西','北','白','發','中']);
+  const terminals=new Set(['1萬','9萬','1筒','9筒','1索','9索']);
   function countsOf(tiles){if(tiles.length!==14)return null;const c=Array(34).fill(0);for(const t of tiles){const i=index.get(t);if(i==null)return null;c[i]++;if(c[i]>4)return null;}return c;}
   function canMeld(c){const i=c.findIndex(n=>n>0);if(i<0)return true;if(c[i]>=3){c[i]-=3;if(canMeld(c)){c[i]+=3;return true;}c[i]+=3;}if(i<27&&i%9<=6&&c[i+1]>0&&c[i+2]>0){c[i]--;c[i+1]--;c[i+2]--;if(canMeld(c)){c[i]++;c[i+1]++;c[i+2]++;return true;}c[i]++;c[i+1]++;c[i+2]++;}return false;}
   function standard(c){for(let i=0;i<34;i++)if(c[i]>=2){c[i]-=2;const ok=canMeld(c);c[i]+=2;if(ok)return true;}return false;}
   function chiitoitsu(c){return c.filter(n=>n===2).length===7;}
   function kokushi(c){const yaochu=[0,8,9,17,18,26,27,28,29,30,31,32,33];return yaochu.every(i=>c[i]>=1)&&yaochu.some(i=>c[i]>=2)&&c.reduce((s,n,i)=>s+(yaochu.includes(i)?0:n),0)===0;}
-  function judge(tiles){const c=countsOf(tiles);if(!c)return {win:false,type:null};if(kokushi(c))return {win:true,type:'国士無双'};if(chiitoitsu(c))return {win:true,type:'七対子'};if(standard(c))return {win:true,type:'通常形（4面子＋1雀頭）'};return {win:false,type:null};}
-  window.judgeMahjongWinM8V2=judge;
-  const style=document.createElement('style');style.textContent=`#m8-result-v1{position:fixed;inset:0;z-index:2147483000;background:rgba(0,0,0,.62);display:flex;align-items:center;justify-content:center;padding:20px}#m8-result-v1 .m8-card{width:min(620px,88vw);background:#f7f3e9;color:#102019;border-radius:22px;padding:24px;text-align:center;box-shadow:0 18px 55px rgba(0,0,0,.35)}#m8-result-v1 h2{font-size:28px;margin:0 0 10px}#m8-result-v1 p{font-size:16px;margin:0 0 18px}#m8-result-v1 button{width:100%;min-height:52px;border:0;border-radius:14px;font-size:18px;font-weight:800;background:#e7e7e7;color:#111}`;document.head.appendChild(style);
-  function showResult(tiles){document.getElementById('m8-result-v1')?.remove();const r=judge(tiles);const root=document.createElement('div');root.id='m8-result-v1';root.innerHTML=`<div class="m8-card"><h2>${r.win?'アガリ形です ✓':'まだアガリ形ではありません'}</h2><p>${r.win?`成立形：${r.type}`:'通常形・七対子・国士無双のいずれにも成立していません。'}<br><small>※ M8 v2は形の判定。役・翻数・符・点数計算への接続は次工程です。</small></p><button type="button">確認</button></div>`;root.querySelector('button').onclick=()=>root.remove();document.body.appendChild(root);}
+  function allTriplets(c){for(let pair=0;pair<34;pair++){if(c[pair]<2)continue;const x=c.slice();x[pair]-=2;if(x.every(n=>n%3===0))return true;}return false;}
+  function detectYaku(tiles,c,type){
+    const y=[];
+    if(type==='国士無双')return ['国士無双'];
+    if(type==='七対子')y.push('七対子');
+    const allSimple=tiles.every(t=>!honors.has(t)&&!terminals.has(t));if(allSimple)y.push('タンヤオ');
+    const dragonTriplets=['白','發','中'].filter(t=>c[index.get(t)]>=3);dragonTriplets.forEach(t=>y.push(`役牌 ${t}`));
+    const dragonPairs=['白','發','中'].filter(t=>c[index.get(t)]===2);
+    if(dragonTriplets.length===3)y.push('大三元');else if(dragonTriplets.length===2&&dragonPairs.length===1)y.push('小三元');
+    if(type.startsWith('通常形')&&allTriplets(c))y.push('対々和');
+    const suits=new Set();let hasHonor=false;
+    tiles.forEach(t=>{if(honors.has(t)){hasHonor=true;return;}if(t.endsWith('萬'))suits.add('萬');else if(t.endsWith('筒'))suits.add('筒');else if(t.endsWith('索'))suits.add('索');});
+    if(suits.size===1&&!hasHonor)y.push('清一色');else if(suits.size===1&&hasHonor)y.push('混一色');else if(suits.size===0&&hasHonor)y.push('字一色');
+    return [...new Set(y)];
+  }
+  function judge(tiles){const c=countsOf(tiles);if(!c)return {win:false,type:null,yaku:[]};let type=null;if(kokushi(c))type='国士無双';else if(chiitoitsu(c))type='七対子';else if(standard(c))type='通常形（4面子＋1雀頭）';if(!type)return {win:false,type:null,yaku:[]};return {win:true,type,yaku:detectYaku(tiles,c,type)};}
+  window.judgeMahjongWinM8V2=judge;window.judgeMahjongWinM8V4=judge;
+  const style=document.createElement('style');style.textContent=`#m8-result-v1{position:fixed;inset:0;z-index:2147483000;background:rgba(0,0,0,.62);display:flex;align-items:center;justify-content:center;padding:20px}#m8-result-v1 .m8-card{width:min(650px,88vw);background:#f7f3e9;color:#102019;border-radius:22px;padding:22px;text-align:center;box-shadow:0 18px 55px rgba(0,0,0,.35)}#m8-result-v1 h2{font-size:28px;margin:0 0 8px}#m8-result-v1 p{font-size:16px;margin:0 0 12px}#m8-result-v1 .m8-yaku-v4{margin:10px 0 14px;padding:11px 14px;border-radius:13px;background:#e9f5ed;font-size:16px;font-weight:800}#m8-result-v1 .m8-yaku-v4.none{background:#f1efe9;font-weight:700}#m8-result-v1 button{width:100%;min-height:52px;border:0;border-radius:14px;font-size:18px;font-weight:800;background:#e7e7e7;color:#111}`;document.head.appendChild(style);
+  function showResult(tiles){document.getElementById('m8-result-v1')?.remove();const r=judge(tiles);const root=document.createElement('div');root.id='m8-result-v1';const yakuText=r.win?(r.yaku.length?`判定できた役：${r.yaku.join(' / ')}`:'手牌だけで確定できる役は未検出'):'役判定はアガリ形成立後に行います';root.innerHTML=`<div class="m8-card"><h2>${r.win?'アガリ形です ✓':'まだアガリ形ではありません'}</h2><p>${r.win?`成立形：${r.type}`:'通常形・七対子・国士無双のいずれにも成立していません。'}</p><div class="m8-yaku-v4${r.win&&r.yaku.length?'':' none'}">${yakuText}</div><p><small>※ M8 v4：手牌だけで確定できる基本役まで判定。場風・自風・リーチ・ツモ・門前/副露などは次工程で接続します。</small></p><button type="button">確認</button></div>`;root.querySelector('button').onclick=()=>root.remove();document.body.appendChild(root);}
   document.addEventListener('click',e=>{const ok=e.target.closest?.('.hand-result-ok-m7v5');if(!ok)return;const root=document.getElementById('hand-result-overlay-m7v5');if(!root)return;const tiles=[...root.querySelectorAll('.hand-result-tile-m7v5')].map(b=>b.dataset.tile).filter(Boolean);if(tiles.length!==14)return;e.preventDefault();e.stopImmediatePropagation();root.remove();showResult(tiles);},true);
 })();
