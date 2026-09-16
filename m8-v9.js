@@ -3,7 +3,6 @@
   const style=document.createElement('style');
   style.textContent=`
   @media (orientation:landscape){
-    /* ① アガリ者/放銃者選択：上下プレイヤーを隠さない細い中央帯 */
     #agari-overlay.m8v9-pick{position:fixed!important;left:50%!important;top:50%!important;width:min(520px,58vw)!important;max-height:none!important;overflow:visible!important;transform:translate(-50%,-50%)!important;transform-origin:center!important;zoom:1!important}
     #agari-overlay.m8v9-pick .agari-flow-card{padding:5px 9px!important;max-height:none!important;overflow:visible!important;border-radius:14px!important}
     #agari-overlay.m8v9-pick .agari-flow-top{margin:0 0 2px!important;min-height:26px!important}
@@ -16,8 +15,6 @@
     #agari-overlay.m8v9-pick .winner-chip{padding:2px 6px!important;font-size:10px!important}
     #agari-overlay.m8v9-pick .agari-flow-actions{margin:1px 0 0!important;gap:5px!important}
     #agari-overlay.m8v9-pick .agari-flow-actions button{min-height:30px!important;padding:4px 8px!important;font-size:12px!important}
-
-    /* ② 点数表：上余白を削り、全体を上へ。下部操作は34pxを確保 */
     #agari-overlay.m8v9-score{position:fixed!important;left:50%!important;top:46.5%!important;width:min(700px,80vw)!important;max-height:none!important;overflow:visible!important;transform:translate(-50%,-50%) scale(.82)!important;transform-origin:center!important;zoom:1!important;transition:none!important}
     #agari-overlay.m8v9-score .agari-flow-card{padding:3px 7px 5px!important;max-height:none!important;overflow:visible!important}
     #agari-overlay.m8v9-score .agari-flow-top{margin:0!important;min-height:27px!important}
@@ -36,8 +33,6 @@
     #agari-overlay.m8v9-score .limit-grid button{min-height:29px!important;padding:3px 6px!important;font-size:10px!important}
     #agari-overlay.m8v9-score .agari-flow-actions{margin:3px 0 0!important;padding:0!important;gap:5px!important}
     #agari-overlay.m8v9-score .agari-flow-actions button{min-height:34px!important;padding:5px 8px!important;font-size:11px!important}
-
-    /* ③ 役判定後：上端から配置し、確認ボタンは常時押せる */
     #m8-result-v1{align-items:flex-start!important;justify-content:center!important;padding:4px 8px!important;overflow:hidden!important}
     #m8-result-v1 .m8-card{width:min(760px,95vw)!important;max-height:calc(100dvh - 8px)!important;overflow:auto!important;margin:0 auto!important;padding:8px 13px 5px!important;border-radius:16px!important;overscroll-behavior:contain!important}
     #m8-result-v1 .m8-card h2{font-size:22px!important;margin:0 0 3px!important;line-height:1.05!important}
@@ -109,4 +104,15 @@
   document.addEventListener('click',()=>setTimeout(refresh,0),true);
   ['pageshow','resize','orientationchange'].forEach(ev=>window.addEventListener(ev,refresh,{passive:true}));
   refresh();
+})();
+
+// M8 v10 bootstrap. index.html remains compatible; network-first SW fetches this updated file.
+(() => {
+  const badge=document.getElementById('app-build-badge');
+  if(badge) badge.textContent='M8 v10';
+  if(document.querySelector('script[data-m8v10]')) return;
+  const s=document.createElement('script');
+  s.src='m8-v10.js?v=m8v10';
+  s.dataset.m8v10='1';
+  document.body.appendChild(s);
 })();
