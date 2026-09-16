@@ -96,8 +96,6 @@ console.log("ui-fixes.js loaded");
   },{passive:true}));
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'){requestAnimationFrame(normalizeV72);setTimeout(normalizeV72,150);}});
 
-  // 既存の「読み取り直す」は閉じたメニュー内のボタンを探していたため対局画面へ戻っていた。
-  // メニューを一瞬再生成して、リアルタイムカメラを直接起動する。
   document.addEventListener('click',e=>{
     const back=e.target.closest?.('.hand-result-back-m7v5');
     if(!back) return;
@@ -110,5 +108,51 @@ console.log("ui-fixes.js loaded");
       if(camera) camera.click();
       else if(typeof closeSimpleGameMenuV1==='function') closeSimpleGameMenuV1();
     });
+  },true);
+})();
+
+// ========================================
+// M8 v1 基本アガリ形判定
+// 14枚が「4面子+1雀頭」になるかを判定する。
+// 七対子・国士無双・役判定は次工程。
+// ========================================
+(() => {
+  const tileOrder=['1萬','2萬','3萬','4萬','5萬','6萬','7萬','8萬','9萬','1筒','2筒','3筒','4筒','5筒','6筒','7筒','8筒','9筒','1索','2索','3索','4索','5索','6索','7索','8索','9索','東','南','西','北','白','發','中'];
+  const index=new Map(tileOrder.map((t,i)=>[t,i]));
+  function canMeld(counts){
+    let i=counts.findIndex(n=>n>0);
+    if(i<0) return true;
+    if(counts[i]>=3){counts[i]-=3;if(canMeld(counts)){counts[i]+=3;return true;}counts[i]+=3;}
+    if(i<27 && i%9<=6 && counts[i+1]>0 && counts[i+2]>0){counts[i]--;counts[i+1]--;counts[i+2]--;if(canMeld(counts)){counts[i]++;counts[i+1]++;counts[i+2]++;return true;}counts[i]++;counts[i+1]++;counts[i+2]++;}
+    return false;
+  }
+  function isStandardWin(tiles){
+    if(tiles.length!==14) return false;
+    const counts=Array(34).fill(0);
+    for(const t of tiles){const i=index.get(t);if(i==null)return false;counts[i]++;if(counts[i]>4)return false;}
+    for(let i=0;i<34;i++) if(counts[i]>=2){counts[i]-=2;const ok=canMeld(counts);counts[i]+=2;if(ok)return true;}
+    return false;
+  }
+  window.isStandardMahjongWinM8V1=isStandardWin;
+
+  const style=document.createElement('style');
+  style.textContent=`#m8-result-v1{position:fixed;inset:0;z-index:2147483000;background:rgba(0,0,0,.62);display:flex;align-items:center;justify-content:center;padding:20px}#m8-result-v1 .m8-card{width:min(620px,88vw);background:#f7f3e9;color:#102019;border-radius:22px;padding:24px;text-align:center;box-shadow:0 18px 55px rgba(0,0,0,.35)}#m8-result-v1 h2{font-size:28px;margin:0 0 10px}#m8-result-v1 p{font-size:16px;margin:0 0 18px}#m8-result-v1 button{width:100%;min-height:52px;border:0;border-radius:14px;font-size:18px;font-weight:800;background:#e7e7e7;color:#111}`;
+  document.head.appendChild(style);
+
+  function showResult(tiles){
+    document.getElementById('m8-result-v1')?.remove();
+    const win=isStandardWin(tiles);
+    const root=document.createElement('div');root.id='m8-result-v1';
+    root.innerHTML=`<div class="m8-card"><h2>${win?'アガリ形です ✓':'まだアガリ形ではありません'}</h2><p>${win?'4面子＋1雀頭として成立しています。':'4面子＋1雀頭の形としては成立していません。'}<br><small>※ M8 v1は基本形のみ判定。七対子・国士・役判定は未対応です。</small></p><button type="button">確認</button></div>`;
+    root.querySelector('button').onclick=()=>root.remove();document.body.appendChild(root);
+  }
+
+  document.addEventListener('click',e=>{
+    const ok=e.target.closest?.('.hand-result-ok-m7v5');if(!ok)return;
+    const root=document.getElementById('hand-result-overlay-m7v5');if(!root)return;
+    const tiles=[...root.querySelectorAll('.hand-result-tile-m7v5')].map(b=>b.dataset.tile).filter(Boolean);
+    if(tiles.length!==14)return;
+    e.preventDefault();e.stopImmediatePropagation();
+    root.remove();showResult(tiles);
   },true);
 })();
