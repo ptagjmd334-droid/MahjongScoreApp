@@ -22500,3 +22500,70 @@ if (
     if (streamM7V3) stopRealtimeCameraM7V3();
   });
 })();
+
+/* ========================================
+   M7 リアルタイム候補検出 Ver.4
+   実牌前の仮検出。映像中の縦長・高コントラスト領域を数え、
+   13〜14牌の実牌テスト時に閾値を調整する。
+   ======================================== */
+(() => {
+  let timerM7V4 = null;
+
+  function stopLiveDetectM7V4() {
+    if (timerM7V4) clearInterval(timerM7V4);
+    timerM7V4 = null;
+  }
+
+  function detectCandidatesM7V4(ctx, w, h) {
+    const data = ctx.getImageData(0,0,w,h).data;
+    const gray = new Uint8Array(w*h);
+    for(let i=0,p=0;i<data.length;i+=4,p++) gray[p]=(data[i]*3+data[i+1]*6+data[i+2])/10;
+    const mask = new Uint8Array(w*h);
+    for(let y=1;y<h-1;y++) for(let x=1;x<w-1;x++){
+      const p=y*w+x;
+      const gx=Math.abs(gray[p+1]-gray[p-1]);
+      const gy=Math.abs(gray[p+w]-gray[p-w]);
+      if(gx+gy>72) mask[p]=1;
+    }
+    // Count edge density in vertical strips; adjacent active strips are merged.
+    const strips=28, sw=w/strips, active=[];
+    for(let s=0;s<strips;s++){
+      const x0=Math.floor(s*sw), x1=Math.min(w,Math.ceil((s+1)*sw)); let n=0;
+      for(let y=Math.floor(h*.12);y<Math.floor(h*.9);y+=2) for(let x=x0;x<x1;x+=2) n+=mask[y*w+x];
+      const denom=Math.max(1,Math.ceil((x1-x0)/2)*Math.ceil(h*.78/2));
+      if(n/denom>.055) active.push(s);
+    }
+    const groups=[];
+    active.forEach(s=>{const g=groups[groups.length-1]; if(g&&s<=g[1]+1) g[1]=s; else groups.push([s,s]);});
+    return groups.filter(g=>g[1]-g[0]<=4).map(g=>({x:g[0]*sw,w:(g[1]-g[0]+1)*sw})).slice(0,14);
+  }
+
+  function startLiveDetectM7V4(overlay) {
+    stopLiveDetectM7V4();
+    const video=overlay.querySelector('.realtime-hand-video-m7v3');
+    const count=overlay.querySelector('#realtime-hand-count-m7v3');
+    const note=overlay.querySelector('.realtime-hand-status-m7v3 small');
+    if(note){note.textContent='仮検出中：実牌テストで13〜14枚に調整します';note.classList.add('live-m7v4');}
+    const draw=document.createElement('canvas'); draw.className='realtime-hand-live-canvas-m7v4'; overlay.appendChild(draw);
+    const work=document.createElement('canvas'); work.width=320; work.height=150; const wctx=work.getContext('2d',{willReadFrequently:true});
+    timerM7V4=setInterval(()=>{
+      if(!document.body.contains(overlay)||video.readyState<2) return;
+      // approximate the visible guide rectangle used by CSS
+      wctx.drawImage(video,0,0,video.videoWidth,video.videoHeight,0,0,320,150);
+      const boxes=detectCandidatesM7V4(wctx,320,150);
+      count.textContent=`${boxes.length} / 14`;
+      draw.width=overlay.clientWidth; draw.height=overlay.clientHeight;
+      const d=draw.getContext('2d'); d.clearRect(0,0,draw.width,draw.height);
+      const gx=draw.width*.07, gy=draw.height*.17, gw=draw.width*.86, gh=draw.height*.63;
+      d.strokeStyle='#ffb000'; d.lineWidth=2;
+      boxes.forEach(b=>d.strokeRect(gx+(b.x/320)*gw,gy,Math.max(10,(b.w/320)*gw),gh));
+    },500);
+  }
+
+  document.addEventListener('click',e=>{
+    if(!e.target.closest?.('#open-realtime-hand-camera-m7v3')) return;
+    setTimeout(()=>{const overlay=document.getElementById('realtime-hand-camera-m7v3');if(overlay) startLiveDetectM7V4(overlay);},700);
+  },true);
+  document.addEventListener('click',e=>{if(e.target.closest?.('.realtime-hand-cancel-m7v3')) stopLiveDetectM7V4();},true);
+  window.addEventListener('pagehide',stopLiveDetectM7V4);
+})();
