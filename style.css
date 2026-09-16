@@ -4642,3 +4642,16 @@ body:has(.agari-overlay:not(.hidden)) .riichi-button {
 .realtime-hand-live-canvas-m7v4{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:2}
 .realtime-hand-guide-m7v3,.realtime-hand-status-m7v3,.realtime-hand-cancel-m7v3{z-index:3}
 .realtime-hand-status-m7v3 small.live-m7v4{opacity:.95}
+
+/* ========================================
+   M7 認識結果確認 Ver.5
+   ======================================== */
+.realtime-hand-test-result-m7v5{position:absolute;left:max(16px,env(safe-area-inset-left));bottom:max(14px,env(safe-area-inset-bottom));z-index:4;min-height:38px;padding:7px 14px;border:1px solid rgba(255,255,255,.55);border-radius:999px;background:rgba(20,20,20,.7);color:#fff;font-size:12px;font-weight:800}
+.hand-result-overlay-m7v5{position:fixed;inset:0;z-index:10300;display:flex;align-items:center;justify-content:center;padding:10px 14px;background:rgba(0,0,0,.84);box-sizing:border-box}
+.hand-result-card-m7v5{width:min(1040px,95vw);height:min(92vh,520px);display:flex;flex-direction:column;gap:9px;padding:12px 14px;border-radius:18px;background:#f7f3e8;color:#172019;box-sizing:border-box}
+.hand-result-head-m7v5{display:flex;align-items:center;justify-content:space-between;gap:14px}.hand-result-head-m7v5>div{display:flex;flex-direction:column}.hand-result-head-m7v5 b{font-size:19px}.hand-result-head-m7v5 small{font-size:11px}.hand-result-status-m7v5{font-size:14px;font-weight:900;white-space:nowrap}
+.hand-result-tiles-m7v5{flex:1;min-height:0;display:grid;grid-template-columns:repeat(14,1fr);gap:5px;align-items:stretch}
+.hand-result-tile-m7v5{min-width:0;border:2px solid #d9d4c8;border-radius:8px;background:#fff;color:#172019;font-size:14px;font-weight:900;padding:4px 1px;box-shadow:0 2px 4px rgba(0,0,0,.12)}
+.hand-result-note-m7v5{text-align:center;font-size:10px}.hand-result-actions-m7v5{display:grid;grid-template-columns:1fr 1.4fr;gap:8px}.hand-result-actions-m7v5 button{min-height:40px;border-radius:10px;font-size:14px;font-weight:900}.hand-result-ok-m7v5:disabled{opacity:.45}
+.tile-picker-m7v5{position:fixed;inset:0;z-index:10400;display:flex;align-items:center;justify-content:center;padding:10px;background:rgba(0,0,0,.72);box-sizing:border-box}.tile-picker-card-m7v5{width:min(780px,92vw);max-height:92vh;display:flex;flex-direction:column;gap:8px;padding:12px;border-radius:16px;background:#f7f3e8;color:#172019;box-sizing:border-box}.tile-picker-title-m7v5{text-align:center;font-size:17px;font-weight:900}.tile-picker-grid-m7v5{display:grid;grid-template-columns:repeat(9,1fr);gap:5px;min-height:0;overflow:auto}.tile-picker-grid-m7v5 button{min-height:38px;border-radius:7px;font-size:12px;font-weight:800}.tile-picker-cancel-m7v5{min-height:36px;font-weight:800}
+@media (orientation:landscape) and (max-height:500px){.hand-result-card-m7v5{height:94vh;padding:8px 12px;gap:6px}.hand-result-head-m7v5 b{font-size:16px}.hand-result-head-m7v5 small{font-size:9px}.hand-result-tile-m7v5{font-size:12px}.hand-result-actions-m7v5 button{min-height:34px}.tile-picker-card-m7v5{height:94vh;padding:8px}.tile-picker-title-m7v5{font-size:14px}.tile-picker-grid-m7v5 button{min-height:30px;font-size:11px}}

@@ -22567,3 +22567,70 @@ if (
   document.addEventListener('click',e=>{if(e.target.closest?.('.realtime-hand-cancel-m7v3')) stopLiveDetectM7V4();},true);
   window.addEventListener('pagehide',stopLiveDetectM7V4);
 })();
+
+/* ========================================
+   M7 認識結果確認 Ver.5
+   実牌なしでも確認できる結果UI。牌種認識は実牌テスト後に接続する。
+   ======================================== */
+(() => {
+  const TILE_OPTIONS_M7V5 = [
+    '1萬','2萬','3萬','4萬','5萬','6萬','7萬','8萬','9萬',
+    '1筒','2筒','3筒','4筒','5筒','6筒','7筒','8筒','9筒',
+    '1索','2索','3索','4索','5索','6索','7索','8索','9索',
+    '東','南','西','北','白','發','中'
+  ];
+
+  function closeResultM7V5(){ document.getElementById('hand-result-overlay-m7v5')?.remove(); }
+
+  function openTilePickerM7V5(index, tileButton){
+    document.getElementById('tile-picker-m7v5')?.remove();
+    const picker=document.createElement('div');
+    picker.id='tile-picker-m7v5'; picker.className='tile-picker-m7v5';
+    picker.innerHTML=`<div class="tile-picker-card-m7v5"><div class="tile-picker-title-m7v5">${index+1}枚目を修正</div><div class="tile-picker-grid-m7v5"></div><button type="button" class="tile-picker-cancel-m7v5">閉じる</button></div>`;
+    const grid=picker.querySelector('.tile-picker-grid-m7v5');
+    TILE_OPTIONS_M7V5.forEach(name=>{
+      const b=document.createElement('button'); b.type='button'; b.textContent=name;
+      b.onclick=()=>{ tileButton.textContent=name; tileButton.dataset.tile=name; picker.remove(); updateResultStatusM7V5(); };
+      grid.appendChild(b);
+    });
+    picker.querySelector('.tile-picker-cancel-m7v5').onclick=()=>picker.remove();
+    document.body.appendChild(picker);
+  }
+
+  function updateResultStatusM7V5(){
+    const root=document.getElementById('hand-result-overlay-m7v5'); if(!root) return;
+    const buttons=[...root.querySelectorAll('.hand-result-tile-m7v5')];
+    const fixed=buttons.filter(b=>b.dataset.tile).length;
+    const status=root.querySelector('.hand-result-status-m7v5');
+    if(status) status.textContent = fixed===14 ? '14枚確認済み ✓' : `${fixed} / 14枚を確認済み`;
+    const ok=root.querySelector('.hand-result-ok-m7v5'); if(ok) ok.disabled=fixed!==14;
+  }
+
+  window.showHandResultM7V5 = function(tiles){
+    document.getElementById('hand-result-overlay-m7v5')?.remove();
+    const values=Array.from({length:14},(_,i)=>tiles?.[i]||'');
+    const overlay=document.createElement('div'); overlay.id='hand-result-overlay-m7v5'; overlay.className='hand-result-overlay-m7v5';
+    overlay.innerHTML=`<div class="hand-result-card-m7v5">
+      <div class="hand-result-head-m7v5"><div><b>認識した手牌を確認</b><small>間違っている牌だけタップして修正できます</small></div><span class="hand-result-status-m7v5">0 / 14枚を確認済み</span></div>
+      <div class="hand-result-tiles-m7v5"></div>
+      <div class="hand-result-note-m7v5">※ 現在は画面の土台確認です。実牌テスト後、認識した牌名を自動でここへ入れます。</div>
+      <div class="hand-result-actions-m7v5"><button type="button" class="hand-result-back-m7v5">読み取り直す</button><button type="button" class="hand-result-ok-m7v5" disabled>この手牌で進む</button></div>
+    </div>`;
+    const row=overlay.querySelector('.hand-result-tiles-m7v5');
+    values.forEach((name,i)=>{const b=document.createElement('button');b.type='button';b.className='hand-result-tile-m7v5';b.textContent=name||'?';if(name)b.dataset.tile=name;b.onclick=()=>openTilePickerM7V5(i,b);row.appendChild(b);});
+    overlay.querySelector('.hand-result-back-m7v5').onclick=()=>{closeResultM7V5(); document.getElementById('open-realtime-hand-camera-m7v3')?.click();};
+    overlay.querySelector('.hand-result-ok-m7v5').onclick=()=>{const result=[...overlay.querySelectorAll('.hand-result-tile-m7v5')].map(b=>b.dataset.tile); window.lastRecognizedHandM7=result; closeResultM7V5(); alert('手牌14枚を確認しました。\n次の工程でアガリ判定へ接続します。');};
+    document.body.appendChild(overlay); updateResultStatusM7V5();
+  };
+
+  // 実牌がない間でも結果画面を実機確認できる開発用ボタン。
+  document.addEventListener('click',e=>{
+    if(!e.target.closest?.('#open-realtime-hand-camera-m7v3')) return;
+    setTimeout(()=>{
+      const overlay=document.getElementById('realtime-hand-camera-m7v3'); if(!overlay||overlay.querySelector('.realtime-hand-test-result-m7v5')) return;
+      const b=document.createElement('button'); b.type='button'; b.className='realtime-hand-test-result-m7v5'; b.textContent='確認画面テスト';
+      b.onclick=()=>{ overlay.querySelector('.realtime-hand-cancel-m7v3')?.click(); setTimeout(()=>window.showHandResultM7V5(),80); };
+      overlay.appendChild(b);
+    },800);
+  },true);
+})();
