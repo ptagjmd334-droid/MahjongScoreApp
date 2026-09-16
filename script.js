@@ -22232,3 +22232,100 @@ if (
     if (document.visibilityState === "visible") scheduleViewportV25();
   });
 })();
+
+/* ========================================
+   M7 手牌撮影フロー Ver.1
+   撮影 → プレビュー → この画像を使う
+   ======================================== */
+(() => {
+  let handPhotoObjectUrlM7 = null;
+
+  function closeHandPhotoPreviewM7() {
+    const overlay = document.getElementById("hand-photo-preview-m7");
+    if (overlay) overlay.remove();
+    if (handPhotoObjectUrlM7) {
+      URL.revokeObjectURL(handPhotoObjectUrlM7);
+      handPhotoObjectUrlM7 = null;
+    }
+  }
+
+  function openHandCameraM7() {
+    let input = document.getElementById("hand-camera-input-m7");
+    if (!input) {
+      input = document.createElement("input");
+      input.id = "hand-camera-input-m7";
+      input.type = "file";
+      input.accept = "image/*";
+      input.setAttribute("capture", "environment");
+      input.hidden = true;
+      document.body.appendChild(input);
+
+      input.addEventListener("change", () => {
+        const file = input.files && input.files[0];
+        if (!file) return;
+        showHandPhotoPreviewM7(file);
+        input.value = "";
+      });
+    }
+    input.click();
+  }
+
+  function showHandPhotoPreviewM7(file) {
+    closeHandPhotoPreviewM7();
+    handPhotoObjectUrlM7 = URL.createObjectURL(file);
+
+    const overlay = document.createElement("div");
+    overlay.id = "hand-photo-preview-m7";
+    overlay.className = "hand-photo-preview-m7";
+    overlay.innerHTML = `
+      <div class="hand-photo-card-m7" role="dialog" aria-modal="true" aria-label="手牌写真の確認">
+        <div class="hand-photo-title-m7">手牌写真を確認</div>
+        <div class="hand-photo-guide-m7">13〜14枚すべてが写っていることを確認してください</div>
+        <img class="hand-photo-image-m7" alt="撮影した手牌" src="${handPhotoObjectUrlM7}">
+        <div class="hand-photo-actions-m7">
+          <button type="button" id="cancel-hand-photo-m7">キャンセル</button>
+          <button type="button" id="retake-hand-photo-m7">撮り直す</button>
+          <button type="button" id="use-hand-photo-m7" class="primary">この画像を使う</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+
+    document.getElementById("cancel-hand-photo-m7").onclick = closeHandPhotoPreviewM7;
+    document.getElementById("retake-hand-photo-m7").onclick = () => {
+      closeHandPhotoPreviewM7();
+      openHandCameraM7();
+    };
+    document.getElementById("use-hand-photo-m7").onclick = () => {
+      // M7 Ver.1では解析器へ渡す入口まで。実牌取得後に切り出し処理を接続する。
+      window.mahjongHandPhotoM7 = file;
+      closeHandPhotoPreviewM7();
+      alert("画像を読み込みました。\n次の工程で牌の切り出し・認識を行います。");
+    };
+  }
+
+  function installHandCameraButtonM7() {
+    const menu = document.getElementById("simple-game-menu-v1");
+    if (!menu || document.getElementById("open-hand-camera-m7")) return;
+
+    const button = document.createElement("button");
+    button.type = "button";
+    button.id = "open-hand-camera-m7";
+    button.textContent = "手牌を撮影";
+
+    const pointButton = document.getElementById("open-point-correction-v1");
+    if (pointButton) menu.insertBefore(button, pointButton);
+    else menu.appendChild(button);
+
+    button.onclick = () => {
+      if (typeof closeSimpleGameMenuV1 === "function") closeSimpleGameMenuV1();
+      openHandCameraM7();
+    };
+  }
+
+  const previousOpenMenuM7 = openSimpleGameMenuV1;
+  openSimpleGameMenuV1 = function (...args) {
+    const result = previousOpenMenuM7.apply(this, args);
+    installHandCameraButtonM7();
+    return result;
+  };
+})();

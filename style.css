@@ -4550,3 +4550,50 @@ body:has(.agari-overlay:not(.hidden)) .riichi-button {
     overflow: hidden !important;
   }
 }
+
+/* ========================================
+   M7 手牌撮影フロー Ver.1
+   ======================================== */
+.hand-photo-preview-m7 {
+  position: fixed;
+  inset: 0;
+  z-index: 10050;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: max(10px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left));
+  background: rgba(0, 0, 0, .78);
+  box-sizing: border-box;
+}
+.hand-photo-card-m7 {
+  width: min(920px, 94vw);
+  max-height: 94vh;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 10px 12px;
+  border-radius: 16px;
+  background: #f7f3e8;
+  color: #172019;
+  box-sizing: border-box;
+}
+.hand-photo-title-m7 { font-size: 20px; font-weight: 800; text-align: center; }
+.hand-photo-guide-m7 { font-size: 12px; text-align: center; }
+.hand-photo-image-m7 {
+  display: block;
+  width: 100%;
+  min-height: 0;
+  flex: 1 1 auto;
+  object-fit: contain;
+  border-radius: 10px;
+  background: #111;
+}
+.hand-photo-actions-m7 { display: grid; grid-template-columns: 1fr 1fr 1.35fr; gap: 8px; }
+.hand-photo-actions-m7 button { min-height: 42px; font-size: 14px; font-weight: 700; }
+.hand-photo-actions-m7 .primary { font-weight: 900; }
+@media (orientation: landscape) and (max-height: 500px) {
+  .hand-photo-card-m7 { height: 94vh; width: min(900px, 92vw); }
+  .hand-photo-title-m7 { font-size: 17px; }
+  .hand-photo-guide-m7 { font-size: 11px; }
+  .hand-photo-actions-m7 button { min-height: 36px; }
+}
