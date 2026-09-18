@@ -97,6 +97,9 @@
   }
 
   function centerAgari(){
+    // v25: v19以降がアガリoverlayのレイアウト責務を持つ。
+    // v18まで同時にwidth/positionを書き換えると、クリック方向によって最後に走った版が変わり幅が揺れる。
+    if(window.m8AgariLayoutOwnerV19Plus)return;
     if(overlay.classList.contains('hidden'))return;
     const a=appRect(),cx=a.left+a.width/2,cy=a.top+a.height/2,score=isScore();
     clearLegacyClasses();
