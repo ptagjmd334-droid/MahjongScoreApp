@@ -296,10 +296,19 @@
     window.m8SuggestedFuV18=fu;window.m8SuggestedFuV8=fu;
     overlay.querySelectorAll('.m8v18-fu-row,.m8v18-fu-cell').forEach(x=>x.classList.remove('m8v18-fu-row','m8v18-fu-cell'));
     overlay.querySelectorAll('#m8v18-score-fu button[data-fu]').forEach(b=>b.classList.toggle('active',Number(b.dataset.fu)===fu));
-    overlay.querySelectorAll('.m8v18-auto-score,.m8v10-auto-score').forEach(x=>x.remove());
-    const han=getHan(),found=findScoreCell(fu,han);if(!found)return;
+    overlay.querySelectorAll('.m8v10-auto-score').forEach(x=>x.remove());
+    const han=getHan(),found=findScoreCell(fu,han);if(!found){overlay.querySelector('.m8v18-auto-score')?.remove();return;}
     [...found.row.children].forEach(c=>c.classList.add('m8v18-fu-row'));
-    if(found.cell){found.cell.classList.add('m8v18-fu-cell');const target=found.cell.querySelector('.score-cell,button')||found.cell;const table=overlay.querySelector('.score-switch-table');const auto=document.createElement('button');auto.type='button';auto.className='m8v18-auto-score';auto.textContent=`M8推奨 ${fu}符${han?`${han}翻`:''}を入力`;auto.onclick=e=>{e.preventDefault();e.stopPropagation();target.dispatchEvent(new MouseEvent('click',{bubbles:true,cancelable:true,view:window}));};table?.insertAdjacentElement('beforebegin',auto);}
+    if(found.cell){
+      found.cell.classList.add('m8v18-fu-cell');
+      const target=found.cell.querySelector('.score-cell,button')||found.cell;
+      const table=overlay.querySelector('.score-switch-table');
+      let auto=overlay.querySelector('.m8v18-auto-score');
+      if(!auto){auto=document.createElement('button');auto.type='button';auto.className='m8v18-auto-score';table?.insertAdjacentElement('beforebegin',auto);}
+      const label=`M8推奨 ${fu}符${han?`${han}翻`:''}を入力`;
+      if(auto.textContent!==label)auto.textContent=label;
+      auto.onclick=e=>{e.preventDefault();e.stopPropagation();target.dispatchEvent(new MouseEvent('click',{bubbles:true,cancelable:true,view:window}));};
+    }
   }
 
   function installScoreFu(){
@@ -347,7 +356,15 @@
   },true);
   window.addEventListener('pagehide',stopMedia,{passive:true});
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')stopMedia();});
-  new MutationObserver(queueRefresh).observe(document.body,{childList:true,subtree:true});
+  // v24 stability: body全体のchildList監視は、下で自分が追加する符UI/推奨ボタンでも再発火し続ける。
+  // 点数表そのものが新しく描画された時だけ更新し、自分の装飾追加は無視する。
+  const scoreObserver=new MutationObserver(muts=>{
+    const scoreAdded=muts.some(m=>[...m.addedNodes].some(n=>n.nodeType===1&&(
+      n.matches?.('.score-switch-table,.score-dual-grid')||n.querySelector?.('.score-switch-table,.score-dual-grid')
+    )));
+    if(scoreAdded)queueRefresh();
+  });
+  scoreObserver.observe(overlay,{childList:true,subtree:true});
   ['pageshow','resize','orientationchange'].forEach(ev=>window.addEventListener(ev,queueRefresh,{passive:true}));
   window.visualViewport?.addEventListener('resize',queueRefresh,{passive:true});
 
