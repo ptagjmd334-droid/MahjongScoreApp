@@ -1,5 +1,8 @@
 // M8 v19: 14枚の正本を画面DOMから取得 + アガリoverlayをbodyへportal + 点数表を3段固定レイアウト化
 (() => {
+  // v19以降がアガリoverlayの唯一のレイアウト担当。
+  // 旧v18とのwidth/position競合を防ぐ。
+  window.m8AgariLayoutOwnerV19Plus=true;
   const overlay=document.getElementById('agari-overlay');
   if(!overlay)return;
   const badge=document.getElementById('app-build-badge');
