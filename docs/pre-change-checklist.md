@@ -3,6 +3,12 @@
 新機能追加・バグ修正の **前に毎回読む短縮版**。
 詳細は `docs/known-mistakes-and-prevention.md` を参照。
 
+## 0. ユーザー指定ルール
+- [ ] `docs/user-development-rules.md` を確認した
+- [ ] 決定済み仕様をユーザーへ再質問していない
+- [ ] バグ修正なら、元々予定していた次機能も同じ版で進めるか確認した
+- [ ] テストは小出しではなく、連続で一気に実施できる形を考えた
+
 ## 1. 変更対象の確認
 - [ ] GitHub main の最新対象ファイルを取得した
 - [ ] index.html の現在の読込順を確認した
@@ -62,5 +68,6 @@
 - [ ] 既知の対象カテゴリで再発がない
 
 ## 9. 記録
+- [ ] 新しいユーザールールが出たら `user-development-rules.md` に追加
 - [ ] 新しいミスなら `known-mistakes-and-prevention.md` に追加
 - [ ] 作業終了時、ユーザーが作業時間を明示したら `development-time.md` を更新
