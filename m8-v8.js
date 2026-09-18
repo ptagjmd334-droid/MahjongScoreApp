@@ -277,7 +277,12 @@
     });
   }
 
-  const obs=new MutationObserver(refresh);obs.observe(document.body,{childList:true,subtree:true,characterData:true,attributes:true,attributeFilter:['class','data-tile']});
+  // v24 stability: 自分で付け外しするclass/文字変更を監視すると点数表で自己再発火するため、
+  // DOM追加と手牌data-tile変更だけを監視する。UI操作時は下のclick handlerで明示更新する。
+  const obs=new MutationObserver(muts=>{
+    if(muts.some(m=>m.type==='childList'||(m.type==='attributes'&&m.attributeName==='data-tile')))refresh();
+  });
+  obs.observe(document.body,{childList:true,subtree:true,attributes:true,attributeFilter:['data-tile']});
   ['resize','orientationchange','pageshow'].forEach(ev=>window.addEventListener(ev,refresh,{passive:true}));
   window.visualViewport?.addEventListener('resize',refresh,{passive:true});
   window.visualViewport?.addEventListener('scroll',refresh,{passive:true});
