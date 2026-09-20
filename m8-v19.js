@@ -198,8 +198,16 @@
     });
   }
 
-  // DOM追加削除だけを見る。class/styleの自己変更では再帰しない。
-  new MutationObserver(refresh).observe(document.body,{childList:true,subtree:true});
+  // v31: body内の「あらゆる子要素追加」でレイアウトを再実行すると、
+  // score reviewのdetails展開/テキスト入力でも全体layoutと再装飾が多重実行される。
+  // アガリ画面そのものが描画された場合だけ再計算する。補助パネル追加は無視する。
+  const layoutRoots='.agari-flow-card,.agari-flow-content,.score-switch-table,.score-dual-grid,#hand-result-overlay-m7v5,#m8-result-v1';
+  new MutationObserver(mutations=>{
+    const isNewLayout=mutations.some(m=>[...m.addedNodes].some(n=>
+      n.nodeType===1&&(n.matches?.(layoutRoots)||n.querySelector?.(layoutRoots))
+    ));
+    if(isNewLayout)refresh();
+  }).observe(document.body,{childList:true,subtree:true});
   ['pageshow','resize','orientationchange'].forEach(ev=>window.addEventListener(ev,refresh,{passive:true}));
   window.visualViewport?.addEventListener('resize',refresh,{passive:true});
 
