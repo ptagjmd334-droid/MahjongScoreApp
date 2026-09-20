@@ -73,14 +73,21 @@
     parseFuCandidates();
   },true);
 
-  // v8が符候補を書き換えた瞬間にも保存しておく。
+  // v31: v8の符候補の変更は結果画面内だけ監視すればよい。
+  // body全体のcharacterData監視はscore reviewの文章更新/入力まで毎回解析し、iPhoneでの過剰処理になる。
   const observer=new MutationObserver(()=>parseFuCandidates());
-  observer.observe(document.body,{childList:true,subtree:true,characterData:true});
+  let observedResult=null;
+  function observeFuResult(root){
+    if(root===observedResult)return;
+    observer.disconnect();observedResult=root;
+    if(root)observer.observe(root,{childList:true,subtree:true,characterData:true});
+  }
 
   // 画面遷移で前回の通常形の和了牌が残らないよう、新しい結果画面生成時に初期化。
   let lastResult=null;
   const resetObserver=new MutationObserver(()=>{
     const r=resultRoot();
+    observeFuResult(r);
     if(r && r!==lastResult){
       lastResult=r;
       window.m8WinningTileV7=null;
@@ -91,4 +98,5 @@
     if(!r)lastResult=null;
   });
   resetObserver.observe(document.body,{childList:true,subtree:true});
+  observeFuResult(resultRoot());
 })();
