@@ -46,11 +46,14 @@
   const fu=document.createElement('input');fu.type='number';fu.min='20';fu.max='110';fu.inputMode='numeric';fu.placeholder='40';fuLabel.append(fu);
   const hanLabel=document.createElement('label');hanLabel.textContent='実卓の翻';
   const han=document.createElement('input');han.type='number';han.min='1';han.max='13';han.inputMode='numeric';han.placeholder='2';hanLabel.append(han);
+  const current=document.createElement('button');current.type='button';current.textContent='判定情報をコピー';
   const compare=document.createElement('button');compare.type='button';compare.textContent='比較して保存・コピー';
   const previous=document.createElement('button');previous.type='button';previous.textContent='前回の結果';
+  const memo=document.createElement('textarea');memo.id='m8v30-memo';memo.placeholder='実卓で気づいたこと（任意）';memo.style.cssText='display:block;width:100%;height:35px;font-size:11px;margin:4px 0;background:white;color:#173b2a';
   const result=document.createElement('div');result.id='m8v30-result';
   const output=document.createElement('textarea');output.readOnly=true;output.id='m8v30-fallback';
-  body.append(info,fuLabel,hanLabel,compare,previous,result,output);root.append(body);
+  body.append(info,fuLabel,hanLabel,memo,current,compare,previous,result,output);root.append(body);
+  current.addEventListener('click',e=>{e.stopPropagation();const f=facts();result.textContent='判定情報';showCopy(root,result,[header(f),'手牌：'+f.tiles.join(' '),'メモ：'+(memo.value.trim()||'なし')].join('\n'));});
   compare.addEventListener('click',e=>{
    e.stopPropagation();
    const a=fu.value.trim(),b=han.value.trim(),f=facts();
@@ -62,7 +65,7 @@
    if(fv!==null)labels.push(f.fu===null?'符：アプリ未確定':f.fu===fv?'符：一致':'符：差あり（アプリ'+f.fu+'符 / 実卓'+fv+'符）');
    if(hv!==null)labels.push(f.han===null?'翻：アプリ未確定':f.han===hv?'翻：一致':'翻：差あり（アプリ'+f.han+'翻 / 実卓'+hv+'翻）');
    const report=['麻雀対局管理アプリ M8 v30 実卓照合',header(f),'手牌：'+f.tiles.join(' '),
-     '実卓：'+(fv??'未入力')+'符 / '+(hv??'未入力')+'翻','比較：'+labels.join(' / ')].join('\n');
+     '実卓：'+(fv??'未入力')+'符 / '+(hv??'未入力')+'翻','比較：'+labels.join(' / '),'メモ：'+(memo.value.trim()||'なし')].join('\n');
    try{localStorage.setItem(KEY,JSON.stringify({text:report,savedAt:new Date().toISOString()}));}catch(_){}
    result.textContent=labels.join(' / ')+'（前回の結果として保存）';
    showCopy(root,result,report);
