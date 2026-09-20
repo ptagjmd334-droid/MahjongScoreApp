@@ -11,7 +11,7 @@
  body>#agari-overlay.m8v27-method{
  position:fixed!important;left:50%!important;top:50%!important;
  right:auto!important;bottom:auto!important;transform:translate(-50%,-50%)!important;
- width:min(510px,56vw)!important;max-width:min(510px,56vw)!important;
+ width:min(620px,66vw)!important;max-width:min(620px,66vw)!important;
  height:auto!important;max-height:80dvh!important;zoom:1!important;
  pointer-events:auto!important;
  }
@@ -21,13 +21,17 @@
  }
  `;
  document.head.appendChild(style);
- const method=()=>{try{return agariFlow.step==='method';}catch(_){return false;}};
+ // script.jsのアガリ方法選択のstepは 'type'。旧'method'判定では初回に中央配置が発火しなかった。
+ const method=()=>{try{return agariFlow.step==='type';}catch(_){return false;}};
  function refresh(){
   const active=!overlay.classList.contains('hidden')&&method();
   overlay.classList.toggle('m8v27-method',active);
   if(active){
-   overlay.style.setProperty('top','50%','important');
-   overlay.style.setProperty('left','50%','important');
+   const v=window.visualViewport;
+   const middleX=(v?.offsetLeft||0)+(v?.width||window.innerWidth)/2;
+   const middleY=(v?.offsetTop||0)+(v?.height||window.innerHeight)/2;
+   overlay.style.setProperty('top',middleY+'px','important');
+   overlay.style.setProperty('left',middleX+'px','important');
    overlay.style.setProperty('transform','translate(-50%,-50%)','important');
   }
  }
@@ -67,8 +71,8 @@
   const value=review.querySelector('.m8v27-review-value');
   if(value&&value.textContent!==label)value.textContent=label;
  }
- // Observe visibility and flow content mutations: opening via game buttons can happen
- // after capture-phase click callbacks, so click-only positioning misses first render.
+ // Opening the type step toggles hidden/rewrites content after capture phase; observe that transition.
+ // Only class/content changes are observed; style writes in refresh do not feed back into observer.
  let pending=false;
  const observer=new MutationObserver(()=>{
   if(pending)return;pending=true;
