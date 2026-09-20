@@ -1,8 +1,9 @@
-// M8 v30: safe score review / one saved comparison. No subtree observer.
+// M8 v31: compact, stable score table + last 3 real-table comparisons. No subtree observer.
 (()=>{
  const overlay=document.getElementById('agari-overlay');if(!overlay)return;
- const badge=document.getElementById('app-build-badge');if(badge)badge.textContent='M8 v30';
+ const badge=document.getElementById('app-build-badge');if(badge)badge.textContent='M8 v31';
  const KEY='MahjongScoreApp_last_comparison_v30';
+ const HISTORY_KEY='MahjongScoreApp_comparison_history_v31';
  const css=document.createElement('style');
  css.textContent=[
  '#game-screen .player-panel .starting-dealer-badge-v1{top:auto!important;bottom:-9px!important;right:-9px!important;left:auto!important}',
@@ -14,7 +15,19 @@
  '#m8v30-review input{width:65px;min-width:0;padding:4px;border-radius:5px;border:1px solid #96bca6;background:white;color:#173b2a}',
  '#m8v30-review label{display:inline-flex;gap:4px;align-items:center;margin:4px}',
  '#m8v30-result{font-weight:800;overflow-wrap:anywhere;margin:4px}',
- '#m8v30-fallback{display:none;width:100%;min-height:40px;font-size:11px}'
+ '#m8v30-fallback{display:none;width:100%;min-height:40px;font-size:11px}',
+ // v31: keep score inputs useful after a draft restore; avoid six stacked recommendation banners.
+ 'body>#agari-overlay.m8v19-score{zoom:1!important;max-height:calc(100dvh - 8px)!important}',
+ 'body>#agari-overlay.m8v19-score>.agari-flow-card{display:grid!important;grid-template-rows:auto minmax(0,1fr) auto!important;max-height:calc(100dvh - 8px)!important;overflow:hidden!important}',
+ 'body>#agari-overlay.m8v19-score>.agari-flow-card>.agari-flow-content{min-height:0!important;overflow-y:auto!important;overflow-x:hidden!important;touch-action:pan-y!important;-webkit-overflow-scrolling:touch!important}',
+ 'body>#agari-overlay.m8v19-score .agari-flow-content>#m8v18-score-fu,body>#agari-overlay.m8v19-score .agari-flow-content>.m8v18-auto-score{display:none!important}',
+ 'body>#agari-overlay.m8v19-score .agari-flow-content>#m8v21-score-fu{font-size:11px!important;padding:4px 7px!important;margin:2px 0 3px!important}',
+ 'body>#agari-overlay.m8v19-score .agari-flow-content>#m8v25-score-summary{font-size:11px!important;padding:4px 7px!important;margin:2px 0 3px!important}',
+ 'body>#agari-overlay.m8v19-score .agari-flow-content>.m8v21-auto{font-size:11px!important;min-height:27px!important;padding:3px 6px!important;margin:2px 0!important}',
+ 'body>#agari-overlay.m8v19-score #m8v30-review{font-size:11px!important;padding:4px 7px!important;margin:2px 0 4px!important}',
+ 'body>#agari-overlay.m8v19-score .score-switch-table{margin:2px 0!important;flex:none!important}',
+ 'body>#agari-overlay.m8v19-score .agari-flow-actions.m8v19-score-footer{grid-row:3!important;position:relative!important;bottom:auto!important;flex:none!important}'
+
  ].join('\n');document.head.appendChild(css);
  const finite=(...vals)=>{for(const v of vals){if(v!==null&&v!==undefined&&v!==''&&Number.isFinite(Number(v)))return Number(v);}return null;};
  function facts(){
@@ -49,10 +62,11 @@
   const current=document.createElement('button');current.type='button';current.textContent='判定情報をコピー';
   const compare=document.createElement('button');compare.type='button';compare.textContent='比較して保存・コピー';
   const previous=document.createElement('button');previous.type='button';previous.textContent='前回の結果';
+  const history=document.createElement('button');history.type='button';history.textContent='直近3件の履歴';
   const memo=document.createElement('textarea');memo.id='m8v30-memo';memo.placeholder='実卓で気づいたこと（任意）';memo.style.cssText='display:block;width:100%;height:35px;font-size:11px;margin:4px 0;background:white;color:#173b2a';
   const result=document.createElement('div');result.id='m8v30-result';
   const output=document.createElement('textarea');output.readOnly=true;output.id='m8v30-fallback';
-  body.append(info,fuLabel,hanLabel,memo,current,compare,previous,result,output);root.append(body);
+  body.append(info,fuLabel,hanLabel,memo,current,compare,previous,history,result,output);root.append(body);
   current.addEventListener('click',e=>{e.stopPropagation();const f=facts();result.textContent='判定情報';showCopy(root,result,[header(f),'手牌：'+f.tiles.join(' '),'メモ：'+(memo.value.trim()||'なし')].join('\n'));});
   compare.addEventListener('click',e=>{
    e.stopPropagation();
@@ -64,11 +78,30 @@
    const labels=[];
    if(fv!==null)labels.push(f.fu===null?'符：アプリ未確定':f.fu===fv?'符：一致':'符：差あり（アプリ'+f.fu+'符 / 実卓'+fv+'符）');
    if(hv!==null)labels.push(f.han===null?'翻：アプリ未確定':f.han===hv?'翻：一致':'翻：差あり（アプリ'+f.han+'翻 / 実卓'+hv+'翻）');
-   const report=['麻雀対局管理アプリ M8 v30 実卓照合',header(f),'手牌：'+f.tiles.join(' '),
+   const report=['麻雀対局管理アプリ M8 v31 実卓照合',header(f),'手牌：'+f.tiles.join(' '),
      '実卓：'+(fv??'未入力')+'符 / '+(hv??'未入力')+'翻','比較：'+labels.join(' / '),'メモ：'+(memo.value.trim()||'なし')].join('\n');
-   try{localStorage.setItem(KEY,JSON.stringify({text:report,savedAt:new Date().toISOString()}));}catch(_){}
+   try{
+     const savedAt=new Date().toISOString();
+     localStorage.setItem(KEY,JSON.stringify({text:report,savedAt}));
+     let old=[];try{old=JSON.parse(localStorage.getItem(HISTORY_KEY)||'[]');}catch(_){}
+     const list=[{text:report,savedAt},...(Array.isArray(old)?old:[])].slice(0,3);
+     localStorage.setItem(HISTORY_KEY,JSON.stringify(list));
+   }catch(_){}
    result.textContent=labels.join(' / ')+'（前回の結果として保存）';
    showCopy(root,result,report);
+  });
+  history.addEventListener('click',e=>{
+    e.stopPropagation();
+    let items=[];try{items=JSON.parse(localStorage.getItem(HISTORY_KEY)||'[]');}catch(_){}
+    if(!Array.isArray(items)||!items.length){
+      result.textContent='保存した履歴はまだありません';return;
+    }
+    const listing=items.slice(0,3).map((entry,i)=>{
+      const date=entry?.savedAt?new Date(entry.savedAt).toLocaleString('ja-JP'):'日時不明';
+      return '【'+(i+1)+'件目 '+date+'】\n'+(entry?.text||'');
+    }).join('\n\n');
+    result.textContent='直近'+Math.min(3,items.length)+'件の履歴';
+    showCopy(root,result,listing);
   });
   previous.addEventListener('click',e=>{
    e.stopPropagation();
