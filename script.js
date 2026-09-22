@@ -22561,6 +22561,7 @@ if (
   }
 
   document.addEventListener('click',e=>{
+    if(window.M7V33CameraOwner)return;
     if(!e.target.closest?.('#open-realtime-hand-camera-m7v3')) return;
     setTimeout(()=>{const overlay=document.getElementById('realtime-hand-camera-m7v3');if(overlay) startLiveDetectM7V4(overlay);},700);
   },true);
@@ -22625,6 +22626,7 @@ if (
 
   // 実牌がない間でも結果画面を実機確認できる開発用ボタン。
   document.addEventListener('click',e=>{
+    if(window.M7V33CameraOwner)return;
     if(!e.target.closest?.('#open-realtime-hand-camera-m7v3')) return;
     setTimeout(()=>{
       const overlay=document.getElementById('realtime-hand-camera-m7v3'); if(!overlay||overlay.querySelector('.realtime-hand-test-result-m7v5')) return;
