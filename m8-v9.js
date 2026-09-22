@@ -67,8 +67,8 @@
     const overlay=document.getElementById('agari-overlay');if(!overlay)return;
     const score=!!overlay.querySelector('.score-switch-table,.score-dual-grid');
     const step=agariStep();
-    overlay.classList.toggle('m8v9-pick',(step==='winner'||step==='discarder')&&!score);
-    overlay.classList.toggle('m8v9-score',score);
+    // v32: v19 owns the overlay layout; do not re-apply old v9 transform/scale.
+    overlay.classList.remove('m8v9-pick','m8v9-score');
   }
 
   function captureRecommendation(){
@@ -105,7 +105,14 @@
 
   let scheduled=false;
   function refresh(){if(scheduled)return;scheduled=true;requestAnimationFrame(()=>{scheduled=false;refreshAgariLayout();captureRecommendation();decorateRecommendedCell();});}
-  new MutationObserver(refresh).observe(document.body,{childList:true,subtree:true,characterData:true,attributes:true,attributeFilter:['data-tile']});
+  // Recompute when a score table or result is mounted, and after explicit interactions.
+  // Do not watch arbitrary childList/characterData changes caused by our own badges.
+  new MutationObserver(mutations=>{
+    if(mutations.some(m=>[...m.addedNodes].some(n=>n.nodeType===1&&(
+      n.matches?.('.score-switch-table,#m8-result-v1')||
+      n.querySelector?.('.score-switch-table,#m8-result-v1')
+    ))))refresh();
+  }).observe(document.body,{childList:true,subtree:true});
   document.addEventListener('click',()=>setTimeout(refresh,0),true);
   ['pageshow','resize','orientationchange'].forEach(ev=>window.addEventListener(ev,refresh,{passive:true}));
   refresh();
