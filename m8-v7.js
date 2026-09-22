@@ -155,11 +155,10 @@
     });
   }
 
-  function refreshLayouts(){fitPlayerPick();fitScore();}
-  const layoutObserver=new MutationObserver(()=>requestAnimationFrame(refreshLayouts));
-  layoutObserver.observe(document.body,{childList:true,subtree:true,characterData:true,attributes:true,attributeFilter:['class']});
-  ['resize','orientationchange','pageshow'].forEach(ev=>window.addEventListener(ev,()=>setTimeout(refreshLayouts,30),{passive:true}));
-  window.visualViewport?.addEventListener('resize',()=>requestAnimationFrame(refreshLayouts),{passive:true});
+  // v32: m8-v19 is the only agari-overlay layout owner.
+  // Keep the v7 hand/wait evaluator, but never attach the legacy body-wide
+  // layout observer or its scale-based score fitter; those fought the v19
+  // scrollable card and could continually resize a restored score table.
 
   // ---------- 符自動判定の土台：和了牌と待ち形候補 ----------
   const tileOrder=['1萬','2萬','3萬','4萬','5萬','6萬','7萬','8萬','9萬','1筒','2筒','3筒','4筒','5筒','6筒','7筒','8筒','9筒','1索','2索','3索','4索','5索','6索','7索','8索','9索','東','南','西','北','白','發','中'];
@@ -224,5 +223,5 @@
 
   const tileObserver=new MutationObserver(()=>{captureTiles();installFuStart();});
   tileObserver.observe(document.body,{childList:true,subtree:true,attributes:true,attributeFilter:['data-tile']});
-  captureTiles();refreshLayouts();
+  captureTiles();
 })();
