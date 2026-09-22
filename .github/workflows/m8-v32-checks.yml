@@ -17,3 +17,9 @@ jobs:
           node-version: "22"
       - name: Check script syntax and scoring rules
         run: node --test tests/m8-v32.test.cjs
+      - name: Install headless browser control
+        run: npm install --no-save --no-audit --no-fund puppeteer-core@24
+      - name: Run real Chromium landscape flow
+        env:
+          CHROME_BIN: /usr/bin/google-chrome
+        run: node tests/browser-smoke.cjs
