@@ -1,0 +1,19 @@
+name: M8 stability and scoring checks
+on:
+  push:
+    branches:
+      - work/m8-stability-yaku-after-v31
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Configure Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Check script syntax and scoring rules
+        run: node --test tests/m8-v32.test.cjs
