@@ -34,7 +34,16 @@ const server=http.createServer((req,res)=>{
     const errors=[];page.on('pageerror',e=>errors.push(String(e)));
     await page.goto('http://127.0.0.1:'+port+'/',{waitUntil:'domcontentloaded',timeout:30000});
     await page.waitForSelector('#go-confirm-button',{timeout:12000});
-    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'M8 v32');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'M7 v33');
+    const synthetic=await page.evaluate(()=>{
+      const canvas=document.createElement('canvas');canvas.width=480;canvas.height=190;
+      const ctx=canvas.getContext('2d');ctx.fillStyle='#111';ctx.fillRect(0,0,480,190);
+      ctx.fillStyle='#f4f1e8';
+      for(let i=0;i<14;i++)ctx.fillRect(5+i*34,58,26,72);
+      const boxes=window.M7CameraV33.detectCandidates(ctx,480,190);
+      return boxes.map(b=>({x:b.x,y:b.y,w:b.w,h:b.h,cx:b.cx}));
+    });
+    assert.equal(synthetic.length,14,'synthetic 14-tile row not segmented: '+JSON.stringify(synthetic));
     await page.click('#go-confirm-button');
     await page.waitForSelector('#start-game-button',{visible:true,timeout:8000});
     await page.click('#start-game-button');
@@ -78,7 +87,7 @@ const server=http.createServer((req,res)=>{
     await page.waitForSelector('#m8v30-fields',{visible:true,timeout:3000});
     assert.equal(errors.filter(x=>/Maximum call stack|out of memory|is not defined/i.test(x)).length,0,
       'fatal browser JS errors: '+errors.join('\n'));
-    console.log('PASS: landscape setup, centered ron method, winner/discarder, score table, review re-open, no runaway DOM');
+    console.log('PASS: synthetic 14-tile camera segmentation + landscape agari/score/review flow');
     console.log('Score geometry:',JSON.stringify(score),'DOM nodes:',initial,'to',after);
     console.log('Type overlay geometry:',JSON.stringify(location));
     console.log('Browser pageerrors (not all fatal):',errors.slice(0,3).join(' | ')||'none');
