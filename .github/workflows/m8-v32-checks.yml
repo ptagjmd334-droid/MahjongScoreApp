@@ -2,6 +2,7 @@ name: M8 stability and scoring checks
 on:
   push:
     branches:
+      - main
       - work/m8-stability-yaku-after-v31
   workflow_dispatch:
 
