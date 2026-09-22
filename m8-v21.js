@@ -52,8 +52,8 @@
   function waitOptions(d,win){const wi=tileIndex.get(win);if(wi==null)return[];const out=[];if(d.pair===wi)out.push({wait:'単騎',target:'pair'});d.melds.forEach((m,mi)=>{if(m.type==='triplet'&&m.i===wi)out.push({wait:'双碰',target:'triplet',mi});if(m.type==='sequence'&&wi>=m.i&&wi<=m.i+2){const r=m.i%9;let wait='両面';if(wi===m.i+1)wait='嵌張';else if((r===0&&wi===m.i+2)||(r===6&&wi===m.i))wait='辺張';out.push({wait,target:'sequence',mi});}});return out;}
   function pairFu(i,ctx){const t=tileOrder[i];let n=0;if(['白','發','中'].includes(t))n+=2;if(t===seatWind(ctx.winner))n+=2;if(t===roundWind())n+=2;return n;}
   function isYaochu(i){const t=tileOrder[i];return honors.has(t)||terminals.has(t);}
-  function tripletFu(i,closed){return closed?(isYaochu(i)?8:4):(isYaochu(i)?4:2);}
-  function kanFu(i,closed){return closed?(isYaochu(i)?32:16):(isYaochu(i)?16:8);}
+  function tripletFu(i,closed){return window.M8ScoringCoreV32?.tripletFu(isYaochu(i),closed)??(closed?(isYaochu(i)?8:4):(isYaochu(i)?4:2));}
+  function kanFu(i,closed){return window.M8ScoringCoreV32?.kanFu(isYaochu(i),closed)??(closed?(isYaochu(i)?32:16):(isYaochu(i)?16:8));}
   function judge(tiles){return window.judgeMahjongWinM8V4?.(tiles)||null;}
   function tripletCandidates(tiles){const s=new Set();decompose(tiles).forEach(d=>d.melds.filter(m=>m.type==='triplet').forEach(m=>s.add(tileOrder[m.i])));return [...s].sort((a,b)=>(tileIndex.get(a)||0)-(tileIndex.get(b)||0));}
 
@@ -102,7 +102,8 @@
           }
           total+=n;parts.push(tileOrder[m.i]+' '+name+'+'+n+'符');
         });
-        const fu=ctx.menzen?Math.ceil(total/10)*10:Math.max(30,Math.ceil(total/10)*10);
+        const fu=window.M8ScoringCoreV32?.roundFu(total,ctx.menzen)
+          ??(ctx.menzen?Math.ceil(total/10)*10:Math.max(30,Math.ceil(total/10)*10));
         vals.add(fu);
         if(!detailsByFu.has(fu)){
           parts.push('合計'+total+'符 → '+fu+'符');
