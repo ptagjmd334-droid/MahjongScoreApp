@@ -55,9 +55,31 @@ const server=http.createServer((req,res)=>{
     await page.waitForSelector('#agari-overlay',{visible:true,timeout:8000});
     // Verify that reviewing the score table never triggers a runaway DOM reinsertion loop.
     await page.waitForFunction(()=>document.getElementById('agari-flow-title')?.textContent?.includes('放銃者'),{timeout:7000});
+    await page.click('#panel-right');
+    assert.equal(await page.$eval('#discarder-next-button',e=>e.disabled),false);
+    await page.click('#discarder-next-button');
+    await page.waitForSelector('#agari-overlay .score-switch-table',{visible:true,timeout:9000});
+    const score=await page.$eval('#agari-overlay',e=>{
+      const card=e.querySelector('.agari-flow-card');
+      const rect=e.getBoundingClientRect(),inside=card?.getBoundingClientRect();
+      return {width:rect.width,height:rect.height,cardHeight:inside?.height,review:!!e.querySelector('#m8v30-review')};
+    });
+    assert(score.cardHeight<=430,'score panel overflows landscape viewport '+JSON.stringify(score));
+    assert(score.review,'score review not mounted');
+    await page.click('#m8v30-review > summary');
+    await page.waitForSelector('#m8v30-fields',{visible:true,timeout:4000});
+    await page.type('#m8v30-review input[type="number"]','40');
+    const initial=await page.evaluate(()=>document.querySelectorAll('*').length);
+    await new Promise(resolve=>setTimeout(resolve,2200));
+    const after=await page.evaluate(()=>document.querySelectorAll('*').length);
+    assert(after-initial<100,'runaway DOM growth during score review '+initial+' -> '+after);
+    await page.click('#m8v30-review > summary');
+    await page.click('#m8v30-review > summary');
+    await page.waitForSelector('#m8v30-fields',{visible:true,timeout:3000});
     assert.equal(errors.filter(x=>/Maximum call stack|out of memory|is not defined/i.test(x)).length,0,
       'fatal browser JS errors: '+errors.join('\n'));
-    console.log('PASS: landscape start, modal center, ron winner selection and discarder reached');
+    console.log('PASS: landscape setup, centered ron method, winner/discarder, score table, review re-open, no runaway DOM');
+    console.log('Score geometry:',JSON.stringify(score),'DOM nodes:',initial,'to',after);
     console.log('Type overlay geometry:',JSON.stringify(location));
     console.log('Browser pageerrors (not all fatal):',errors.slice(0,3).join(' | ')||'none');
   }finally{
