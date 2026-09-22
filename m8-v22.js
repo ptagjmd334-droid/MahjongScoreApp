@@ -78,11 +78,13 @@
     // 平和：門前・全順子・役牌でない雀頭・両面待ち
     if(c.menzen&&seqs.length===4&&!valuePair(d.pair,c)&&opt.wait==='両面')names.push('平和');
 
-    // 一盃口 / 二盃口：門前で同一順子が2組以上
-    if(c.menzen&&seqs.length===4){
+    // 一盃口：同じ順子2組で成立。残る1面子は刻子でもよい。
+    // 二盃口：門前で順子4面子を2組の同一順子に分けられる場合だけ。
+    if(c.menzen&&seqs.length>=2){
       const counts={};seqs.forEach(i=>counts[seqKey(i)]=(counts[seqKey(i)]||0)+1);
       const pairs=Object.values(counts).reduce((n,v)=>n+Math.floor(v/2),0);
-      if(pairs>=2)names.push('二盃口');else if(pairs>=1)names.push('一盃口');
+      if(seqs.length===4&&pairs>=2)names.push('二盃口');
+      else if(pairs>=1)names.push('一盃口');
     }
 
     // 三色同順
