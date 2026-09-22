@@ -80,15 +80,22 @@
     readSuggestedHan();
     const root=document.querySelector('.score-switch-table');
     if(!root)return;
-    root.querySelectorAll('.m8v6-han-column').forEach(el=>el.classList.remove('m8v6-han-column'));
-    root.parentElement?.querySelector('.m8v6-han-guide')?.remove();
     const han=window.m8SuggestedHanV6;
-    if(!han)return;
-
-    const guide=document.createElement('div');
-    guide.className='m8v6-han-guide';
-    guide.textContent=han==='yakuman'?'M8判定：役満候補':'M8判定：'+han+'翻 → あとは符を選択';
-    root.insertAdjacentElement('beforebegin',guide);
+    let guide=root.parentElement?.querySelector('.m8v6-han-guide')||null;
+    if(!han){
+      guide?.remove();
+      root.querySelectorAll('.m8v6-han-column').forEach(el=>el.classList.remove('m8v6-han-column'));
+      return;
+    }
+    if(!guide){
+      guide=document.createElement('div');
+      guide.className='m8v6-han-guide';
+      root.insertAdjacentElement('beforebegin',guide);
+    }
+    const label=han==='yakuman'?'M8判定：役満候補':'M8判定：'+han+'翻 → あとは符を選択';
+    if(guide.textContent!==label)guide.textContent=label;
+    // Do not remove/reinsert the guide on every DOM mutation: it re-triggers the old observer.
+    root.querySelectorAll('.m8v6-han-column').forEach(el=>el.classList.remove('m8v6-han-column'));
 
     if(typeof han!=='number'||han<1||han>4)return;
     root.querySelectorAll('table').forEach(table=>{
@@ -102,9 +109,21 @@
     });
   }
 
-  const docObserver=new MutationObserver(()=>{
-    readSuggestedHan();
-    if(document.querySelector('.score-switch-table')) requestAnimationFrame(decorateScoreTable);
+  // v32 stability: only react to a newly mounted score table, not every text/guide update.
+  // The previous body-wide characterData observer was triggered by its own guide removal/addition.
+  let scoreRefreshQueued=false;
+  function queueScoreRefresh(){
+    if(scoreRefreshQueued)return;
+    scoreRefreshQueued=true;
+    requestAnimationFrame(()=>{scoreRefreshQueued=false;decorateScoreTable();});
+  }
+  const docObserver=new MutationObserver(mutations=>{
+    if(mutations.some(m=>[...m.addedNodes].some(n=>n.nodeType===1&&(
+      n.matches?.('.score-switch-table')||n.querySelector?.('.score-switch-table')
+    ))))queueScoreRefresh();
   });
-  docObserver.observe(document.body,{childList:true,subtree:true,characterData:true});
+  docObserver.observe(document.body,{childList:true,subtree:true});
+  document.addEventListener('click',e=>{
+    if(e.target.closest?.('#agari-overlay,#m8-result-v1'))queueScoreRefresh();
+  },true);
 })();
