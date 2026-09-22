@@ -69,7 +69,7 @@
     if(ctx.menzen===true&&[...meldState.values()].some(v=>v==='pon'||v==='minkan'))return{values:[],reason:'門前ではポン・明カンを選べません'};
 
     const marked=new Map([...meldState].map(([t,v])=>[tileIndex.get(t),v]));
-    const vals=new Set();let used=0;
+    const vals=new Set(),detailsByFu=new Map();let used=0;
     for(const d of decompose(tiles)){
       const tripIndices=new Set(d.melds.filter(m=>m.type==='triplet').map(m=>m.i));
       if([...marked.keys()].some(i=>i==null||!tripIndices.has(i)))continue;
@@ -78,21 +78,40 @@
         const pf=pairFu(d.pair,ctx),wf=['単騎','嵌張','辺張'].includes(opt.wait)?2:0;
         const allSeq=d.melds.every(m=>m.type==='sequence');
         const pinfuShape=ctx.menzen&&allSeq&&pf===0&&opt.wait==='両面'&&marked.size===0;
-        if(pinfuShape&&ctx.type==='tsumo'){vals.add(20);continue;}
-        let total=20+(ctx.menzen&&ctx.type==='ron'?10:0)+(ctx.type==='tsumo'?2:0)+pf+wf;
+        if(pinfuShape&&ctx.type==='tsumo'){
+          vals.add(20);
+          detailsByFu.set(20,'平和ツモ特例：基本20符・ツモ2符は加えず20符固定');
+          continue;
+        }
+        const parts=['基本20符'];let total=20;
+        if(ctx.menzen&&ctx.type==='ron'){total+=10;parts.push('門前ロン+10符');}
+        if(ctx.type==='tsumo'){total+=2;parts.push('ツモ+2符');}
+        if(pf){total+=pf;parts.push('雀頭（役牌・場風・自風）+'+pf+'符');}
+        if(wf){total+=wf;parts.push('待ち（'+opt.wait+'）+2符');}
         d.melds.forEach((m,mi)=>{
           if(m.type!=='triplet')return;
           const st=marked.get(m.i)||null;
-          if(st==='pon'){total+=tripletFu(m.i,false);return;}
-          if(st==='minkan'){total+=kanFu(m.i,false);return;}
-          if(st==='ankan'){total+=kanFu(m.i,true);return;}
-          const ronOpened=ctx.type==='ron'&&opt.target==='triplet'&&opt.mi===mi;
-          total+=tripletFu(m.i,!ronOpened);
+          let n=0,name='';
+          if(st==='pon'){n=tripletFu(m.i,false);name='明刻';}
+          else if(st==='minkan'){n=kanFu(m.i,false);name='明槓';}
+          else if(st==='ankan'){n=kanFu(m.i,true);name='暗槓';}
+          else{
+            const ronOpened=ctx.type==='ron'&&opt.target==='triplet'&&opt.mi===mi;
+            n=tripletFu(m.i,!ronOpened);
+            name=ronOpened?'ロンで完成した明刻':'暗刻';
+          }
+          total+=n;parts.push(tileOrder[m.i]+' '+name+'+'+n+'符');
         });
-        vals.add(ctx.menzen?Math.ceil(total/10)*10:Math.max(30,Math.ceil(total/10)*10));
+        const fu=ctx.menzen?Math.ceil(total/10)*10:Math.max(30,Math.ceil(total/10)*10);
+        vals.add(fu);
+        if(!detailsByFu.has(fu)){
+          parts.push('合計'+total+'符 → '+fu+'符');
+          detailsByFu.set(fu,parts.join(' / '));
+        }
       }
     }
-    const values=[...vals].sort((a,b)=>a-b);return values.length?{values,reason:`副露/槓子内訳反映・${used}通り評価`}:{values:[],reason:'選択した面子内訳と両立する分解がありません'};
+    const values=[...vals].sort((a,b)=>a-b);
+    return values.length?{values,details:Object.fromEntries(detailsByFu),reason:`副露/槓子内訳反映・${used}通り評価`}:{values:[],reason:'選択した面子内訳と両立する分解がありません'};
   }
 
   function resetIfNewHand(){const sig=getTiles().join('|');if(sig&&lastSig&&sig!==lastSig){meldState.clear();chiOnly=false;}if(sig)lastSig=sig;}
@@ -115,7 +134,7 @@
     }).join('');
     box.innerHTML=`<div class="ttl">面子の内訳（符計算用）</div>${ctx.menzen===false?`<div class="toprow"><button data-chi-only class="${chiOnly?'active':''}">チーのみ / 鳴いた刻子なし</button></div>`:''}${rows||'<div class="status">刻子候補なし</div>'}<div class="help">カンは「14枚の論理手牌では刻子として入力し、ここで明カン/暗カンを指定」して符を加算します。暗カンだけなら門前扱いのままです。</div><div class="status" id="m8v21-result-status"></div>`;
     const st=box.querySelector('#m8v21-result-status');const r=calculate(tiles,getWin(),ctx);
-    if(r.noFu)st.textContent='符計算なし';else if(r.values.length===1)st.textContent=`M8符：${r.values[0]}符（${r.reason}）`;else if(r.values.length>1)st.textContent=`M8符候補：${r.values.join('・')}符（${r.reason}）`;else st.textContent=`M8符：${r.reason}`;
+    if(r.noFu)st.textContent='符計算なし';else if(r.values.length===1)st.textContent=`M8符：${r.values[0]}符（${r.details?.[r.values[0]]||r.reason}）`;else if(r.values.length>1)st.textContent=`M8符候補：${r.values.join('・')}符（${r.reason}）`;else st.textContent=`M8符：${r.reason}`;
   }
 
   function getHan(){const v=[window.m8SuggestedHanV9,window.m8SuggestedHanV6].find(x=>Number.isFinite(Number(x)));return v==null?0:Number(v);}
@@ -128,7 +147,7 @@
     const ctx=scoreCtx(),r=calculate(getTiles(),getWin(),ctx);let box=document.getElementById('m8v21-score-fu');
     if(!box){box=document.createElement('div');box.id='m8v21-score-fu';overlay.querySelector('.score-switch-table')?.insertAdjacentElement('beforebegin',box);}
     if(r.noFu){box.textContent='M8符判定：国士無双は符計算なし';return;}
-    if(r.values.length===1){const fu=r.values[0];window.m8SuggestedFuV21=fu;window.m8SuggestedFuV20=fu;window.m8SuggestedFuV18=fu;window.m8SuggestedFuV8=fu;box.textContent=`M8符判定：${fu}符（${r.reason}）`;decorate(fu);return;}
+    if(r.values.length===1){const fu=r.values[0];window.m8SuggestedFuV21=fu;window.m8SuggestedFuV20=fu;window.m8SuggestedFuV18=fu;window.m8SuggestedFuV8=fu;box.textContent=`M8符判定：${fu}符（${r.details?.[fu]||r.reason}）`;decorate(fu);return;}
     if(r.values.length>1){box.textContent=`M8符候補：${r.values.join('・')}符（${r.reason}）`;return;}
     box.textContent=`M8符判定できず：${r.reason}`;
   }
