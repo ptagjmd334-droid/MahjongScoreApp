@@ -74,3 +74,12 @@ test('scoring details do not change actual state or break v31 rollback',()=>{
  assert(!app.includes('m8-v28.js?v='));
  assert(!app.includes('m8-v29.js?v='));
 });
+
+test('v33 score guide is single and detail remains optional',()=>{
+ const ui=fs.readFileSync(path.join(root,'m8-v33.js'),'utf8');
+ assert(ui.includes('m8v33-quickhelp'));
+ assert(ui.includes('判定の詳細・実卓での検証（任意）'));
+ assert(ui.includes('m8v25-score-summary'));
+ assert(ui.includes('m8v21-auto'));
+ assert(!ui.includes('new MutationObserver('));
+});
