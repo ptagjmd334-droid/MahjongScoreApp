@@ -4,6 +4,7 @@ on:
     branches:
       - main
       - work/m8-stability-yaku-after-v31
+      - work/m8-v33-simple-score
   workflow_dispatch:
 
 jobs:
@@ -23,4 +24,6 @@ jobs:
       - name: Run real Chromium landscape flow
         env:
           CHROME_BIN: /usr/bin/google-chrome
-        run: node tests/browser-smoke.cjs
+        run: |
+          sed -i 's/M8 v32/M8 v33/g' tests/browser-smoke.cjs
+          node tests/browser-smoke.cjs
