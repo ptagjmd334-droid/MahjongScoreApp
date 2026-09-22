@@ -1,9 +1,10 @@
-name: M8 stability and scoring checks
+name: Mahjong app stability, scoring and camera checks
 on:
   push:
     branches:
       - main
       - work/m8-stability-yaku-after-v31
+      - work/m7-camera-v33
   workflow_dispatch:
 
 jobs:
@@ -16,8 +17,10 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - name: Check script syntax and scoring rules
+      - name: Check scoring rules
         run: node --test tests/m8-v32.test.cjs
+      - name: Check camera recognition helpers and load order
+        run: node --test tests/m7-v33.test.cjs
       - name: Install headless browser control
         run: npm install --no-save --no-audit --no-fund puppeteer-core@24
       - name: Run real Chromium landscape flow
