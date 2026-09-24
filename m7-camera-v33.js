@@ -42,6 +42,11 @@
       background-size:cover!important;background-position:center!important;background-repeat:no-repeat!important;
       color:#111
     }
+    #hand-result-overlay-m7v5 .m7v35-full-photo{
+      width:100%;height:64px;max-height:22%;object-fit:contain;
+      background:#272727;border-radius:8px;flex:none
+    }
+    #hand-result-overlay-m7v5 .hand-result-tiles-m7v5{min-height:0}
     #hand-result-overlay-m7v5 .hand-result-tile-m7v5.m7v33-crop:not([data-tile])::after{
       content:'?';font-size:22px;font-weight:900;color:#b43;background:rgba(255,255,255,.72);
       border-radius:999px;padding:0 7px
@@ -150,17 +155,68 @@
     state.timer=null;state.overlay=null;state.previousXs=null;state.stable=0;
   }
 
-  // Fallback when touching real tiles merge into a single bright component:
-  // always allow a user-requested snapshot, but NEVER invent detected tile labels.
-  // Fourteen equal-width previews are shown as '?', to be verified one by one.
-  function manualGuideBoxes(ctx){
+  // v35: v34 divided the entire camera frame, not the physical tile row.
+  // Find the brightest low-chroma horizontal band, then the left/right extent
+  // of tile faces inside it. This is a row crop estimate, NOT tile recognition.
+  function estimateTileRow(ctx){
     const w=ctx.canvas.width,h=ctx.canvas.height;
-    return Array.from({length:14},(_,i)=>({
-      x:Math.round((i+.035)*w/14),
-      y:Math.round(h*.14),
-      w:Math.max(1,Math.round(w/14*.93)),
-      h:Math.max(1,Math.round(h*.72))
-    }));
+    const rgba=ctx.getImageData(0,0,w,h).data;
+    const left=Math.floor(w*.055),right=Math.ceil(w*.945);
+    const top=Math.floor(h*.15),bottom=Math.ceil(h*.82);
+    const mask=new Uint8Array(w*h),rows=new Int32Array(h);
+    for(let y=top;y<bottom;y++){
+      for(let x=left;x<right;x++){
+        const p=y*w+x,i=p*4,r=rgba[i],g=rgba[i+1],b=rgba[i+2];
+        if(Math.min(r,g,b)>147&&Math.max(r,g,b)-Math.min(r,g,b)<54){
+          mask[p]=1;rows[y]++;
+        }
+      }
+    }
+    const maxRow=Math.max(...rows);
+    const cutoff=Math.max(Math.round((right-left)*.18),Math.round(maxRow*.48));
+    if(maxRow<Math.round((right-left)*.27))return null;
+    let runs=[],start=-1;
+    for(let y=top;y<=bottom;y++){
+      const active=y<bottom&&rows[y]>=cutoff;
+      if(active&&start<0)start=y;
+      if(!active&&start>=0){runs.push({y:start,h:y-start,score:0});start=-1;}
+    }
+    for(const band of runs){
+      for(let y=band.y;y<band.y+band.h;y++)band.score+=rows[y];
+    }
+    runs=runs.filter(b=>b.h>=Math.max(6,Math.floor(h*.055))&&b.h<=h*.38);
+    runs.sort((a,b)=>b.score-a.score);
+    const band=runs[0];
+    if(!band)return null;
+    const counts=new Int32Array(w);
+    for(let x=left;x<right;x++)
+      for(let y=band.y;y<band.y+band.h;y++)counts[x]+=mask[y*w+x];
+    const activeCols=[],colCut=Math.max(3,Math.round(band.h*.34));
+    for(let x=left;x<right;x++)if(counts[x]>=colCut)activeCols.push(x);
+    if(activeCols.length<(right-left)*.36)return null;
+    // Ignore isolated bright table edges and bridge small dark gaps in printed glyphs.
+    const groups=[];let group=null;
+    for(const x of activeCols){
+      if(!group||x-group.end>Math.max(5,Math.round(w*.018))){
+        group={start:x,end:x,count:1};groups.push(group);
+      }else{group.end=x;group.count++;}
+    }
+    groups.sort((a,b)=>b.count-a.count);
+    const best=groups[0];
+    if(!best||best.end-best.start<w*.48)return null;
+    const padX=Math.max(1,Math.round(w*.006)),padY=Math.max(1,Math.round(h*.018));
+    const x=Math.max(0,best.start-padX),x2=Math.min(w,best.end+padX+1);
+    const y=Math.max(0,band.y-padY),y2=Math.min(h,band.y+band.h+padY);
+    if(y2-y<h*.07||y2-y>h*.42)return null;
+    return {x,y,w:x2-x,h:y2-y};
+  }
+  function manualGuideBoxes(ctx){
+    const row=estimateTileRow(ctx);
+    if(!row)return [];
+    return Array.from({length:14},(_,i)=>{
+      const a=Math.round(row.x+row.w*i/14),b=Math.round(row.x+row.w*(i+1)/14);
+      return {x:a,y:row.y,w:Math.max(1,b-a),h:row.h};
+    });
   }
 
   function showResult(ctx,boxes,manual=false){
@@ -168,6 +224,7 @@
     state.captured=true;
     stopLoop();
     const displayed=manual?manualGuideBoxes(ctx):boxes;
+    const fullPhoto=manual&&displayed.length!==14?ctx.canvas.toDataURL('image/jpeg',.72):null;
     const features=manual?[]:displayed.map(b=>featureFromBox(ctx,b));
     const crops=displayed.map(b=>cropDataUrl(ctx,b));
     state.pendingFeatures=features.slice(0,14);
@@ -182,6 +239,12 @@
       window.showHandResultM7V5?.(predicted.slice(0,14));
       const root=document.getElementById('hand-result-overlay-m7v5');if(!root)return;
       const buttons=[...root.querySelectorAll('.hand-result-tile-m7v5')];
+      if(fullPhoto){
+        const photo=document.createElement('img');
+        photo.alt='撮影した手牌全体。各牌の名前は下で手動指定してください';
+        photo.src=fullPhoto;photo.className='m7v35-full-photo';
+        root.querySelector('.hand-result-head-m7v5')?.insertAdjacentElement('afterend',photo);
+      }
       buttons.forEach((b,i)=>{
         const url=state.pendingCrops[i];
         if(url){b.classList.add('m7v33-crop');b.style.backgroundImage=`url("${url}")`;b.dataset.m7v33Index=String(i);}
@@ -189,7 +252,9 @@
       const auto=predicted.filter(Boolean).length;
       const note=root.querySelector('.hand-result-note-m7v5');
       if(note)note.textContent=manual
-        ?'候補を自動検出できなかったため画像を14分割しました。これは認識結果ではありません。各牌をタップして正しい牌に直してください。'
+        ?(fullPhoto
+            ?'牌の列を特定できなかったため、撮影した画像全体を表示します。下の14枠をタップして正しい牌を入力してください。'
+            :'撮影画像から牌の列を推定して14枚のプレビューを表示しました。牌種の自動認識ではありません。各牌をタップして確認してください。')
         :`カメラで${boxes.length}枚を切り出し / 学習済み候補 ${auto}枚。? の牌だけタップして選択してください。修正内容は次回認識に学習されます。`;
       const status=root.querySelector('.hand-result-status-m7v5');
       if(status&&auto<14)status.textContent=manual?'手動入力：0 / 14枚':`${auto} / 14枚を自動候補化`;
@@ -264,5 +329,5 @@
     saveLibrary(lib);
   },true);
 
-  window.M7CameraV33=Object.freeze({detectCandidates,featureFromBox,loadLibrary,manualGuideBoxes});
+  window.M7CameraV33=Object.freeze({detectCandidates,featureFromBox,loadLibrary,manualGuideBoxes,estimateTileRow});
 })();
