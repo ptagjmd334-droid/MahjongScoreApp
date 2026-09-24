@@ -29,7 +29,7 @@ test('camera v33 is loaded before ui-fixes so learning sees verified clicks firs
   assert(index.indexOf('script.js')<index.indexOf('m7-recognition-core.js'));
   assert(index.indexOf('m7-recognition-core.js')<index.indexOf('m7-camera-v33.js'));
   assert(index.indexOf('m7-camera-v33.js')<index.indexOf('ui-fixes.js'));
-  assert(index.includes('M7 v33')||index.includes('M7 v34'));
+  assert(index.includes('M7 v33')||index.includes('M7 v34')||index.includes('M7 v35'));
 });
 
 test('legacy live detector and demo fill yield to v33 owner',()=>{
