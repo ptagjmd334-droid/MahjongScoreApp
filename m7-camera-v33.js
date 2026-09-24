@@ -225,7 +225,9 @@
     stopLoop();
     const displayed=manual?manualGuideBoxes(ctx):boxes;
     const fullPhoto=manual&&displayed.length!==14?ctx.canvas.toDataURL('image/jpeg',.72):null;
-    const features=manual?[]:displayed.map(b=>featureFromBox(ctx,b));
+    // Learn only from a located 14-tile row after all labels are verified.
+    // With no row, only the full photograph is shown; no false training samples.
+    const features=displayed.length===14?displayed.map(b=>featureFromBox(ctx,b)):[];
     const crops=displayed.map(b=>cropDataUrl(ctx,b));
     state.pendingFeatures=features.slice(0,14);
     state.pendingCrops=crops.slice(0,14);
@@ -254,7 +256,7 @@
       if(note)note.textContent=manual
         ?(fullPhoto
             ?'牌の列を特定できなかったため、撮影した画像全体を表示します。下の14枠をタップして正しい牌を入力してください。'
-            :'撮影画像から牌の列を推定して14枚のプレビューを表示しました。牌種の自動認識ではありません。各牌をタップして確認してください。')
+            :'撮影画像から牌の列を推定して14枚のプレビューを表示しました。牌種の自動認識ではありません。各牌をタップして修正・確定すると次回のために学習します。')
         :`カメラで${boxes.length}枚を切り出し / 学習済み候補 ${auto}枚。? の牌だけタップして選択してください。修正内容は次回認識に学習されます。`;
       const status=root.querySelector('.hand-result-status-m7v5');
       if(status&&auto<14)status.textContent=manual?'手動入力：0 / 14枚':`${auto} / 14枚を自動候補化`;
