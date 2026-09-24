@@ -6,6 +6,7 @@ on:
       - work/m8-stability-yaku-after-v31
       - work/m7-camera-v33
       - work/m7-camera-v34-manual-fallback
+      - work/m7-v35-tile-row-crop
   workflow_dispatch:
 
 jobs:
