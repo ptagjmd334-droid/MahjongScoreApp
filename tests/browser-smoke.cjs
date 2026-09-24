@@ -80,7 +80,28 @@ const server=http.createServer((req,res)=>{
     assert.equal(manual.overlap,false,'camera capture and cancel overlap '+JSON.stringify(manual));
     assert.equal(manual.countTiles,14,'0-candidate capture did not open manual review '+JSON.stringify(manual));
     assert.equal(manual.empty,14,'manual review must not fabricate recognition '+JSON.stringify(manual));
-    assert(manual.note.includes('14分割'),'fallback explanation missing '+JSON.stringify(manual));
+    assert(manual.note.includes('撮影した画像全体'),'full-photo fallback explanation missing '+JSON.stringify(manual));
+    // Touching real tiles are one bright connected component. v35 must crop
+    // the physical tile row, rather than slice the whole camera frame.
+    const crop=await page.evaluate(()=>{
+      const canvas=document.createElement('canvas');canvas.width=480;canvas.height=190;
+      const ctx=canvas.getContext('2d');
+      ctx.fillStyle='#ad794c';ctx.fillRect(0,0,480,190);
+      ctx.fillStyle='#ecebe6';ctx.fillRect(72,58,336,42);
+      ctx.fillStyle='#252525';
+      for(let i=0;i<14;i++){
+        ctx.fillRect(79+i*24,70,2,13);
+        ctx.fillRect(83+i*24,77,4,5);
+      }
+      const row=window.M7CameraV33.estimateTileRow(ctx);
+      const boxes=window.M7CameraV33.manualGuideBoxes(ctx);
+      return {row,boxes};
+    });
+    assert(crop.row&&crop.row.x>60&&crop.row.x<85&&crop.row.y>45&&crop.row.y<67,
+      'tile row not located '+JSON.stringify(crop));
+    assert.equal(crop.boxes.length,14,'tile row should create 14 aligned slots '+JSON.stringify(crop));
+    assert(crop.boxes.every(b=>b.y>45&&b.h<70&&b.w>10),
+      'manual previews include background instead of tiles '+JSON.stringify(crop));
     await page.click('#go-confirm-button');
     await page.waitForSelector('#start-game-button',{visible:true,timeout:8000});
     await page.click('#start-game-button');
