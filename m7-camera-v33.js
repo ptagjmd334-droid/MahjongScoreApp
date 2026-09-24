@@ -19,9 +19,23 @@
       padding:6px 11px;font:800 12px/1.2 -apple-system,BlinkMacSystemFont,sans-serif;
       pointer-events:none;white-space:nowrap
     }
+    /* One horizontal action row: capture on the left, cancel on the right.
+       Override the legacy right-aligned cancel explicitly for iPhone PWA. */
     #realtime-hand-camera-m7v3 .m7v33-capture{
-      position:absolute;right:14px;bottom:12px;z-index:9;border:0;border-radius:10px;
-      padding:8px 12px;background:#17a765;color:white;font-weight:900
+      position:absolute;left:max(14px,env(safe-area-inset-left))!important;
+      right:auto!important;bottom:max(12px,env(safe-area-inset-bottom))!important;
+      z-index:10;min-height:44px;max-width:calc(50% - 26px);
+      border:0;border-radius:10px;padding:8px 12px;
+      background:#17a765;color:white;font-weight:900;font-size:14px
+    }
+    #realtime-hand-camera-m7v3 .realtime-hand-cancel-m7v3{
+      right:max(14px,env(safe-area-inset-right))!important;
+      left:auto!important;bottom:max(12px,env(safe-area-inset-bottom))!important;
+      z-index:10;max-width:calc(50% - 26px);
+    }
+    #realtime-hand-camera-m7v3 .m7v33-status{
+      bottom:calc(max(12px,env(safe-area-inset-bottom)) + 52px);
+      max-width:calc(100% - 32px);overflow:hidden;text-overflow:ellipsis;
     }
     #realtime-hand-camera-m7v3 .realtime-hand-live-canvas-m7v4{display:none!important}
     #hand-result-overlay-m7v5 .hand-result-tile-m7v5.m7v33-crop{
@@ -136,16 +150,32 @@
     state.timer=null;state.overlay=null;state.previousXs=null;state.stable=0;
   }
 
-  function showResult(ctx,boxes){
+  // Fallback when touching real tiles merge into a single bright component:
+  // always allow a user-requested snapshot, but NEVER invent detected tile labels.
+  // Fourteen equal-width previews are shown as '?', to be verified one by one.
+  function manualGuideBoxes(ctx){
+    const w=ctx.canvas.width,h=ctx.canvas.height;
+    return Array.from({length:14},(_,i)=>({
+      x:Math.round((i+.035)*w/14),
+      y:Math.round(h*.14),
+      w:Math.max(1,Math.round(w/14*.93)),
+      h:Math.max(1,Math.round(h*.72))
+    }));
+  }
+
+  function showResult(ctx,boxes,manual=false){
     if(state.captured)return;
     state.captured=true;
     stopLoop();
-    const features=boxes.map(b=>featureFromBox(ctx,b));
-    const crops=boxes.map(b=>cropDataUrl(ctx,b));
+    const displayed=manual?manualGuideBoxes(ctx):boxes;
+    const features=manual?[]:displayed.map(b=>featureFromBox(ctx,b));
+    const crops=displayed.map(b=>cropDataUrl(ctx,b));
     state.pendingFeatures=features.slice(0,14);
     state.pendingCrops=crops.slice(0,14);
     window.M7V33PendingFeatures=state.pendingFeatures;
-    const predicted=predict(state.pendingFeatures);
+    // A manual snapshot has no reliable label positions: show all '?' until
+    // the user verifies them rather than guessing from arbitrary crop positions.
+    const predicted=manual?[]:predict(state.pendingFeatures);
     while(predicted.length<14)predicted.push('');
     document.querySelector('#realtime-hand-camera-m7v3 .realtime-hand-cancel-m7v3')?.click();
     setTimeout(()=>{
@@ -158,9 +188,11 @@
       });
       const auto=predicted.filter(Boolean).length;
       const note=root.querySelector('.hand-result-note-m7v5');
-      if(note)note.textContent=`カメラで${boxes.length}枚を切り出し / 学習済み候補 ${auto}枚。? の牌だけタップして選択してください。修正内容は次回認識に学習されます。`;
+      if(note)note.textContent=manual
+        ?'候補を自動検出できなかったため画像を14分割しました。これは認識結果ではありません。各牌をタップして正しい牌に直してください。'
+        :`カメラで${boxes.length}枚を切り出し / 学習済み候補 ${auto}枚。? の牌だけタップして選択してください。修正内容は次回認識に学習されます。`;
       const status=root.querySelector('.hand-result-status-m7v5');
-      if(status&&auto<14)status.textContent=`${auto} / 14枚を自動候補化`;
+      if(status&&auto<14)status.textContent=manual?'手動入力：0 / 14枚':`${auto} / 14枚を自動候補化`;
     },80);
   }
 
@@ -173,7 +205,18 @@
     const work=document.createElement('canvas');work.width=480;work.height=190;
     const ctx=work.getContext('2d',{willReadFrequently:true});
     let lastBoxes=[];
-    capture.addEventListener('click',e=>{e.stopPropagation();if(lastBoxes.length)showResult(ctx,lastBoxes);});
+    capture.addEventListener('click',e=>{
+      e.preventDefault();e.stopPropagation();
+      // A tap always works once the video has a frame, even at '0 / 14'.
+      if(!video||video.readyState<2||!video.videoWidth){
+        status.textContent='カメラの映像を準備中です。少し待って再度押してください';
+        return;
+      }
+      ctx.drawImage(video,0,0,video.videoWidth,video.videoHeight,0,0,work.width,work.height);
+      const boxes=detectCandidates(ctx,work.width,work.height);
+      const reliable=boxes.length===14;
+      showResult(ctx,reliable?boxes:[],!reliable);
+    });
     function tick(){
       if(!document.body.contains(overlay)||state.captured){stopLoop();return;}
       if(video?.readyState>=2&&video.videoWidth>0){
@@ -221,5 +264,5 @@
     saveLibrary(lib);
   },true);
 
-  window.M7CameraV33=Object.freeze({detectCandidates,featureFromBox,loadLibrary});
+  window.M7CameraV33=Object.freeze({detectCandidates,featureFromBox,loadLibrary,manualGuideBoxes});
 })();
