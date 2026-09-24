@@ -34,7 +34,7 @@ const server=http.createServer((req,res)=>{
     const errors=[];page.on('pageerror',e=>errors.push(String(e)));
     await page.goto('http://127.0.0.1:'+port+'/',{waitUntil:'domcontentloaded',timeout:30000});
     await page.waitForSelector('#go-confirm-button',{timeout:12000});
-    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'M7 v33');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'M7 v34');
     const synthetic=await page.evaluate(()=>{
       const canvas=document.createElement('canvas');canvas.width=480;canvas.height=190;
       const ctx=canvas.getContext('2d');ctx.fillStyle='#111';ctx.fillRect(0,0,480,190);
@@ -44,6 +44,43 @@ const server=http.createServer((req,res)=>{
       return boxes.map(b=>({x:b.x,y:b.y,w:b.w,h:b.h,cx:b.cx}));
     });
     assert.equal(synthetic.length,14,'synthetic 14-tile row not segmented: '+JSON.stringify(synthetic));
+    // Reproduce iPhone regression: a row of touching tiles can produce zero candidates.
+    // The manual capture must still open 14 editable slots, with capture/cancel non-overlapping.
+    const manual=await page.evaluate(async()=>{
+      const fake=document.createElement('div');
+      fake.id='realtime-hand-camera-m7v3';
+      fake.className='realtime-hand-camera-m7v3';
+      const canvas=document.createElement('canvas');canvas.width=480;canvas.height=190;
+      canvas.className='realtime-hand-video-m7v3';
+      const ctx=canvas.getContext('2d');ctx.fillStyle='#111';ctx.fillRect(0,0,480,190);
+      Object.defineProperty(canvas,'readyState',{value:4});
+      Object.defineProperty(canvas,'videoWidth',{value:480});
+      Object.defineProperty(canvas,'videoHeight',{value:190});
+      const count=document.createElement('span');count.id='realtime-hand-count-m7v3';count.textContent='0 / 14';
+      const cancel=document.createElement('button');cancel.className='realtime-hand-cancel-m7v3';cancel.textContent='キャンセル';
+      cancel.onclick=()=>fake.remove();
+      fake.append(canvas,count,cancel);document.body.append(fake);
+      const original=document.createElement('button');original.id='open-realtime-hand-camera-m7v3';
+      document.body.append(original);original.click();original.remove();
+      await new Promise(resolve=>setTimeout(resolve,950));
+      const capture=fake.querySelector('.m7v33-capture');
+      if(!capture)return {error:'capture button missing'};
+      const rect=capture.getBoundingClientRect(),other=cancel.getBoundingClientRect();
+      const overlap=!(rect.right<=other.left||other.right<=rect.left||
+        rect.bottom<=other.top||other.bottom<=rect.top);
+      capture.click();
+      await new Promise(resolve=>setTimeout(resolve,160));
+      const result=document.getElementById('hand-result-overlay-m7v5');
+      const countTiles=result?.querySelectorAll('.hand-result-tile-m7v5').length||0;
+      const empty=result?.querySelectorAll('.hand-result-tile-m7v5:not([data-tile])').length||0;
+      const note=result?.querySelector('.hand-result-note-m7v5')?.textContent||'';
+      result?.remove();fake.remove();
+      return {overlap,countTiles,empty,note};
+    });
+    assert.equal(manual.overlap,false,'camera capture and cancel overlap '+JSON.stringify(manual));
+    assert.equal(manual.countTiles,14,'0-candidate capture did not open manual review '+JSON.stringify(manual));
+    assert.equal(manual.empty,14,'manual review must not fabricate recognition '+JSON.stringify(manual));
+    assert(manual.note.includes('14分割'),'fallback explanation missing '+JSON.stringify(manual));
     await page.click('#go-confirm-button');
     await page.waitForSelector('#start-game-button',{visible:true,timeout:8000});
     await page.click('#start-game-button');
