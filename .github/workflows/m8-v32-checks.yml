@@ -5,6 +5,7 @@ on:
       - main
       - work/m8-stability-yaku-after-v31
       - work/m7-camera-v33
+      - work/m7-camera-v34-manual-fallback
   workflow_dispatch:
 
 jobs:
