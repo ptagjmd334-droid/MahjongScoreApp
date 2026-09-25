@@ -56,7 +56,64 @@
     return hog*.60+color*.25+ink*.15;
   }
 
+
+  function bilinear(map,width,height,x,y){
+    if(!Array.isArray(map)||x<0||y<0||x>width-1||y>height-1)return 0;
+    const x0=Math.floor(x),y0=Math.floor(y),x1=Math.min(width-1,x0+1),y1=Math.min(height-1,y0+1);
+    const fx=x-x0,fy=y-y0;
+    const a=Number(map[y0*width+x0])||0,b=Number(map[y0*width+x1])||0;
+    const d=Number(map[y1*width+x0])||0,e=Number(map[y1*width+x1])||0;
+    return (a*(1-fx)+b*fx)*(1-fy)+(d*(1-fx)+e*fx)*fy;
+  }
+
+  function directImageDistance(a,b){
+    if(!a||!b||a.kind!=='direct-edge-v1'||b.kind!=='direct-edge-v1')return Infinity;
+    const width=Number(a.width)||0,height=Number(a.height)||0;
+    if(width!==Number(b.width)||height!==Number(b.height)||width<4||height<4)return Infinity;
+    const channels=['gray','edge','red','green'];
+    for(const k of channels){
+      if(!Array.isArray(a[k])||!Array.isArray(b[k])||a[k].length!==width*height||b[k].length!==width*height)return Infinity;
+    }
+    const cx=(width-1)/2,cy=(height-1)/2;
+    const transforms=[];
+    for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++)transforms.push({angle:0,scale:1,dx,dy});
+    transforms.push({angle:-2*Math.PI/180,scale:1,dx:0,dy:0});
+    transforms.push({angle:2*Math.PI/180,scale:1,dx:0,dy:0});
+    transforms.push({angle:0,scale:.97,dx:0,dy:0});
+    transforms.push({angle:0,scale:1.03,dx:0,dy:0});
+    let best=Infinity;
+    for(const t of transforms){
+      const cos=Math.cos(t.angle),sin=Math.sin(t.angle);
+      let sg=0,se=0,sr=0,sn=0,weightSum=0;
+      for(let y=0;y<height;y++)for(let x=0;x<width;x++){
+        const ux=x-cx-t.dx,uy=y-cy-t.dy;
+        const bx=(ux*cos+uy*sin)/t.scale+cx;
+        const by=(-ux*sin+uy*cos)/t.scale+cy;
+        const ag=Number(a.gray[y*width+x])||0,ae=Number(a.edge[y*width+x])||0;
+        const ar=Number(a.red[y*width+x])||0,an=Number(a.green[y*width+x])||0;
+        const bg=bilinear(b.gray,width,height,bx,by),be=bilinear(b.edge,width,height,bx,by);
+        const br=bilinear(b.red,width,height,bx,by),bn=bilinear(b.green,width,height,bx,by);
+        const w=.28+Math.max(ag,bg,ae,be,ar,br,an,bn);
+        sg+=(ag-bg)*(ag-bg)*w;
+        se+=(ae-be)*(ae-be)*w;
+        sr+=((ar-br)*(ar-br)+(an-bn)*(an-bn))*.5*w;
+        weightSum+=w;
+      }
+      if(!weightSum)continue;
+      const gray=Math.sqrt(sg/weightSum);
+      const edge=Math.sqrt(se/weightSum);
+      const color=Math.sqrt(sr/weightSum);
+      const penalty=(Math.abs(t.dx)+Math.abs(t.dy))*.004+Math.abs(t.angle)*.10+Math.abs(1-t.scale)*.18;
+      const score=edge*.48+gray*.37+color*.15+penalty;
+      if(score<best)best=score;
+    }
+    return best;
+  }
+
   function featureDistance(a,b){
+    if(a&&b&&a.kind==='direct-edge-v1'&&b.kind==='direct-edge-v1'){
+      return directImageDistance(a,b);
+    }
     if(a&&b&&a.kind==='hog-color-ink-v1'&&b.kind==='hog-color-ink-v1'){
       return structuredFeatureDistance(a,b);
     }
@@ -125,7 +182,7 @@
     }
     return shift/current.length<=maxShift;
   }
-  const api=Object.freeze({rmsDistance,shiftedRmsDistance,shiftedGroupedRmsDistance,structuredFeatureDistance,featureDistance,rankLabels,rankLabelsRobust,classify,stableEnough});
+  const api=Object.freeze({rmsDistance,shiftedRmsDistance,shiftedGroupedRmsDistance,structuredFeatureDistance,directImageDistance,featureDistance,rankLabels,rankLabelsRobust,classify,stableEnough});
   root.M7RecognitionCoreV33=api;
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })(typeof window!=='undefined'?window:globalThis);
