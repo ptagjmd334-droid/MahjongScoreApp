@@ -16,10 +16,11 @@
   const style=document.createElement('style');
   style.textContent=`
     #realtime-hand-camera-m7v3 .realtime-hand-guide-m7v3{
-      padding:27vh 6vw 28vh!important
+      padding:0!important;align-items:center!important;justify-content:center!important
     }
     #realtime-hand-camera-m7v3 .realtime-hand-guide-box-m7v3{
-      position:relative;border:4px solid rgba(255,255,255,.97)!important;border-radius:18px!important;
+      position:relative;width:min(86vw,1180px)!important;height:min(31vh,146px)!important;
+      border:4px solid rgba(255,255,255,.97)!important;border-radius:18px!important;
       box-shadow:0 0 0 9999px rgba(0,0,0,.28)!important
     }
     #realtime-hand-camera-m7v3 .realtime-hand-guide-box-m7v3::before{
@@ -35,8 +36,8 @@
       grid-column:1/-1!important;font-size:11px!important
     }
     #realtime-hand-camera-m7v3 .m7v36-shutter{
-      position:absolute;left:max(16px,env(safe-area-inset-left));bottom:max(12px,env(safe-area-inset-bottom));
-      z-index:10;min-width:180px;min-height:46px;padding:8px 18px;border:0;border-radius:999px;
+      position:absolute;left:50%;bottom:max(10px,env(safe-area-inset-bottom));transform:translateX(-50%);
+      z-index:10;min-width:118px;min-height:46px;padding:8px 20px;border:0;border-radius:999px;
       background:#17a765;color:white;font-size:15px;font-weight:900;
       box-shadow:0 5px 18px rgba(0,0,0,.28)
     }
@@ -56,7 +57,7 @@
       width:100%;height:70px;max-height:23%;object-fit:contain;background:#272727;border-radius:8px;flex:none
     }
     @media (orientation:landscape) and (max-height:500px){
-      #realtime-hand-camera-m7v3 .realtime-hand-guide-m7v3{padding:26vh 6vw 30vh!important}
+      #realtime-hand-camera-m7v3 .realtime-hand-guide-box-m7v3{height:min(29vh,124px)!important}
       #realtime-hand-camera-m7v3 .m7v36-shutter{min-height:40px}
     }
   `;
@@ -94,9 +95,9 @@
     const c=document.createElement('canvas');c.width=96;c.height=128;
     const o=c.getContext('2d');
     const px=Math.max(1,b.w*.035),py=Math.max(1,b.h*.025);
-    o.drawImage(ctx.canvas,Math.max(0,b.x-px),Math.max(0,b.y-py),
-      Math.min(ctx.canvas.width-b.x+px,b.w+px*2),Math.min(ctx.canvas.height-b.y+py,b.h+py*2),
-      0,0,c.width,c.height);
+    const sx=Math.max(0,b.x-px),sy=Math.max(0,b.y-py);
+    const x2=Math.min(ctx.canvas.width,b.x+b.w+px),y2=Math.min(ctx.canvas.height,b.y+b.h+py);
+    o.drawImage(ctx.canvas,sx,sy,Math.max(1,x2-sx),Math.max(1,y2-sy),0,0,c.width,c.height);
     return c.toDataURL('image/jpeg',.82);
   }
 
@@ -131,52 +132,74 @@
 
   // Locate one long, bright, low-chroma horizontal tile row.
   // This deliberately treats touching tiles as one row instead of requiring 14 connected components.
+  function smooth(values,radius){
+    const out=new Float64Array(values.length),r=Math.max(0,radius|0);
+    let sum=0,left=0,right=-1;
+    for(let i=0;i<values.length;i++){
+      const wantRight=Math.min(values.length-1,i+r);
+      while(right<wantRight)sum+=values[++right];
+      const wantLeft=Math.max(0,i-r);
+      while(left<wantLeft)sum-=values[left++];
+      out[i]=sum/Math.max(1,right-left+1);
+    }
+    return out;
+  }
+
   function locateTileRow(ctx){
     const w=ctx.canvas.width,h=ctx.canvas.height;
     if(!(w>20&&h>20))return null;
     const data=ctx.getImageData(0,0,w,h).data;
-    const mask=new Uint8Array(w*h),rows=new Int32Array(h);
-    for(let y=0;y<h;y++){
-      for(let x=0;x<w;x++){
-        const p=y*w+x,i=p*4,r=data[i],g=data[i+1],b=data[i+2];
+    const mask=new Uint8Array(w*h),rows=new Float64Array(h);
+    for(let y=0,p=0;y<h;y++){
+      for(let x=0;x<w;x++,p++){
+        const i=p*4,r=data[i],g=data[i+1],b=data[i+2];
         const max=Math.max(r,g,b),min=Math.min(r,g,b),lum=(r*3+g*6+b)/10;
-        if(lum>132&&(max-min)<105){mask[p]=1;rows[y]++;}
+        const neutral=(max-min)/(lum+1);
+        if(lum>=68&&neutral<=.48){mask[p]=1;rows[y]++;}
       }
     }
-    const rowThreshold=Math.max(8,Math.round(w*.22));
-    let runs=[],start=-1;
-    for(let y=0;y<=h;y++){
-      const active=y<h&&rows[y]>=rowThreshold;
-      if(active&&start<0)start=y;
-      if(!active&&start>=0){
-        const end=y,bandH=end-start;
-        let score=0;for(let yy=start;yy<end;yy++)score+=rows[yy];
-        runs.push({y:start,h:bandH,score});start=-1;
+    const rowSmooth=smooth(rows,Math.max(1,Math.round(h*.018)));
+    let peakY=0,peak=0;
+    for(let y=0;y<h;y++)if(rowSmooth[y]>peak){peak=rowSmooth[y];peakY=y;}
+    if(peak<w*.18)return null;
+    const rowCut=Math.max(w*.095,peak*.42);
+    let y1=peakY,y2=peakY;
+    while(y1>0&&rowSmooth[y1-1]>=rowCut)y1--;
+    while(y2<h-1&&rowSmooth[y2+1]>=rowCut)y2++;
+    const padY=Math.max(2,Math.round(h*.075));
+    y1=Math.max(0,y1-padY);y2=Math.min(h-1,y2+padY);
+    const bandH=y2-y1+1;
+    if(bandH<h*.18||bandH>h*.98)return null;
+    const cols=new Float64Array(w);
+    for(let x=0;x<w;x++){
+      let n=0;
+      for(let y=y1;y<=y2;y++)n+=mask[y*w+x];
+      cols[x]=n;
+    }
+    const colSmooth=smooth(cols,Math.max(1,Math.round(w*.003)));
+    const colCut=Math.max(2,bandH*.16);
+    const gapLimit=Math.max(4,Math.round(w*.025));
+    let best=null,start=-1,last=-1,gap=0;
+    function finish(){
+      if(start<0||last<start)return;
+      const width=last-start+1;
+      if(!best||width>best.w)best={x:start,w:width};
+      start=-1;last=-1;gap=0;
+    }
+    for(let x=0;x<w;x++){
+      if(colSmooth[x]>=colCut){
+        if(start<0)start=x;
+        last=x;gap=0;
+      }else if(start>=0){
+        gap++;
+        if(gap>gapLimit)finish();
       }
     }
-    runs=runs.filter(r=>r.h>=Math.max(8,Math.round(h*.12))&&r.h<=h*.90);
-    runs.sort((a,b)=>b.score-a.score);
-    const band=runs[0];if(!band)return null;
-
-    const cols=new Int32Array(w);
-    for(let x=0;x<w;x++)for(let y=band.y;y<band.y+band.h;y++)cols[x]+=mask[y*w+x];
-    const colThreshold=Math.max(3,Math.round(band.h*.20));
-    const active=[];for(let x=0;x<w;x++)if(cols[x]>=colThreshold)active.push(x);
-    if(active.length<w*.32)return null;
-
-    // Join small gaps produced by glyphs or tiny spaces between tiles.
-    const groups=[];let g=null;const gapLimit=Math.max(4,Math.round(w*.025));
-    for(const x of active){
-      if(!g||x-g.end>gapLimit){g={start:x,end:x,count:1};groups.push(g);}
-      else{g.end=x;g.count++;}
-    }
-    groups.sort((a,b)=>(b.end-b.start)-(a.end-a.start));
-    const best=groups[0];if(!best||best.end-best.start<w*.48)return null;
-    const px=Math.max(2,Math.round(w*.008)),py=Math.max(2,Math.round(h*.05));
-    const x=Math.max(0,best.start-px),x2=Math.min(w,best.end+px+1);
-    const y=Math.max(0,band.y-py),y2=Math.min(h,band.y+band.h+py);
-    if(x2-x<w*.50||y2-y<h*.10)return null;
-    return {x,y,w:x2-x,h:y2-y};
+    finish();
+    if(!best||best.w<w*.45)return null;
+    const padX=Math.max(2,Math.round(w*.012));
+    const x=Math.max(0,best.x-padX),x2=Math.min(w,best.x+best.w+padX);
+    return {x,y:y1,w:x2-x,h:bandH,confidence:Math.min(1,peak/w)};
   }
 
   function splitRow(row,count=14){
@@ -297,7 +320,12 @@
     if(e.target.closest?.('.realtime-hand-cancel-m7v3'))stopLocalState();
   },true);
   window.addEventListener('pagehide',stopLocalState,{passive:true});
-  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')stopLocalState();});
+  document.addEventListener('visibilitychange',()=>{
+    if(document.visibilityState==='hidden'){
+      document.querySelector('#realtime-hand-camera-m7v3 .realtime-hand-cancel-m7v3')?.click();
+      stopLocalState();
+    }
+  });
 
   // Learn only after all 14 labels were explicitly verified.
   document.addEventListener('click',e=>{
