@@ -303,6 +303,27 @@
     });
   }
 
+  async function rebuildLibraryFromTrainingImages(){
+    const existing=loadLibrary();
+    if(Object.values(existing).some(list=>Array.isArray(list)&&list.length))return existing;
+    const rows=(await loadTrainingSamples()).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+    if(!rows.length)return existing;
+    const lib={};
+    for(const row of rows){
+      if(!row?.label||!row?.imageDataUrl)continue;
+      const feature=await featureFromDataUrl(row.imageDataUrl);
+      if(!feature)continue;
+      const list=Array.isArray(lib[row.label])?lib[row.label]:[];
+      if(!list.some(t=>core.featureDistance(feature,t)<.020)){
+        list.push(feature);lib[row.label]=list.slice(0,MAX_TEMPLATES);
+      }
+    }
+    saveLibrary(lib);
+    return lib;
+  }
+
+  const trainingReadyPromise=rebuildLibraryFromTrainingImages().catch(()=>loadLibrary());
+
   function cropDataUrl(ctx,b){
     const face=tileFaceRect(ctx,b);
     const c=document.createElement('canvas');c.width=96;c.height=128;
@@ -323,13 +344,13 @@
     // False positives are worse than leaving a tile as "?". v38 real-shuffle test
     // produced 8 auto candidates but only 4 were correct, so v39 is precision-first.
     const bestRaw=Number.isFinite(best.bestDistance)?best.bestDistance:best.distance;
-    if(best.distance>.255||bestRaw>.21)return null;
+    if(best.distance>.20||bestRaw>.17)return null;
     if(!second||!Number.isFinite(second.distance)){
-      return best.distance<=.19&&bestRaw<=.16?best:null;
+      return best.distance<=.15&&bestRaw<=.13?best:null;
     }
     const gap=second.distance-best.distance;
     const ratio=second.distance>0?best.distance/second.distance:1;
-    if(gap<.032||ratio>.80)return null;
+    if(gap<.020||ratio>.78)return null;
     return best;
   }
 
@@ -596,7 +617,7 @@
     const lowCtx=low.getContext('2d',{willReadFrequently:true});
     lowCtx.drawImage(highCanvas,0,0,low.width,low.height);
     const lowRow=locateTileRow(lowCtx);
-    if(!lowRow)return {row:null,boxes:[],features:[],crops:[],photo:highCanvas.toDataURL('image/jpeg',.80)};
+    if(!lowRow)return {row:null,boxes:[],features:[],crops:[],trainingImages:[],photo:highCanvas.toDataURL('image/jpeg',.80)};
     const sx=highCanvas.width/low.width,sy=highCanvas.height/low.height;
     const row={x:lowRow.x*sx,y:lowRow.y*sy,w:lowRow.w*sx,h:lowRow.h*sy};
     const boxes=splitRow(row,14);
@@ -604,6 +625,7 @@
       row,boxes,
       features:boxes.map(b=>featureFromBox(highCtx,b)),
       crops:boxes.map(b=>cropDataUrl(highCtx,b)),
+      trainingImages:boxes.map(b=>trainingImageDataUrl(highCtx,b)),
       photo:highCanvas.toDataURL('image/jpeg',.80)
     };
   }
@@ -627,9 +649,10 @@
   }
 
   function showResult(analysis){
-    const features=analysis.features||[],crops=analysis.crops||[];
+    const features=analysis.features||[],crops=analysis.crops||[],trainingImages=analysis.trainingImages||[];
     state.pendingFeatures=features.slice(0,14);
     state.pendingCrops=crops.slice(0,14);
+    state.pendingTrainingImages=trainingImages.slice(0,14);
     window.M7V36PendingFeatures=state.pendingFeatures;
     const predicted=features.length===14?predict(features):[];
     while(predicted.length<14)predicted.push('');
@@ -650,7 +673,7 @@
       const note=root.querySelector('.hand-result-note-m7v5');
       if(note)note.textContent=features.length===14
         ?(firstCalibration
-          ?'14枚の切り出しに成功しました。初回学習のため、今回は各牌をタップして正しい牌名を指定してください。確定すると次回の自動候補に使います。'
+          ?'14枚の切り出しに成功しました。M7 v43の新しい形状認識を初回学習します。今回は14枚を正しく指定してください。確定後は牌画像も端末内に保存し、今後の認識改善に再利用します。'
           :`白枠内の手牌列を14枚に分割しました。自動候補 ${auto}枚。間違っている牌・?だけタップして修正してください。`)
         :'白枠内から牌列を特定できませんでした。撮影画像を確認し、14枠を手動入力するか「読み取り直す」で再撮影してください。';
       const status=root.querySelector('.hand-result-status-m7v5');
@@ -675,7 +698,7 @@
     const shutter=document.createElement('button');shutter.type='button';shutter.className='m7v36-shutter';shutter.textContent='撮影して読み取る';
     overlay.appendChild(shutter);
     const video=overlay.querySelector('.realtime-hand-video-m7v3');
-    shutter.addEventListener('click',e=>{
+    shutter.addEventListener('click',async e=>{
       e.preventDefault();e.stopPropagation();
       if(state.captured)return;
       if(!video||video.readyState<2||!video.videoWidth){
@@ -688,6 +711,7 @@
         return;
       }
       state.captured=true;
+      await trainingReadyPromise;
       const analysis=analyzeGuideCanvas(capture.canvas);
       state.diagnostics={
         sourceWidth:Math.round(capture.source.w),sourceHeight:Math.round(capture.source.h),
@@ -739,19 +763,21 @@
     const root=document.getElementById('hand-result-overlay-m7v5');if(!root)return;
     const buttons=[...root.querySelectorAll('.hand-result-tile-m7v5')];
     if(state.pendingFeatures.length!==14)return;
-    const lib=loadLibrary();
+    const lib=loadLibrary(),raw=[];
     buttons.forEach((b,i)=>{
-      const label=b.dataset.tile,feature=state.pendingFeatures[i];
-      if(!label||!Array.isArray(feature))return;
+      const label=b.dataset.tile,feature=state.pendingFeatures[i],imageDataUrl=state.pendingTrainingImages[i];
+      if(!label||!feature||feature.kind!==FEATURE_KIND)return;
       const list=Array.isArray(lib[label])?lib[label]:[];
-      if(!list.some(t=>core.rmsDistance(feature,t)<.045)){
+      if(!list.some(t=>core.featureDistance(feature,t)<.020)){
         list.unshift(feature);lib[label]=list.slice(0,MAX_TEMPLATES);
       }
+      if(imageDataUrl)raw.push({label,imageDataUrl});
     });
     saveLibrary(lib);
+    if(raw.length)saveTrainingBatch(raw).catch(()=>{});
   },true);
 
   window.M7CameraV36=Object.freeze({
-    sourceRectForCover,locateTileRow,splitRow,splitRowBySeams,analyzeGuideCanvas,featureFromBox,tileFaceRect,loadLibrary,confidentCandidate,renderPickerSuggestions,pickerCurrentIndex,schedulePickerSuggestionSync,attachPickerSuggestionObserver
+    sourceRectForCover,locateTileRow,splitRow,splitRowBySeams,analyzeGuideCanvas,featureFromBox,tileFaceRect,descriptorFromCanvas,trainingImageDataUrl,loadTrainingSamples,rebuildLibraryFromTrainingImages,loadLibrary,confidentCandidate,renderPickerSuggestions,pickerCurrentIndex,schedulePickerSuggestionSync,attachPickerSuggestionObserver
   });
 })();
