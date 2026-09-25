@@ -15,6 +15,7 @@ on:
       - work/m7-v36-seam-segmentation
       - work/m7-v36-seam-library-reset
       - work/m7-v37-version-bump
+      - work/m7-v38-ink-descriptor
   workflow_dispatch:
 
 jobs:
