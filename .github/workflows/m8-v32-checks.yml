@@ -7,6 +7,7 @@ on:
       - work/m7-camera-v33
       - work/m7-camera-v34-manual-fallback
       - work/m7-v35-tile-row-crop
+      - work/m7-v36-fixed-shutter
   workflow_dispatch:
 
 jobs:
