@@ -9,10 +9,10 @@
   const core=window.M7RecognitionCoreV33;
   if(!core)return;
 
-  const LIB_KEY='MahjongScoreApp_tile_templates_m7v44direct1';
+  const LIB_KEY='MahjongScoreApp_tile_templates_m7v45oriented1';
   const TRAINING_DB='MahjongScoreAppM7Training';
   const TRAINING_STORE='samples';
-  const FEATURE_KIND='direct-edge-v1';
+  const FEATURE_KIND='oriented-direct-v1';
   const MAX_TEMPLATES=5;
   const MAX_IMAGES_PER_LABEL=10;
   const state={overlay:null,captured:false,pendingFeatures:[],pendingCrops:[],pendingTrainingImages:[],diagnostics:null,predictionDebug:[],learnedLabelCount:0};
@@ -53,14 +53,22 @@
       align-items:center!important
     }
     #hand-result-overlay-m7v5 .hand-result-tile-m7v5.m7v36-crop{
-      height:min(36vh,170px)!important;min-height:112px!important;
+      position:relative!important;height:min(36vh,170px)!important;min-height:112px!important;
       background-size:contain!important;background-position:center!important;background-repeat:no-repeat!important;
       background-color:#e7dfd0!important;color:#111
     }
     #hand-result-overlay-m7v5 .hand-result-tile-m7v5.m7v36-crop:not([data-tile])::after{
-      content:'?';font-size:22px;font-weight:900;color:#b43;background:rgba(255,255,255,.78);
-      border-radius:999px;padding:0 7px
+      content:'?';position:absolute;right:3px;top:3px;z-index:3;
+      font-size:12px;font-weight:900;line-height:1;color:#b43;background:rgba(255,255,255,.86);
+      border-radius:999px;padding:3px 5px
     }
+    #hand-result-overlay-m7v5 .m7v45-top1{
+      position:absolute;left:2px;right:2px;bottom:2px;z-index:2;
+      padding:2px 1px;border-radius:4px;background:rgba(0,0,0,.68);color:#fff;
+      font-size:9px;line-height:1.15;font-weight:800;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+      pointer-events:none
+    }
+    #hand-result-overlay-m7v5 .hand-result-tile-m7v5[data-tile] .m7v45-top1{display:none!important}
     #hand-result-overlay-m7v5 .m7v36-photo{
       width:100%;height:70px;max-height:23%;object-fit:contain;background:#272727;border-radius:8px;flex:none
     }
@@ -205,6 +213,97 @@
     return out;
   }
 
+  function detectFaceGeometry(source){
+    const w=source.width|0,h=source.height|0;
+    if(w<8||h<8)return null;
+    const ctx=source.getContext('2d',{willReadFrequently:true});
+    const data=ctx.getImageData(0,0,w,h).data;
+    const mask=new Uint8Array(w*h),visited=new Uint8Array(w*h);
+    for(let p=0;p<w*h;p++){
+      const i=p*4,r=data[i],g=data[i+1],b=data[i+2];
+      const max=Math.max(r,g,b),min=Math.min(r,g,b),lum=(r*3+g*6+b)/10;
+      const neutral=(max-min)/(lum+1);
+      if(lum>=72&&neutral<=.48)mask[p]=1;
+    }
+    let bestPixels=null,bestScore=0;
+    const minArea=Math.max(24,Math.round(w*h*.07));
+    const stack=[];
+    for(let p=0;p<w*h;p++){
+      if(!mask[p]||visited[p])continue;
+      stack.length=0;stack.push(p);visited[p]=1;
+      const pixels=[];let sx=0,sy=0;
+      while(stack.length){
+        const q=stack.pop(),x=q%w,y=(q/w)|0;
+        pixels.push(q);sx+=x;sy+=y;
+        if(x>0){const n=q-1;if(mask[n]&&!visited[n]){visited[n]=1;stack.push(n);}}
+        if(x<w-1){const n=q+1;if(mask[n]&&!visited[n]){visited[n]=1;stack.push(n);}}
+        if(y>0){const n=q-w;if(mask[n]&&!visited[n]){visited[n]=1;stack.push(n);}}
+        if(y<h-1){const n=q+w;if(mask[n]&&!visited[n]){visited[n]=1;stack.push(n);}}
+      }
+      if(pixels.length<minArea)continue;
+      const cx=sx/pixels.length,cy=sy/pixels.length;
+      const dx=(cx-(w-1)/2)/(w*.5),dy=(cy-(h-1)/2)/(h*.5);
+      const centerPenalty=Math.min(.72,Math.hypot(dx,dy)*.55);
+      const score=pixels.length*(1-centerPenalty);
+      if(score>bestScore){bestScore=score;bestPixels=pixels;}
+    }
+    if(!bestPixels?.length)return null;
+    let sx=0,sy=0;
+    for(const p of bestPixels){sx+=p%w;sy+=(p/w)|0;}
+    const cx=sx/bestPixels.length,cy=sy/bestPixels.length;
+    let cxx=0,cyy=0,cxy=0;
+    for(const p of bestPixels){
+      const dx=(p%w)-cx,dy=((p/w)|0)-cy;
+      cxx+=dx*dx;cyy+=dy*dy;cxy+=dx*dy;
+    }
+    cxx/=bestPixels.length;cyy/=bestPixels.length;cxy/=bestPixels.length;
+    let theta=.5*Math.atan2(2*cxy,cxx-cyy);
+    if(Math.sin(theta)<0)theta+=Math.PI;
+    const sin=Math.sin(theta),cos=Math.cos(theta),us=[],vs=[];
+    for(const p of bestPixels){
+      const dx=(p%w)-cx,dy=((p/w)|0)-cy;
+      us.push(sin*dx-cos*dy);
+      vs.push(cos*dx+sin*dy);
+    }
+    us.sort((a,b)=>a-b);vs.sort((a,b)=>a-b);
+    const lo=Math.floor(bestPixels.length*.006),hi=Math.max(lo+1,Math.ceil(bestPixels.length*.994)-1);
+    const minU=us[lo],maxU=us[Math.min(us.length-1,hi)],minV=vs[lo],maxV=vs[Math.min(vs.length-1,hi)];
+    const faceW=maxU-minU,faceH=maxV-minV;
+    if(!(faceW>w*.28&&faceH>h*.28))return null;
+    const aspect=faceH/faceW;
+    if(!(aspect>.85&&aspect<2.6))return null;
+    const fill=bestPixels.length/Math.max(1,faceW*faceH);
+    return {cx,cy,theta,faceW,faceH,fill,area:bestPixels.length};
+  }
+
+  function canonicalizeCanvas(source,width=64,height=96){
+    const geom=detectFaceGeometry(source);
+    if(!geom)return null;
+    const out=document.createElement('canvas');out.width=width;out.height=height;
+    const o=out.getContext('2d',{willReadFrequently:true});
+    o.fillStyle='#f4f1e8';o.fillRect(0,0,width,height);
+    const sin=Math.sin(geom.theta),cos=Math.cos(geom.theta);
+    const sx=width/(geom.faceW*1.08),sy=height/(geom.faceH*1.08);
+    const a=sx*sin,c=-sx*cos,b=sy*cos,d=sy*sin;
+    const e=width/2-a*geom.cx-c*geom.cy,f=height/2-b*geom.cx-d*geom.cy;
+    o.setTransform(a,b,c,d,e,f);
+    o.imageSmoothingEnabled=true;o.imageSmoothingQuality='high';
+    o.drawImage(source,0,0);
+    o.setTransform(1,0,0,1,0,0);
+    return out;
+  }
+
+  function orientedFaceCanvas(ctx,b,width=64,height=96){
+    const x0=Math.max(0,Math.floor(b.x)),y0=Math.max(0,Math.floor(b.y));
+    const x1=Math.min(ctx.canvas.width,Math.ceil(b.x+b.w)),y1=Math.min(ctx.canvas.height,Math.ceil(b.y+b.h));
+    const sw=Math.max(1,x1-x0),sh=Math.max(1,y1-y0);
+    const src=document.createElement('canvas');src.width=sw;src.height=sh;
+    src.getContext('2d',{willReadFrequently:true}).drawImage(ctx.canvas,x0,y0,sw,sh,0,0,sw,sh);
+    const oriented=canonicalizeCanvas(src,width,height);
+    if(oriented)return oriented;
+    return normalizedFaceCanvas(ctx,b,width,height);
+  }
+
   function descriptorFromCanvas(source){
     const width=16,height=24;
     const c=document.createElement('canvas');c.width=width;c.height=height;
@@ -238,11 +337,11 @@
   }
 
   function featureFromBox(ctx,b){
-    return descriptorFromCanvas(normalizedFaceCanvas(ctx,b,64,96));
+    return descriptorFromCanvas(orientedFaceCanvas(ctx,b,64,96));
   }
 
   function trainingImageDataUrl(ctx,b){
-    return normalizedFaceCanvas(ctx,b,96,144).toDataURL('image/jpeg',.88);
+    return orientedFaceCanvas(ctx,b,96,144).toDataURL('image/jpeg',.90);
   }
 
   function featureFromDataUrl(url){
@@ -250,9 +349,10 @@
       const img=new Image();
       img.onload=()=>{
         const c=document.createElement('canvas');c.width=96;c.height=144;
-        const x=c.getContext('2d');x.fillStyle='#f4f1e8';x.fillRect(0,0,c.width,c.height);
+        const x=c.getContext('2d',{willReadFrequently:true});x.fillStyle='#f4f1e8';x.fillRect(0,0,c.width,c.height);
         x.drawImage(img,0,0,c.width,c.height);
-        resolve(descriptorFromCanvas(c));
+        const canonical=canonicalizeCanvas(c,64,96)||c;
+        resolve(descriptorFromCanvas(canonical));
       };
       img.onerror=()=>resolve(null);
       img.src=url;
@@ -281,16 +381,7 @@
   const trainingReadyPromise=rebuildLibraryFromTrainingImages().catch(()=>loadLibrary());
 
   function cropDataUrl(ctx,b){
-    const face=tileFaceRect(ctx,b);
-    const c=document.createElement('canvas');c.width=96;c.height=128;
-    const o=c.getContext('2d');
-    o.fillStyle='#f1eadc';o.fillRect(0,0,c.width,c.height);
-    const srcRatio=face.w/face.h,dstRatio=c.width/c.height;
-    let dw,dh,dx,dy;
-    if(srcRatio>dstRatio){dw=c.width;dh=dw/srcRatio;dx=0;dy=(c.height-dh)/2;}
-    else{dh=c.height;dw=dh*srcRatio;dy=0;dx=(c.width-dw)/2;}
-    o.drawImage(ctx.canvas,face.x,face.y,face.w,face.h,dx,dy,dw,dh);
-    return c.toDataURL('image/jpeg',.84);
+    return orientedFaceCanvas(ctx,b,96,144).toDataURL('image/jpeg',.90);
   }
 
   function confidentCandidate(ranked){
@@ -622,7 +713,10 @@
         const url=state.pendingCrops[i];
         if(url){b.classList.add('m7v36-crop');b.style.backgroundImage=`url("${url}")`;b.dataset.m7v36Index=String(i);}
         const suggestions=(state.predictionDebug?.[i]||[]).map(x=>x.label).filter(Boolean);
-        if(suggestions.length)b.dataset.m7v39Suggestions=JSON.stringify(suggestions.slice(0,3));
+        if(suggestions.length){
+          b.dataset.m7v39Suggestions=JSON.stringify(suggestions.slice(0,3));
+          const badge=document.createElement('span');badge.className='m7v45-top1';badge.textContent=`1位 ${suggestions[0]}`;b.appendChild(badge);
+        }
       });
       const auto=predicted.filter(Boolean).length;
       const learnedLabels=Object.keys(loadLibrary()).filter(label=>Array.isArray(loadLibrary()[label])&&loadLibrary()[label].length).length;
@@ -630,8 +724,8 @@
       const note=root.querySelector('.hand-result-note-m7v5');
       if(note)note.textContent=features.length===14
         ?(firstCalibration
-          ?'保存済みの牌画像がないため、M7 v44の初回学習が必要です。14枚を正しく指定してください。確定後は牌画像も端末内に保存します。'
-          :`白枠内の手牌列を14枚に分割しました。高信頼候補 ${auto}枚。候補欄は入力補助で、精度評価は左端の1位候補を基準にします。`)
+          ?'保存済みの牌画像がないため、M7 v45の初回学習が必要です。14枚を正しく指定してください。確定後は牌画像も端末内に保存します。'
+          :`白枠内の手牌列を14枚に分割しました。高信頼候補 ${auto}枚。各枠の下に1位候補を表示しています。精度評価はこの1位候補を基準にします。`)
         :'白枠内から牌列を特定できませんでした。撮影画像を確認し、14枠を手動入力するか「読み取り直す」で再撮影してください。';
       const status=root.querySelector('.hand-result-status-m7v5');
       if(status&&auto<14)status.textContent=features.length===14
@@ -735,6 +829,6 @@
   },true);
 
   window.M7CameraV36=Object.freeze({
-    sourceRectForCover,locateTileRow,splitRow,splitRowBySeams,analyzeGuideCanvas,featureFromBox,tileFaceRect,descriptorFromCanvas,trainingImageDataUrl,loadTrainingSamples,rebuildLibraryFromTrainingImages,loadLibrary,confidentCandidate,renderPickerSuggestions,pickerCurrentIndex,schedulePickerSuggestionSync,attachPickerSuggestionObserver
+    sourceRectForCover,locateTileRow,splitRow,splitRowBySeams,analyzeGuideCanvas,featureFromBox,tileFaceRect,descriptorFromCanvas,detectFaceGeometry,canonicalizeCanvas,orientedFaceCanvas,trainingImageDataUrl,loadTrainingSamples,rebuildLibraryFromTrainingImages,loadLibrary,confidentCandidate,renderPickerSuggestions,pickerCurrentIndex,schedulePickerSuggestionSync,attachPickerSuggestionObserver
   });
 })();
