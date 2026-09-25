@@ -86,7 +86,7 @@ test('camera v36 is loaded before ui-fixes so verified clicks train the active c
   assert(index.indexOf('script.js')<index.indexOf('m7-recognition-core.js'));
   assert(index.indexOf('m7-recognition-core.js')<index.indexOf('m7-camera-v36.js'));
   assert(index.indexOf('m7-camera-v36.js')<index.indexOf('ui-fixes.js'));
-  assert(index.includes('M7 v44'));
+  assert(index.includes('M7 v45'));
 });
 
 test('legacy live detector and demo fill yield to the active camera owner',()=>{
@@ -101,6 +101,14 @@ test('v36 camera avoids fixed bright-white threshold and closes camera when hidd
   assert(camera.includes('neutral=(max-min)/(lum+1)'));
   assert(camera.includes("visibilitychange"));
   assert(camera.includes(".realtime-hand-cancel-m7v3')?.click()"));
+});
+
+test('v45 exposes rank1 without covering the tile image',()=>{
+  const camera=fs.readFileSync(path.join(root,'m7-camera-v36.js'),'utf8');
+  assert(camera.includes("badge.className='m7v45-top1'"));
+  assert(camera.includes("position:absolute;right:3px;top:3px"));
+  assert(camera.includes('canonicalizeCanvas'));
+  assert(camera.includes("MahjongScoreApp_tile_templates_m7v45oriented1"));
 });
 
 test('all published JavaScript entrypoints parse',()=>{
