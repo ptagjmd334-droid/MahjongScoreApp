@@ -16,6 +16,18 @@ test('template distance and conservative classification',()=>{
   assert.equal(core.classify(a,{'1萬':[near],'2萬':[[0.02,.12,-.18,.39]]},{threshold:.2,margin:.05}),null);
 });
 
+test('96-cell tile matching tolerates a one-cell crop shift',()=>{
+  const w=8,h=12;
+  const base=Array(w*h).fill(0);
+  for(let y=2;y<10;y++)for(let x=2;x<6;x++)base[y*w+x]=(x===2||x===5||y===2||y===9)?1:-.25;
+  const shifted=Array(w*h).fill(0);
+  for(let y=0;y<h;y++)for(let x=0;x<w-1;x++)shifted[y*w+x+1]=base[y*w+x];
+  assert(core.rmsDistance(base,shifted)>.24);
+  assert(core.shiftedRmsDistance(base,shifted,8,12,1)<.06);
+  const ranked=core.rankLabels(shifted,{'correct':[base],'wrong':[Array(w*h).fill(.8)]});
+  assert.equal(ranked[0].label,'correct');
+});
+
 test('13/14 candidate position stability requires similar positions',()=>{
   const p=Array.from({length:14},(_,i)=>i/14);
   assert.equal(core.stableEnough(p,p.map(x=>x+.01)),true);
