@@ -11,6 +11,7 @@ on:
       - work/m7-v36-shift-tolerant-recognition
       - work/m7-v36-preview-learning-fix
       - work/m7-v36-face-normalization
+      - work/m7-v36-face-library-key
   workflow_dispatch:
 
 jobs:
