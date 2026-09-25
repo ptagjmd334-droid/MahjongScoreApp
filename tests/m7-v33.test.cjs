@@ -28,6 +28,17 @@ test('96-cell tile matching tolerates a one-cell crop shift',()=>{
   assert.equal(ranked[0].label,'correct');
 });
 
+test('robust ranking resists one accidental close template',()=>{
+  const f=Array(216).fill(0);
+  const close=Array(216).fill(.06),close2=Array(216).fill(.08);
+  const accidental=Array(216).fill(.01),wrong2=Array(216).fill(.45);
+  const lib={correct:[close,close2],wrong:[accidental,wrong2]};
+  const nearest=core.rankLabels(f,lib);
+  const robust=core.rankLabelsRobust(f,lib,{singlePenalty:.035,maxTemplates:3});
+  assert.equal(nearest[0].label,'wrong');
+  assert.equal(robust[0].label,'correct');
+});
+
 test('13/14 candidate position stability requires similar positions',()=>{
   const p=Array.from({length:14},(_,i)=>i/14);
   assert.equal(core.stableEnough(p,p.map(x=>x+.01)),true);
