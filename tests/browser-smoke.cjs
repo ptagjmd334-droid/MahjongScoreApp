@@ -129,12 +129,17 @@ const server=http.createServer((req,res)=>{
       let learned=0;
       if(result){
         const resultTiles=[...result.querySelectorAll('.hand-result-tile-m7v5')];
-        if(resultTiles[0]){
+        if(resultTiles[0]&&resultTiles[1]){
           resultTiles[0].dataset.m7v39Suggestions=JSON.stringify(['1萬','2萬','3萬']);
+          resultTiles[1].dataset.m7v39Suggestions=JSON.stringify(['4萬','5萬','6萬']);
           resultTiles[0].click();
-          await new Promise(resolve=>setTimeout(resolve,30));
-          const suggestionButtons=[...document.querySelectorAll('#tile-picker-m7v5 .m7v39-suggestions button')];
+          await new Promise(resolve=>setTimeout(resolve,40));
+          let suggestionButtons=[...document.querySelectorAll('#tile-picker-m7v5 .m7v39-suggestions button')];
           window.__m7v39SuggestionCount=suggestionButtons.length;
+          suggestionButtons[0]?.click();
+          await new Promise(resolve=>setTimeout(resolve,40));
+          suggestionButtons=[...document.querySelectorAll('#tile-picker-m7v5 .m7v39-suggestions button')];
+          window.__m7v40SuggestionAdvanced=(suggestionButtons[0]?.textContent||'')==='4萬';
           document.querySelector('#tile-picker-m7v5 .tile-picker-cancel-m7v5')?.click();
         }
         resultTiles.forEach((b,i)=>b.dataset.tile='test-'+i);
@@ -153,7 +158,8 @@ const server=http.createServer((req,res)=>{
       result?.remove();fake.remove();
       localStorage.removeItem('MahjongScoreApp_tile_templates_m7v38ink1');
       const suggestionCount=window.__m7v39SuggestionCount||0;delete window.__m7v39SuggestionCount;
-      return {overlap,tiles,crops,note,diag,preview,learned,suggestionCount};
+      const suggestionAdvanced=!!window.__m7v40SuggestionAdvanced;delete window.__m7v40SuggestionAdvanced;
+      return {overlap,tiles,crops,note,diag,preview,learned,suggestionCount,suggestionAdvanced};
     });
     assert.equal(shutter.overlap,false,'v36 shutter and cancel overlap '+JSON.stringify(shutter));
     assert.equal(shutter.tiles,14,'v36 shutter did not open 14 editable slots '+JSON.stringify(shutter));
@@ -163,6 +169,7 @@ const server=http.createServer((req,res)=>{
     assert(shutter.preview.height<190,'tile preview should not stretch through the whole result card '+JSON.stringify(shutter));
     assert.equal(shutter.learned,14,'verified first calibration was not persisted before result close '+JSON.stringify(shutter));
     assert.equal(shutter.suggestionCount,3,'top-3 quick suggestions missing '+JSON.stringify(shutter));
+    assert.equal(shutter.suggestionAdvanced,true,'top-3 suggestions did not refresh for the next tile '+JSON.stringify(shutter));
     const confidence=await page.evaluate(()=>{
       const api=window.M7CameraV36;
       const clear=api.confidentCandidate([{label:'A',distance:.11},{label:'B',distance:.24}]);
@@ -173,6 +180,16 @@ const server=http.createServer((req,res)=>{
     assert.equal(confidence.clear,'A','clear candidate should be accepted '+JSON.stringify(confidence));
     assert.equal(confidence.ambiguous,'','ambiguous candidate must be withheld '+JSON.stringify(confidence));
     assert.equal(confidence.far,'','far candidate must be withheld '+JSON.stringify(confidence));
+    const stableRank=await page.evaluate(()=>{
+      const api=window.M7CameraV36;
+      const q=[0,0,0,0];
+      const lib={
+        A:[[0.02,0,0,0],[0.03,0,0,0],[0.9,0.9,0.9,0.9]],
+        B:[[0.01,0,0,0],[0.7,0.7,0.7,0.7],[0.72,0.72,0.72,0.72]]
+      };
+      return api.rankLabelsStable(q,lib).slice(0,2).map(x=>x.label);
+    });
+    assert.equal(stableRank[0],'A','stable ranking was dominated by one accidental nearest template '+JSON.stringify(stableRank));
     assert(shutter.diag?.rowFound,'v36 diagnostics did not record the located row '+JSON.stringify(shutter));
     // Reload after the isolated camera/calibration probe so the remaining game-flow smoke test
     // starts from a pristine setup screen.
