@@ -121,6 +121,10 @@ const server=http.createServer((req,res)=>{
     assert(shutter.preview.height<190,'tile preview should not stretch through the whole result card '+JSON.stringify(shutter));
     assert.equal(shutter.learned,14,'verified first calibration was not persisted before result close '+JSON.stringify(shutter));
     assert(shutter.diag?.rowFound,'v36 diagnostics did not record the located row '+JSON.stringify(shutter));
+    // Reload after the isolated camera/calibration probe so the remaining game-flow smoke test
+    // starts from a pristine setup screen.
+    await page.reload({waitUntil:'domcontentloaded',timeout:30000});
+    await page.waitForSelector('#go-confirm-button',{timeout:12000});
     await page.click('#go-confirm-button');
     await page.waitForSelector('#start-game-button',{visible:true,timeout:8000});
     await page.click('#start-game-button');
