@@ -1,4 +1,4 @@
-// M7 v33: stable 13/14-tile live capture + conservative local learning.
+// M7 v36: fixed guide-frame shutter capture + post-capture row segmentation + conservative local learning.
 // Uses the existing M7 camera/result UI but owns live detection when loaded.
 (()=>{
   'use strict';
@@ -64,54 +64,116 @@
     try{localStorage.setItem(LIB_KEY,JSON.stringify(lib));}catch(_){}
   }
 
-  function detectCandidates(ctx,w,h){
-    const image=ctx.getImageData(0,0,w,h),data=image.data;
-    const mask=new Uint8Array(w*h);
-    // Tile faces tend to be bright and relatively low-saturation. Keep this intentionally broad.
-    for(let i=0,p=0;i<data.length;i+=4,p++){
-      const r=data[i],g=data[i+1],b=data[i+2],max=Math.max(r,g,b),min=Math.min(r,g,b);
-      const lum=(r*3+g*6+b)/10;
-      if(lum>118&&(max-min)<112)mask[p]=1;
+  // v36: the user aligns the winning hand inside one fixed guide and presses the shutter.
+  // We no longer require 13/14 separate live components before capture.
+  style.textContent += [
+    '#realtime-hand-camera-m7v3 .realtime-hand-guide-m7v3{padding:0!important;align-items:center!important;justify-content:center!important}',
+    '#realtime-hand-camera-m7v3 .realtime-hand-guide-box-m7v3{width:min(86vw,1180px)!important;height:min(31vh,146px)!important;border-radius:16px!important}',
+    '#realtime-hand-camera-m7v3 .m7v33-capture{left:50%!important;right:auto!important;bottom:max(10px,env(safe-area-inset-bottom))!important;transform:translateX(-50%)!important;min-width:92px!important;max-width:none!important;min-height:48px!important;border-radius:999px!important;padding:8px 20px!important;background:#17a765!important}',
+    '#realtime-hand-camera-m7v3 .m7v33-status{bottom:calc(max(10px,env(safe-area-inset-bottom)) + 54px)!important}',
+    '@media (orientation:landscape) and (max-height:500px){#realtime-hand-camera-m7v3 .realtime-hand-guide-box-m7v3{height:min(29vh,124px)!important}}'
+  ].join('');
+
+  function smooth(values,radius){
+    const out=new Float64Array(values.length),r=Math.max(0,radius|0);
+    let sum=0,left=0,right=-1;
+    for(let i=0;i<values.length;i++){
+      const wantRight=Math.min(values.length-1,i+r);
+      while(right<wantRight)sum+=values[++right];
+      const wantLeft=Math.max(0,i-r);
+      while(left<wantLeft)sum-=values[left++];
+      out[i]=sum/Math.max(1,right-left+1);
     }
-    // Fill tiny horizontal gaps caused by printed markings.
-    for(let y=1;y<h-1;y++)for(let x=2;x<w-2;x++){
-      const p=y*w+x;
-      if(!mask[p]&&mask[p-1]&&mask[p+1])mask[p]=1;
-    }
-    const seen=new Uint8Array(w*h),stack=[],boxes=[];
-    const minPixels=Math.max(45,Math.floor(w*h*.0012));
-    for(let y=1;y<h-1;y++)for(let x=1;x<w-1;x++){
-      const start=y*w+x;if(!mask[start]||seen[start])continue;
-      seen[start]=1;stack.length=0;stack.push(start);
-      let minX=x,maxX=x,minY=y,maxY=y,count=0;
-      while(stack.length){
-        const q=stack.pop(),qx=q%w,qy=(q/w)|0;count++;
-        if(qx<minX)minX=qx;if(qx>maxX)maxX=qx;if(qy<minY)minY=qy;if(qy>maxY)maxY=qy;
-        const ns=[q-1,q+1,q-w,q+w];
-        for(const n of ns){if(n>=0&&n<mask.length&&mask[n]&&!seen[n]){seen[n]=1;stack.push(n);}}
+    return out;
+  }
+
+  function estimateTileRow(ctx){
+    const w=ctx.canvas.width,h=ctx.canvas.height;
+    if(!w||!h)return null;
+    const rgba=ctx.getImageData(0,0,w,h).data;
+    const mask=new Uint8Array(w*h),rows=new Float64Array(h);
+    // White tile faces are comparatively neutral even when the whole scene is dim.
+    // Use a chroma/luminance ratio instead of the old fixed RGB > 147 threshold.
+    for(let y=0,p=0;y<h;y++){
+      for(let x=0;x<w;x++,p++){
+        const i=p*4,r=rgba[i],g=rgba[i+1],b=rgba[i+2];
+        const max=Math.max(r,g,b),min=Math.min(r,g,b);
+        const lum=(r*3+g*6+b)/10;
+        const neutral=(max-min)/(lum+1);
+        if(lum>=68&&neutral<=.48){mask[p]=1;rows[y]++;}
       }
-      if(count<minPixels)continue;
-      const bw=maxX-minX+1,bh=maxY-minY+1,fill=count/(bw*bh);
-      if(bh<h*.34||bh>h*.98||bw<w*.018||bw>w*.14)continue;
-      if(bh/bw<1.0||bh/bw>3.1||fill<.28)continue;
-      boxes.push({x:minX,y:minY,w:bw,h:bh,cx:(minX+bw/2)/w});
     }
-    boxes.sort((a,b)=>a.x-b.x);
-    // Prefer the most horizontally aligned row if reflections create extra components.
-    if(boxes.length>14){
-      const medY=[...boxes].map(b=>b.y+b.h/2).sort((a,b)=>a-b)[Math.floor(boxes.length/2)];
-      boxes.sort((a,b)=>Math.abs((a.y+a.h/2)-medY)-Math.abs((b.y+b.h/2)-medY));
-      boxes.splice(14);
-      boxes.sort((a,b)=>a.x-b.x);
+    const rowSmooth=smooth(rows,Math.max(1,Math.round(h*.018)));
+    let peakY=0,peak=0;
+    for(let y=0;y<h;y++)if(rowSmooth[y]>peak){peak=rowSmooth[y];peakY=y;}
+    if(peak<w*.18)return null;
+    const rowCut=Math.max(w*.095,peak*.42);
+    let y1=peakY,y2=peakY;
+    while(y1>0&&rowSmooth[y1-1]>=rowCut)y1--;
+    while(y2<h-1&&rowSmooth[y2+1]>=rowCut)y2++;
+    const padY=Math.max(2,Math.round(h*.075));
+    y1=Math.max(0,y1-padY);y2=Math.min(h-1,y2+padY);
+    const bandH=y2-y1+1;
+    if(bandH<h*.18||bandH>h*.98)return null;
+
+    const cols=new Float64Array(w);
+    for(let x=0;x<w;x++){
+      let n=0;
+      for(let y=y1;y<=y2;y++)n+=mask[y*w+x];
+      cols[x]=n;
     }
-    return boxes;
+    const colSmooth=smooth(cols,Math.max(1,Math.round(w*.003)));
+    const colCut=Math.max(2,bandH*.16);
+    const gapLimit=Math.max(4,Math.round(w*.025));
+    let best=null,start=-1,last=-1,gap=0;
+    function finish(){
+      if(start<0||last<start)return;
+      const width=last-start+1;
+      if(!best||width>best.w)best={x:start,w:width};
+      start=-1;last=-1;gap=0;
+    }
+    for(let x=0;x<w;x++){
+      if(colSmooth[x]>=colCut){
+        if(start<0)start=x;
+        last=x;gap=0;
+      }else if(start>=0){
+        gap++;
+        if(gap>gapLimit)finish();
+      }
+    }
+    finish();
+    if(!best||best.w<w*.45)return null;
+    const padX=Math.max(2,Math.round(w*.012));
+    const x=Math.max(0,best.x-padX),x2=Math.min(w,best.x+best.w+padX);
+    return {x,y:y1,w:x2-x,h:bandH,confidence:Math.min(1,peak/w)};
+  }
+
+  function boxesForRow(row){
+    if(!row)return [];
+    return Array.from({length:14},(_,i)=>{
+      const a=Math.round(row.x+row.w*i/14),b=Math.round(row.x+row.w*(i+1)/14);
+      return {x:a,y:row.y,w:Math.max(1,b-a),h:row.h,cx:(a+(b-a)/2)};
+    });
+  }
+
+  function manualGuideBoxes(ctx){
+    return boxesForRow(estimateTileRow(ctx));
+  }
+
+  // Compatibility helper retained for existing diagnostics/tests. v36 capture does not
+  // use per-tile live connected components anymore.
+  function detectCandidates(ctx){
+    return manualGuideBoxes(ctx).map(b=>({...b,cx:b.cx/ctx.canvas.width}));
   }
 
   function featureFromBox(ctx,b){
     const out=document.createElement('canvas');out.width=32;out.height=48;
     const o=out.getContext('2d',{willReadFrequently:true});
-    const padX=Math.max(1,b.w*.08),padY=Math.max(1,b.h*.06);
-    o.drawImage(ctx.canvas,b.x+padX,b.y+padY,Math.max(1,b.w-padX*2),Math.max(1,b.h-padY*2),0,0,32,48);
+    const sx=Math.max(0,b.x),sy=Math.max(0,b.y);
+    const sw=Math.max(1,Math.min(ctx.canvas.width-sx,b.w));
+    const sh=Math.max(1,Math.min(ctx.canvas.height-sy,b.h));
+    const padX=Math.max(1,sw*.07),padY=Math.max(1,sh*.05);
+    o.drawImage(ctx.canvas,sx+padX,sy+padY,Math.max(1,sw-padX*2),Math.max(1,sh-padY*2),0,0,32,48);
     const data=o.getImageData(0,0,32,48).data,vals=[];
     for(let gy=0;gy<12;gy++)for(let gx=0;gx<8;gx++){
       let sum=0,n=0;
@@ -126,12 +188,13 @@
   }
 
   function cropDataUrl(ctx,b){
-    const c=document.createElement('canvas');
-    c.width=72;c.height=100;
+    const c=document.createElement('canvas');c.width=96;c.height=128;
     const o=c.getContext('2d');
-    const px=Math.max(1,b.w*.04),py=Math.max(1,b.h*.03);
-    o.drawImage(ctx.canvas,b.x-px,b.y-py,b.w+px*2,b.h+py*2,0,0,c.width,c.height);
-    return c.toDataURL('image/jpeg',.72);
+    const px=Math.max(1,b.w*.035),py=Math.max(1,b.h*.025);
+    const sx=Math.max(0,b.x-px),sy=Math.max(0,b.y-py);
+    const x2=Math.min(ctx.canvas.width,b.x+b.w+px),y2=Math.min(ctx.canvas.height,b.y+b.h+py);
+    o.drawImage(ctx.canvas,sx,sy,Math.max(1,x2-sx),Math.max(1,y2-sy),0,0,c.width,c.height);
+    return c.toDataURL('image/jpeg',.78);
   }
 
   function predict(features){
@@ -155,152 +218,138 @@
     state.timer=null;state.overlay=null;state.previousXs=null;state.stable=0;
   }
 
-  // v35: v34 divided the entire camera frame, not the physical tile row.
-  // Find the brightest low-chroma horizontal band, then the left/right extent
-  // of tile faces inside it. This is a row crop estimate, NOT tile recognition.
-  function estimateTileRow(ctx){
-    const w=ctx.canvas.width,h=ctx.canvas.height;
-    const rgba=ctx.getImageData(0,0,w,h).data;
-    const left=Math.floor(w*.055),right=Math.ceil(w*.945);
-    const top=Math.floor(h*.15),bottom=Math.ceil(h*.82);
-    const mask=new Uint8Array(w*h),rows=new Int32Array(h);
-    for(let y=top;y<bottom;y++){
-      for(let x=left;x<right;x++){
-        const p=y*w+x,i=p*4,r=rgba[i],g=rgba[i+1],b=rgba[i+2];
-        if(Math.min(r,g,b)>147&&Math.max(r,g,b)-Math.min(r,g,b)<54){
-          mask[p]=1;rows[y]++;
-        }
-      }
-    }
-    const maxRow=Math.max(...rows);
-    const cutoff=Math.max(Math.round((right-left)*.18),Math.round(maxRow*.48));
-    if(maxRow<Math.round((right-left)*.27))return null;
-    let runs=[],start=-1;
-    for(let y=top;y<=bottom;y++){
-      const active=y<bottom&&rows[y]>=cutoff;
-      if(active&&start<0)start=y;
-      if(!active&&start>=0){runs.push({y:start,h:y-start,score:0});start=-1;}
-    }
-    for(const band of runs){
-      for(let y=band.y;y<band.y+band.h;y++)band.score+=rows[y];
-    }
-    runs=runs.filter(b=>b.h>=Math.max(6,Math.floor(h*.055))&&b.h<=h*.38);
-    runs.sort((a,b)=>b.score-a.score);
-    const band=runs[0];
-    if(!band)return null;
-    const counts=new Int32Array(w);
-    for(let x=left;x<right;x++)
-      for(let y=band.y;y<band.y+band.h;y++)counts[x]+=mask[y*w+x];
-    const activeCols=[],colCut=Math.max(3,Math.round(band.h*.34));
-    for(let x=left;x<right;x++)if(counts[x]>=colCut)activeCols.push(x);
-    if(activeCols.length<(right-left)*.36)return null;
-    // Ignore isolated bright table edges and bridge small dark gaps in printed glyphs.
-    const groups=[];let group=null;
-    for(const x of activeCols){
-      if(!group||x-group.end>Math.max(5,Math.round(w*.018))){
-        group={start:x,end:x,count:1};groups.push(group);
-      }else{group.end=x;group.count++;}
-    }
-    groups.sort((a,b)=>b.count-a.count);
-    const best=groups[0];
-    if(!best||best.end-best.start<w*.48)return null;
-    const padX=Math.max(1,Math.round(w*.006)),padY=Math.max(1,Math.round(h*.018));
-    const x=Math.max(0,best.start-padX),x2=Math.min(w,best.end+padX+1);
-    const y=Math.max(0,band.y-padY),y2=Math.min(h,band.y+band.h+padY);
-    if(y2-y<h*.07||y2-y>h*.42)return null;
-    return {x,y,w:x2-x,h:y2-y};
-  }
-  function manualGuideBoxes(ctx){
-    const row=estimateTileRow(ctx);
-    if(!row)return [];
-    return Array.from({length:14},(_,i)=>{
-      const a=Math.round(row.x+row.w*i/14),b=Math.round(row.x+row.w*(i+1)/14);
-      return {x:a,y:row.y,w:Math.max(1,b-a),h:row.h};
-    });
+  function guideSourceRect(video,overlay){
+    const ow=overlay.clientWidth||overlay.getBoundingClientRect().width;
+    const oh=overlay.clientHeight||overlay.getBoundingClientRect().height;
+    const sw=video.videoWidth||video.width||0,sh=video.videoHeight||video.height||0;
+    if(!ow||!oh||!sw||!sh)return null;
+    const scale=Math.max(ow/sw,oh/sh);
+    const shownW=sw*scale,shownH=sh*scale;
+    const offsetX=(ow-shownW)/2,offsetY=(oh-shownH)/2;
+    const or=overlay.getBoundingClientRect();
+    const guide=overlay.querySelector('.realtime-hand-guide-box-m7v3');
+    const gr=guide?.getBoundingClientRect();
+    if(!gr||!gr.width||!gr.height)return {sx:0,sy:0,sw,sh};
+    let sx=(gr.left-or.left-offsetX)/scale;
+    let sy=(gr.top-or.top-offsetY)/scale;
+    let sx2=(gr.right-or.left-offsetX)/scale;
+    let sy2=(gr.bottom-or.top-offsetY)/scale;
+    sx=Math.max(0,Math.min(sw-1,sx));sy=Math.max(0,Math.min(sh-1,sy));
+    sx2=Math.max(sx+1,Math.min(sw,sx2));sy2=Math.max(sy+1,Math.min(sh,sy2));
+    return {sx,sy,sw:sx2-sx,sh:sy2-sy};
   }
 
-  function showResult(ctx,boxes,manual=false){
-    if(state.captured)return;
-    state.captured=true;
+  function captureGuideFrame(video,overlay){
+    const src=guideSourceRect(video,overlay);
+    if(!src)return null;
+    const maxWidth=1600,ratio=Math.min(1,maxWidth/src.sw);
+    const c=document.createElement('canvas');
+    c.width=Math.max(1,Math.round(src.sw*ratio));
+    c.height=Math.max(1,Math.round(src.sh*ratio));
+    const ctx=c.getContext('2d',{willReadFrequently:true});
+    ctx.drawImage(video,src.sx,src.sy,src.sw,src.sh,0,0,c.width,c.height);
+    return {canvas:c,ctx,sourceRect:src};
+  }
+
+  function analysisCopy(canvas){
+    const maxWidth=760,ratio=Math.min(1,maxWidth/canvas.width);
+    const c=document.createElement('canvas');
+    c.width=Math.max(1,Math.round(canvas.width*ratio));
+    c.height=Math.max(1,Math.round(canvas.height*ratio));
+    const ctx=c.getContext('2d',{willReadFrequently:true});
+    ctx.drawImage(canvas,0,0,c.width,c.height);
+    return {canvas:c,ctx};
+  }
+
+  function mapRow(row,fromCanvas,toCanvas){
+    if(!row)return null;
+    const sx=toCanvas.width/fromCanvas.width,sy=toCanvas.height/fromCanvas.height;
+    return {
+      x:Math.max(0,Math.round(row.x*sx)),
+      y:Math.max(0,Math.round(row.y*sy)),
+      w:Math.max(1,Math.round(row.w*sx)),
+      h:Math.max(1,Math.round(row.h*sy)),
+      confidence:row.confidence
+    };
+  }
+
+  function showResult(ctx,boxes,guidePhoto,rowFound){
     stopLoop();
-    const displayed=manual?manualGuideBoxes(ctx):boxes;
-    const fullPhoto=manual&&displayed.length!==14?ctx.canvas.toDataURL('image/jpeg',.72):null;
-    // Learn only from a located 14-tile row after all labels are verified.
-    // With no row, only the full photograph is shown; no false training samples.
-    const features=displayed.length===14?displayed.map(b=>featureFromBox(ctx,b)):[];
-    const crops=displayed.map(b=>cropDataUrl(ctx,b));
+    const features=boxes.length===14?boxes.map(b=>featureFromBox(ctx,b)):[];
+    const crops=boxes.length===14?boxes.map(b=>cropDataUrl(ctx,b)):[];
     state.pendingFeatures=features.slice(0,14);
     state.pendingCrops=crops.slice(0,14);
     window.M7V33PendingFeatures=state.pendingFeatures;
-    // A manual snapshot has no reliable label positions: show all '?' until
-    // the user verifies them rather than guessing from arbitrary crop positions.
-    const predicted=manual?[]:predict(state.pendingFeatures);
+    const predicted=features.length===14?predict(features):[];
     while(predicted.length<14)predicted.push('');
     document.querySelector('#realtime-hand-camera-m7v3 .realtime-hand-cancel-m7v3')?.click();
     setTimeout(()=>{
       window.showHandResultM7V5?.(predicted.slice(0,14));
       const root=document.getElementById('hand-result-overlay-m7v5');if(!root)return;
       const buttons=[...root.querySelectorAll('.hand-result-tile-m7v5')];
-      if(fullPhoto){
+      if(!rowFound&&guidePhoto){
         const photo=document.createElement('img');
-        photo.alt='撮影した手牌全体。各牌の名前は下で手動指定してください';
-        photo.src=fullPhoto;photo.className='m7v35-full-photo';
+        photo.alt='撮影枠内の手牌。各牌の名前は下で手動指定してください';
+        photo.src=guidePhoto;photo.className='m7v35-full-photo';
         root.querySelector('.hand-result-head-m7v5')?.insertAdjacentElement('afterend',photo);
       }
       buttons.forEach((b,i)=>{
         const url=state.pendingCrops[i];
-        if(url){b.classList.add('m7v33-crop');b.style.backgroundImage=`url("${url}")`;b.dataset.m7v33Index=String(i);}
+        if(url){b.classList.add('m7v33-crop');b.style.backgroundImage='url("'+url+'")';b.dataset.m7v33Index=String(i);}
       });
       const auto=predicted.filter(Boolean).length;
       const note=root.querySelector('.hand-result-note-m7v5');
-      if(note)note.textContent=manual
-        ?(fullPhoto
-            ?'牌の列を特定できなかったため、撮影した画像全体を表示します。下の14枠をタップして正しい牌を入力してください。'
-            :'撮影画像から牌の列を推定して14枚のプレビューを表示しました。牌種の自動認識ではありません。各牌をタップして修正・確定すると次回のために学習します。')
-        :`カメラで${boxes.length}枚を切り出し / 学習済み候補 ${auto}枚。? の牌だけタップして選択してください。修正内容は次回認識に学習されます。`;
+      if(note)note.textContent=rowFound
+        ?'撮影枠から牌列を特定して14枚に分けました。間違っている牌と ? の牌だけタップして修正してください。'
+        :'撮影枠内の牌列を特定できませんでした。画像を確認し、下の14枠をタップして正しい牌を入力するか「読み取り直す」で撮影してください。';
       const status=root.querySelector('.hand-result-status-m7v5');
-      if(status&&auto<14)status.textContent=manual?'手動入力：0 / 14枚':`${auto} / 14枚を自動候補化`;
+      if(status)status.textContent=rowFound?(auto+' / 14枚を自動候補化'):'手動入力：0 / 14枚';
     },80);
   }
 
   function attach(overlay){
     if(!overlay||overlay.dataset.m7v33Attached==='1')return;
-    overlay.dataset.m7v33Attached='1';state.overlay=overlay;state.captured=false;state.previousXs=null;state.stable=0;
-    const status=document.createElement('div');status.className='m7v33-status';status.textContent='牌候補を探しています…';overlay.appendChild(status);
-    const capture=document.createElement('button');capture.type='button';capture.className='m7v33-capture';capture.textContent='この瞬間を確認';overlay.appendChild(capture);
+    overlay.dataset.m7v33Attached='1';state.overlay=overlay;state.captured=false;
+    const oldCount=overlay.querySelector('#realtime-hand-count-m7v3');
+    if(oldCount)oldCount.textContent='撮影';
+    const title=overlay.querySelector('.realtime-hand-status-m7v3 b');
+    if(title)title.textContent='14枚を白枠いっぱいに並べてください';
+    const small=overlay.querySelector('.realtime-hand-status-m7v3 small');
+    if(small)small.textContent='枚数カウントを待たず、位置が合ったら中央の「撮影」を押します';
+    const status=document.createElement('div');
+    status.className='m7v33-status';status.textContent='撮影後に牌列を解析します';overlay.appendChild(status);
+    const capture=document.createElement('button');
+    capture.type='button';capture.className='m7v33-capture';capture.textContent='撮影';overlay.appendChild(capture);
     const video=overlay.querySelector('.realtime-hand-video-m7v3');
-    const work=document.createElement('canvas');work.width=480;work.height=190;
-    const ctx=work.getContext('2d',{willReadFrequently:true});
-    let lastBoxes=[];
     capture.addEventListener('click',e=>{
       e.preventDefault();e.stopPropagation();
-      // A tap always works once the video has a frame, even at '0 / 14'.
-      if(!video||video.readyState<2||!video.videoWidth){
+      if(state.captured)return;
+      if(!video||video.readyState<2||!(video.videoWidth||video.width)){
         status.textContent='カメラの映像を準備中です。少し待って再度押してください';
         return;
       }
-      ctx.drawImage(video,0,0,video.videoWidth,video.videoHeight,0,0,work.width,work.height);
-      const boxes=detectCandidates(ctx,work.width,work.height);
-      const reliable=boxes.length===14;
-      showResult(ctx,reliable?boxes:[],!reliable);
-    });
-    function tick(){
-      if(!document.body.contains(overlay)||state.captured){stopLoop();return;}
-      if(video?.readyState>=2&&video.videoWidth>0){
-        ctx.drawImage(video,0,0,video.videoWidth,video.videoHeight,0,0,work.width,work.height);
-        const boxes=detectCandidates(ctx,work.width,work.height);lastBoxes=boxes;
-        const xs=boxes.map(b=>b.cx);
-        if(core.stableEnough(state.previousXs,xs))state.stable++;else state.stable=0;
-        state.previousXs=xs;
-        const oldCount=overlay.querySelector('#realtime-hand-count-m7v3');if(oldCount)oldCount.textContent=`${boxes.length} / 14`;
-        status.textContent=[13,14].includes(boxes.length)
-          ? `候補${boxes.length}枚・安定 ${Math.min(4,state.stable)}/4`
-          : `候補${boxes.length}枚 — 13〜14枚が枠内に入るよう調整`;
-        if([13,14].includes(boxes.length)&&state.stable>=4){showResult(ctx,boxes);return;}
+      state.captured=true;capture.disabled=true;status.textContent='撮影画像を解析中…';
+      try{
+        const shot=captureGuideFrame(video,overlay);
+        if(!shot)throw new Error('guide capture failed');
+        const analysis=analysisCopy(shot.canvas);
+        const lowRow=estimateTileRow(analysis.ctx);
+        const highRow=mapRow(lowRow,analysis.canvas,shot.canvas);
+        const boxes=boxesForRow(highRow);
+        const photo=shot.canvas.toDataURL('image/jpeg',.78);
+        window.M7V36LastDebug={
+          guide:[shot.canvas.width,shot.canvas.height],
+          sourceRect:shot.sourceRect,
+          row:highRow,
+          rowFound:boxes.length===14
+        };
+        showResult(shot.ctx,boxes,photo,boxes.length===14);
+      }catch(error){
+        console.error('M7 v36 capture error',error);
+        state.captured=false;capture.disabled=false;
+        status.textContent='撮影画像を処理できませんでした。もう一度撮影してください';
       }
-      state.timer=setTimeout(tick,360);
-    }
-    state.timer=setTimeout(tick,250);
+    });
   }
 
   document.addEventListener('click',e=>{
@@ -310,7 +359,12 @@
     if(e.target.closest?.('.realtime-hand-cancel-m7v3'))stopLoop();
   },true);
   window.addEventListener('pagehide',stopLoop,{passive:true});
-  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')stopLoop();});
+  document.addEventListener('visibilitychange',()=>{
+    if(document.visibilityState==='hidden'){
+      document.querySelector('#realtime-hand-camera-m7v3 .realtime-hand-cancel-m7v3')?.click();
+      stopLoop();
+    }
+  });
 
   // Learn only after the user has verified all 14 tile labels.
   document.addEventListener('click',e=>{
@@ -331,5 +385,7 @@
     saveLibrary(lib);
   },true);
 
-  window.M7CameraV33=Object.freeze({detectCandidates,featureFromBox,loadLibrary,manualGuideBoxes,estimateTileRow});
+  const api=Object.freeze({detectCandidates,featureFromBox,loadLibrary,manualGuideBoxes,estimateTileRow,guideSourceRect,captureGuideFrame,boxesForRow});
+  window.M7CameraV36=api;
+  window.M7CameraV33=api;
 })();
