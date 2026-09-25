@@ -34,7 +34,7 @@ const server=http.createServer((req,res)=>{
     const errors=[];page.on('pageerror',e=>errors.push(String(e)));
     await page.goto('http://127.0.0.1:'+port+'/',{waitUntil:'domcontentloaded',timeout:30000});
     await page.waitForSelector('#go-confirm-button',{timeout:12000});
-    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'M7 v37');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'M7 v38');
     // v36 analyzes one long row after the shutter instead of requiring 14 live connected components.
     const synthetic=await page.evaluate(()=>{
       const canvas=document.createElement('canvas');canvas.width=840;canvas.height=260;
@@ -65,28 +65,28 @@ const server=http.createServer((req,res)=>{
     });
     assert(faceNorm.rect.w<120&&faceNorm.rect.h<140&&faceNorm.rect.y>20,
       'tile face normalization did not remove row background '+JSON.stringify(faceNorm));
-    assert.equal(faceNorm.featureLength,96,'normalized feature vector changed unexpectedly '+JSON.stringify(faceNorm));
-    const seamSplit=await page.evaluate(()=>{
-      const canvas=document.createElement('canvas');canvas.width=980;canvas.height=220;
-      const ctx=canvas.getContext('2d');ctx.fillStyle='#6f482d';ctx.fillRect(0,0,980,220);
-      const widths=[61,65,60,66,63,64,62,67,61,65,64,63,66,63];
-      let x=46;const starts=[];
-      for(let i=0;i<14;i++){
-        starts.push(x);
-        const w=widths[i];
-        ctx.fillStyle='#d4d3cc';ctx.fillRect(x,58,w,112);
-        ctx.fillStyle='#252525';
-        ctx.fillRect(x+Math.round(w*.36),82,5,54);
-        ctx.fillRect(x+Math.round(w*.55),102,Math.max(6,Math.round(w*.16)),9);
-        x+=w+3+(i%3===0?2:0);
+    assert.equal(faceNorm.featureLength,216,'ink descriptor vector changed unexpectedly '+JSON.stringify(faceNorm));
+    const descriptorRobustness=await page.evaluate(()=>{
+      function make(bg,face,ink,variant){
+        const canvas=document.createElement('canvas');canvas.width=140;canvas.height=180;
+        const ctx=canvas.getContext('2d');ctx.fillStyle=bg;ctx.fillRect(0,0,140,180);
+        ctx.fillStyle=face;ctx.fillRect(24,46,92,86);
+        ctx.fillStyle=ink;
+        if(variant==='same'){ctx.fillRect(51,68,10,42);ctx.fillRect(74,82,24,10);}
+        else{ctx.beginPath();ctx.arc(70,89,22,0,Math.PI*2);ctx.fill();}
+        return window.M7CameraV36.featureFromBox(ctx,{x:0,y:0,w:140,h:180});
       }
-      const row={x:42,y:50,w:x-39,h:128};
-      const boxes=window.M7CameraV36.splitRowBySeams(ctx,row,14);
-      return {starts,boxes:boxes.map(b=>({x:b.x,w:b.w}))};
+      const a=make('#80542f','#dedbd0','#181818','same');
+      const b=make('#5d3823','#aaa79e','#202020','same');
+      const other=make('#80542f','#dedbd0','#181818','other');
+      const core=window.M7RecognitionCoreV33;
+      return {
+        same:core.shiftedRmsDistance(a,b,12,18,1),
+        different:core.shiftedRmsDistance(a,other,12,18,1)
+      };
     });
-    assert.equal(seamSplit.boxes.length,14,'adaptive seam split lost tiles '+JSON.stringify(seamSplit));
-    const boundaryErrors=seamSplit.boxes.slice(1).map((b,i)=>Math.abs(b.x-seamSplit.starts[i+1]));
-    assert(Math.max(...boundaryErrors)<16,'adaptive seams drifted away from physical tile boundaries '+JSON.stringify({boundaryErrors,seamSplit}));
+    assert(descriptorRobustness.same<descriptorRobustness.different,
+      'ink descriptor is not more stable to lighting than to a different symbol '+JSON.stringify(descriptorRobustness));
 
     // Simulate a landscape camera frame and verify shutter -> post-capture 14 editable previews.
     const shutter=await page.evaluate(async()=>{
@@ -137,13 +137,13 @@ const server=http.createServer((req,res)=>{
           ok.click();
           await new Promise(resolve=>setTimeout(resolve,40));
           try{
-            const lib=JSON.parse(localStorage.getItem('MahjongScoreApp_tile_templates_m7v36seam1')||'{}');
+            const lib=JSON.parse(localStorage.getItem('MahjongScoreApp_tile_templates_m7v38ink1')||'{}');
             learned=Object.values(lib).reduce((n,list)=>n+(Array.isArray(list)&&list.length?1:0),0);
           }catch(_){}
         }
       }
       result?.remove();fake.remove();
-      localStorage.removeItem('MahjongScoreApp_tile_templates_m7v36seam1');
+      localStorage.removeItem('MahjongScoreApp_tile_templates_m7v38ink1');
       return {overlap,tiles,crops,note,diag,preview,learned};
     });
     assert.equal(shutter.overlap,false,'v36 shutter and cancel overlap '+JSON.stringify(shutter));

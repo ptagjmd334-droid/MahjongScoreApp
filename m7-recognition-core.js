@@ -33,9 +33,10 @@
       if(!Array.isArray(templates)||!templates.length)continue;
       let best=Infinity;
       for(const template of templates){
-        const distance=feature.length===96&&template.length===96
-          ?shiftedRmsDistance(feature,template,8,12,1)
-          :rmsDistance(feature,template);
+        let distance;
+        if(feature.length===96&&template.length===96)distance=shiftedRmsDistance(feature,template,8,12,1);
+        else if(feature.length===216&&template.length===216)distance=shiftedRmsDistance(feature,template,12,18,1);
+        else distance=rmsDistance(feature,template);
         best=Math.min(best,distance);
       }
       if(Number.isFinite(best))out.push({label,distance:best});
