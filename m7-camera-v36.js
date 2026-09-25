@@ -226,35 +226,59 @@
   function renderPickerSuggestions(index){
     const picker=document.getElementById('tile-picker-m7v5');
     const grid=picker?.querySelector('.tile-picker-grid-m7v5');
-    if(!picker||!grid)return;
+    if(!picker||!grid||!Number.isInteger(index)||index<0||index>=14)return;
     picker.dataset.m7v40Index=String(index);
+    picker.dataset.m7v41RenderedIndex=String(index);
     picker.querySelector('.m7v39-suggestions')?.remove();
     const suggestions=suggestionsForResultIndex(index);
     if(!suggestions.length)return;
-    const box=document.createElement('div');box.className='m7v39-suggestions';
+    const box=document.createElement('div');box.className='m7v39-suggestions';box.dataset.m7v41Index=String(index);
     const title=document.createElement('b');title.textContent='近い候補（タップで入力）';box.appendChild(title);
     suggestions.forEach(name=>{
       const b=document.createElement('button');b.type='button';b.textContent=name;
       b.onclick=()=>{
         const target=[...grid.querySelectorAll('button')].find(x=>(x.dataset.tileName||x.textContent.trim())===name);
         target?.click();
-        setTimeout(()=>{
-          const still=document.getElementById('tile-picker-m7v5');
-          if(!still)return;
-          const next=pickerCurrentIndex(still,Math.min(13,index+1));
-          renderPickerSuggestions(next===index?Math.min(13,index+1):next);
-        },30);
+        schedulePickerSuggestionSync(Math.min(13,index+1));
       };
       box.appendChild(b);
     });
     grid.insertAdjacentElement('beforebegin',box);
   }
 
+  function syncPickerSuggestions(fallbackIndex=0){
+    const picker=document.getElementById('tile-picker-m7v5');if(!picker)return;
+    const current=pickerCurrentIndex(picker,fallbackIndex);
+    const rendered=Number(picker.dataset.m7v41RenderedIndex);
+    const box=picker.querySelector('.m7v39-suggestions');
+    if(current!==rendered||!box||Number(box.dataset.m7v41Index)!==current){
+      renderPickerSuggestions(current);
+    }
+  }
+
+  function schedulePickerSuggestionSync(fallbackIndex=0){
+    [0,35,90,170,300].forEach(delay=>setTimeout(()=>syncPickerSuggestions(fallbackIndex),delay));
+  }
+
+  function attachPickerSuggestionObserver(picker){
+    if(!picker||picker.dataset.m7v41Observer==='1')return;
+    picker.dataset.m7v41Observer='1';
+    const title=picker.querySelector('.tile-picker-title-m7v5');
+    if(title&&typeof MutationObserver!=='undefined'){
+      const observer=new MutationObserver(()=>schedulePickerSuggestionSync(pickerCurrentIndex(picker,0)));
+      observer.observe(title,{childList:true,characterData:true,subtree:true});
+      picker.__m7v41Observer=observer;
+    }
+  }
+
   function decorateTilePicker(tileButton){
     const buttons=resultButtons(),index=buttons.indexOf(tileButton);
     if(index<0)return;
     const picker=document.getElementById('tile-picker-m7v5');
-    if(picker)picker.dataset.m7v40Index=String(index);
+    if(picker){
+      picker.dataset.m7v40Index=String(index);
+      attachPickerSuggestionObserver(picker);
+    }
     renderPickerSuggestions(index);
   }
 
@@ -536,15 +560,11 @@
       setTimeout(()=>decorateTilePicker(tile),0);
       return;
     }
-    const gridChoice=e.target.closest?.('#tile-picker-m7v5 .tile-picker-grid-m7v5 button');
-    if(gridChoice){
-      const picker=document.getElementById('tile-picker-m7v5');
+    const picker=e.target.closest?.('#tile-picker-m7v5');
+    if(picker){
+      attachPickerSuggestionObserver(picker);
       const before=pickerCurrentIndex(picker,0);
-      setTimeout(()=>{
-        const still=document.getElementById('tile-picker-m7v5');if(!still)return;
-        const detected=pickerCurrentIndex(still,Math.min(13,before+1));
-        renderPickerSuggestions(detected===before?Math.min(13,before+1):detected);
-      },30);
+      schedulePickerSuggestionSync(Math.min(13,before+1));
     }
   });
 
@@ -567,6 +587,6 @@
   },true);
 
   window.M7CameraV36=Object.freeze({
-    sourceRectForCover,locateTileRow,splitRow,splitRowBySeams,analyzeGuideCanvas,featureFromBox,tileFaceRect,loadLibrary,confidentCandidate,renderPickerSuggestions,pickerCurrentIndex
+    sourceRectForCover,locateTileRow,splitRow,splitRowBySeams,analyzeGuideCanvas,featureFromBox,tileFaceRect,loadLibrary,confidentCandidate,renderPickerSuggestions,pickerCurrentIndex,schedulePickerSuggestionSync,attachPickerSuggestionObserver
   });
 })();
