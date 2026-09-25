@@ -8,6 +8,7 @@ on:
       - work/m7-camera-v34-manual-fallback
       - work/m7-v35-tile-row-crop
       - work/m7-v36-hardening
+      - work/m7-v36-shift-tolerant-recognition
       - work/m7-v36-preview-learning-fix
   workflow_dispatch:
 

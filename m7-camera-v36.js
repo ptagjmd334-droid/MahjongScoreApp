@@ -106,9 +106,10 @@
   }
 
   function predict(features){
-    const lib=loadLibrary(),used={};
-    return features.map(feature=>{
+    const lib=loadLibrary(),used={},debug=[];
+    const labels=features.map((feature,index)=>{
       const ranked=core.rankLabels(feature,lib);
+      debug[index]=ranked.slice(0,3).map(x=>({label:x.label,distance:Number(x.distance.toFixed(4))}));
       for(const item of ranked){
         if(item.distance>.24)break;
         if((used[item.label]||0)>=4)continue;
@@ -119,6 +120,8 @@
       }
       return '';
     });
+    state.predictionDebug=debug;
+    return labels;
   }
 
   function sourceRectForCover(videoW,videoH,viewW,viewH,guide){
@@ -259,6 +262,7 @@
     window.M7V36PendingFeatures=state.pendingFeatures;
     const predicted=features.length===14?predict(features):[];
     while(predicted.length<14)predicted.push('');
+    if(window.M7V36LastDiagnostics)window.M7V36LastDiagnostics.predictions=(state.predictionDebug||[]).map(x=>x.slice());
     setTimeout(()=>{
       window.showHandResultM7V5?.(predicted.slice(0,14));
       const root=document.getElementById('hand-result-overlay-m7v5');if(!root)return;
