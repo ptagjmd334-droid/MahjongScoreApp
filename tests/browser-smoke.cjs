@@ -34,13 +34,13 @@ const server=http.createServer((req,res)=>{
     const errors=[];page.on('pageerror',e=>errors.push(String(e)));
     await page.goto('http://127.0.0.1:'+port+'/',{waitUntil:'domcontentloaded',timeout:30000});
     await page.waitForSelector('#go-confirm-button',{timeout:12000});
-    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'M7 v35');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'M7 v36');
     const synthetic=await page.evaluate(()=>{
       const canvas=document.createElement('canvas');canvas.width=480;canvas.height=190;
       const ctx=canvas.getContext('2d');ctx.fillStyle='#111';ctx.fillRect(0,0,480,190);
       ctx.fillStyle='#f4f1e8';
       for(let i=0;i<14;i++)ctx.fillRect(5+i*34,58,26,72);
-      const boxes=window.M7CameraV33.detectCandidates(ctx,480,190);
+      const boxes=window.M7CameraV36.detectCandidates(ctx,480,190);
       return boxes.map(b=>({x:b.x,y:b.y,w:b.w,h:b.h,cx:b.cx}));
     });
     assert.equal(synthetic.length,14,'synthetic 14-tile row not segmented: '+JSON.stringify(synthetic));
@@ -50,6 +50,9 @@ const server=http.createServer((req,res)=>{
       const fake=document.createElement('div');
       fake.id='realtime-hand-camera-m7v3';
       fake.className='realtime-hand-camera-m7v3';
+      const guideWrap=document.createElement('div');guideWrap.className='realtime-hand-guide-m7v3';
+      const guideBox=document.createElement('div');guideBox.className='realtime-hand-guide-box-m7v3';
+      guideWrap.appendChild(guideBox);
       const canvas=document.createElement('canvas');canvas.width=480;canvas.height=190;
       canvas.className='realtime-hand-video-m7v3';
       const ctx=canvas.getContext('2d');ctx.fillStyle='#111';ctx.fillRect(0,0,480,190);
@@ -59,7 +62,7 @@ const server=http.createServer((req,res)=>{
       const count=document.createElement('span');count.id='realtime-hand-count-m7v3';count.textContent='0 / 14';
       const cancel=document.createElement('button');cancel.className='realtime-hand-cancel-m7v3';cancel.textContent='キャンセル';
       cancel.onclick=()=>fake.remove();
-      fake.append(canvas,count,cancel);document.body.append(fake);
+      fake.append(canvas,guideWrap,count,cancel);document.body.append(fake);
       const original=document.createElement('button');original.id='open-realtime-hand-camera-m7v3';
       document.body.append(original);original.click();original.remove();
       await new Promise(resolve=>setTimeout(resolve,950));
@@ -80,21 +83,20 @@ const server=http.createServer((req,res)=>{
     assert.equal(manual.overlap,false,'camera capture and cancel overlap '+JSON.stringify(manual));
     assert.equal(manual.countTiles,14,'0-candidate capture did not open manual review '+JSON.stringify(manual));
     assert.equal(manual.empty,14,'manual review must not fabricate recognition '+JSON.stringify(manual));
-    assert(manual.note.includes('撮影した画像全体'),'full-photo fallback explanation missing '+JSON.stringify(manual));
-    // Touching real tiles are one bright connected component. v35 must crop
-    // the physical tile row, rather than slice the whole camera frame.
+    assert(manual.note.includes('撮影枠内'),'guide-photo fallback explanation missing '+JSON.stringify(manual));
+    // v36 must locate a touching tile row even when the scene is dimmer than the old fixed RGB threshold.
     const crop=await page.evaluate(()=>{
       const canvas=document.createElement('canvas');canvas.width=480;canvas.height=190;
       const ctx=canvas.getContext('2d');
-      ctx.fillStyle='#ad794c';ctx.fillRect(0,0,480,190);
-      ctx.fillStyle='#ecebe6';ctx.fillRect(72,58,336,42);
+      ctx.fillStyle='#6d4930';ctx.fillRect(0,0,480,190);
+      ctx.fillStyle='#85847f';ctx.fillRect(72,58,336,42);
       ctx.fillStyle='#252525';
       for(let i=0;i<14;i++){
         ctx.fillRect(79+i*24,70,2,13);
         ctx.fillRect(83+i*24,77,4,5);
       }
-      const row=window.M7CameraV33.estimateTileRow(ctx);
-      const boxes=window.M7CameraV33.manualGuideBoxes(ctx);
+      const row=window.M7CameraV36.estimateTileRow(ctx);
+      const boxes=window.M7CameraV36.manualGuideBoxes(ctx);
       return {row,boxes};
     });
     assert(crop.row&&crop.row.x>60&&crop.row.x<85&&crop.row.y>45&&crop.row.y<67,
@@ -145,7 +147,7 @@ const server=http.createServer((req,res)=>{
     await page.waitForSelector('#m8v30-fields',{visible:true,timeout:3000});
     assert.equal(errors.filter(x=>/Maximum call stack|out of memory|is not defined/i.test(x)).length,0,
       'fatal browser JS errors: '+errors.join('\n'));
-    console.log('PASS: synthetic 14-tile camera segmentation + landscape agari/score/review flow');
+    console.log('PASS: M7 v36 fixed-frame shutter/row segmentation + landscape agari/score/review flow');
     console.log('Score geometry:',JSON.stringify(score),'DOM nodes:',initial,'to',after);
     console.log('Type overlay geometry:',JSON.stringify(location));
     console.log('Browser pageerrors (not all fatal):',errors.slice(0,3).join(' | ')||'none');
