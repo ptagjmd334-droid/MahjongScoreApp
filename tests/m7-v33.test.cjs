@@ -39,6 +39,17 @@ test('robust ranking resists one accidental close template',()=>{
   assert.equal(robust[0].label,'correct');
 });
 
+test('structured HOG color ink distance weights shape and color',()=>{
+  const base={kind:'hog-color-ink-v1',hog:Array(432).fill(0),color:Array(72).fill(0),ink:Array(96).fill(0)};
+  const same={kind:'hog-color-ink-v1',hog:Array(432).fill(.02),color:Array(72).fill(.01),ink:Array(96).fill(.02)};
+  const shape={kind:'hog-color-ink-v1',hog:Array(432).fill(.35),color:Array(72).fill(.01),ink:Array(96).fill(.02)};
+  const color={kind:'hog-color-ink-v1',hog:Array(432).fill(.02),color:Array(72).fill(.35),ink:Array(96).fill(.02)};
+  assert(core.featureDistance(base,same)<core.featureDistance(base,shape));
+  assert(core.featureDistance(base,same)<core.featureDistance(base,color));
+  const ranked=core.rankLabelsRobust(same,{same:[base,base],shape:[shape,shape]},{singlePenalty:.035,maxTemplates:3});
+  assert.equal(ranked[0].label,'same');
+});
+
 test('13/14 candidate position stability requires similar positions',()=>{
   const p=Array.from({length:14},(_,i)=>i/14);
   assert.equal(core.stableEnough(p,p.map(x=>x+.01)),true);
@@ -52,7 +63,7 @@ test('camera v36 is loaded before ui-fixes so verified clicks train the active c
   assert(index.indexOf('script.js')<index.indexOf('m7-recognition-core.js'));
   assert(index.indexOf('m7-recognition-core.js')<index.indexOf('m7-camera-v36.js'));
   assert(index.indexOf('m7-camera-v36.js')<index.indexOf('ui-fixes.js'));
-  assert(index.includes('M7 v42'));
+  assert(index.includes('M7 v43'));
 });
 
 test('legacy live detector and demo fill yield to the active camera owner',()=>{

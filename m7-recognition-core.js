@@ -26,7 +26,40 @@
     }
     return best;
   }
+  function shiftedGroupedRmsDistance(a,b,width,height,groups,maxShift=1){
+    if(!Array.isArray(a)||!Array.isArray(b)||a.length!==b.length||a.length!==width*height*groups)return rmsDistance(a,b);
+    let best=Infinity;
+    for(let dy=-maxShift;dy<=maxShift;dy++)for(let dx=-maxShift;dx<=maxShift;dx++){
+      let s=0,n=0;
+      const y0=Math.max(0,-dy),y1=Math.min(height,height-dy);
+      const x0=Math.max(0,-dx),x1=Math.min(width,width-dx);
+      for(let y=y0;y<y1;y++)for(let x=x0;x<x1;x++)for(let g=0;g<groups;g++){
+        const ai=(y*width+x)*groups+g;
+        const bi=((y+dy)*width+(x+dx))*groups+g;
+        const av=Number(a[ai]),bv=Number(b[bi]);
+        if(!Number.isFinite(av)||!Number.isFinite(bv))return Infinity;
+        const d=av-bv;s+=d*d;n++;
+      }
+      if(!n)continue;
+      const penalty=(Math.abs(dx)+Math.abs(dy))*.010;
+      best=Math.min(best,Math.sqrt(s/n)+penalty);
+    }
+    return best;
+  }
+
+  function structuredFeatureDistance(a,b){
+    if(!a||!b||a.kind!=='hog-color-ink-v1'||b.kind!=='hog-color-ink-v1')return Infinity;
+    const hog=shiftedGroupedRmsDistance(a.hog,b.hog,6,9,8,1);
+    const color=shiftedGroupedRmsDistance(a.color,b.color,4,6,3,1);
+    const ink=shiftedRmsDistance(a.ink,b.ink,8,12,1);
+    if(!Number.isFinite(hog)||!Number.isFinite(color)||!Number.isFinite(ink))return Infinity;
+    return hog*.60+color*.25+ink*.15;
+  }
+
   function featureDistance(a,b){
+    if(a&&b&&a.kind==='hog-color-ink-v1'&&b.kind==='hog-color-ink-v1'){
+      return structuredFeatureDistance(a,b);
+    }
     if(Array.isArray(a)&&Array.isArray(b)&&a.length===b.length){
       if(a.length===96)return shiftedRmsDistance(a,b,8,12,1);
       if(a.length===216)return shiftedRmsDistance(a,b,12,18,1);
@@ -68,11 +101,7 @@
       if(!Array.isArray(templates)||!templates.length)continue;
       let best=Infinity;
       for(const template of templates){
-        let distance;
-        if(feature.length===96&&template.length===96)distance=shiftedRmsDistance(feature,template,8,12,1);
-        else if(feature.length===216&&template.length===216)distance=shiftedRmsDistance(feature,template,12,18,1);
-        else distance=rmsDistance(feature,template);
-        best=Math.min(best,distance);
+        best=Math.min(best,featureDistance(feature,template));
       }
       if(Number.isFinite(best))out.push({label,distance:best});
     }
@@ -96,7 +125,7 @@
     }
     return shift/current.length<=maxShift;
   }
-  const api=Object.freeze({rmsDistance,shiftedRmsDistance,rankLabels,rankLabelsRobust,classify,stableEnough});
+  const api=Object.freeze({rmsDistance,shiftedRmsDistance,shiftedGroupedRmsDistance,structuredFeatureDistance,featureDistance,rankLabels,rankLabelsRobust,classify,stableEnough});
   root.M7RecognitionCoreV33=api;
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })(typeof window!=='undefined'?window:globalThis);
