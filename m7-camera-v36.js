@@ -45,9 +45,13 @@
       right:max(16px,env(safe-area-inset-right))!important;left:auto!important;
       bottom:max(12px,env(safe-area-inset-bottom))!important;z-index:10
     }
+    #hand-result-overlay-m7v5 .hand-result-tiles-m7v5{
+      align-items:center!important
+    }
     #hand-result-overlay-m7v5 .hand-result-tile-m7v5.m7v36-crop{
-      background-size:cover!important;background-position:center!important;background-repeat:no-repeat!important;
-      color:#111
+      height:min(36vh,170px)!important;min-height:112px!important;
+      background-size:contain!important;background-position:center!important;background-repeat:no-repeat!important;
+      background-color:#e7dfd0!important;color:#111
     }
     #hand-result-overlay-m7v5 .hand-result-tile-m7v5.m7v36-crop:not([data-tile])::after{
       content:'?';font-size:22px;font-weight:900;color:#b43;background:rgba(255,255,255,.78);
@@ -264,12 +268,18 @@
         if(url){b.classList.add('m7v36-crop');b.style.backgroundImage=`url("${url}")`;b.dataset.m7v36Index=String(i);}
       });
       const auto=predicted.filter(Boolean).length;
+      const learnedLabels=Object.keys(loadLibrary()).filter(label=>Array.isArray(loadLibrary()[label])&&loadLibrary()[label].length).length;
+      const firstCalibration=features.length===14&&learnedLabels===0;
       const note=root.querySelector('.hand-result-note-m7v5');
       if(note)note.textContent=features.length===14
-        ?`白枠内の手牌列を14枚に分割しました。自動候補 ${auto}枚。間違っている牌・?だけタップして修正してください。`
+        ?(firstCalibration
+          ?'14枚の切り出しに成功しました。初回学習のため、今回は各牌をタップして正しい牌名を指定してください。確定すると次回の自動候補に使います。'
+          :`白枠内の手牌列を14枚に分割しました。自動候補 ${auto}枚。間違っている牌・?だけタップして修正してください。`)
         :'白枠内から牌列を特定できませんでした。撮影画像を確認し、14枠を手動入力するか「読み取り直す」で再撮影してください。';
       const status=root.querySelector('.hand-result-status-m7v5');
-      if(status&&auto<14)status.textContent=features.length===14?`${auto} / 14枚を自動候補化`:'手動入力：0 / 14枚';
+      if(status&&auto<14)status.textContent=features.length===14
+        ?(firstCalibration?'初回学習：14枚を指定してください':`${auto} / 14枚を自動候補化`)
+        :'手動入力：0 / 14枚';
       if(features.length!==14&&analysis.photo){
         const img=document.createElement('img');img.className='m7v36-photo';img.alt='白枠内を撮影した画像';img.src=analysis.photo;
         root.querySelector('.hand-result-head-m7v5')?.insertAdjacentElement('afterend',img);
