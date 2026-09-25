@@ -7,13 +7,37 @@
     for(let i=0;i<a.length;i++){const d=Number(a[i])-Number(b[i]);if(!Number.isFinite(d))return Infinity;s+=d*d;}
     return Math.sqrt(s/a.length);
   }
+
+  function shiftedRmsDistance(a,b,width=8,height=12,maxShift=1){
+    if(!Array.isArray(a)||!Array.isArray(b)||a.length!==b.length||a.length!==width*height)return rmsDistance(a,b);
+    let best=Infinity;
+    for(let dy=-maxShift;dy<=maxShift;dy++)for(let dx=-maxShift;dx<=maxShift;dx++){
+      let s=0,n=0;
+      const y0=Math.max(0,-dy),y1=Math.min(height,height-dy);
+      const x0=Math.max(0,-dx),x1=Math.min(width,width-dx);
+      for(let y=y0;y<y1;y++)for(let x=x0;x<x1;x++){
+        const av=Number(a[y*width+x]),bv=Number(b[(y+dy)*width+(x+dx)]);
+        if(!Number.isFinite(av)||!Number.isFinite(bv))return Infinity;
+        const d=av-bv;s+=d*d;n++;
+      }
+      if(!n)continue;
+      const penalty=(Math.abs(dx)+Math.abs(dy))*.012;
+      best=Math.min(best,Math.sqrt(s/n)+penalty);
+    }
+    return best;
+  }
   function rankLabels(feature,library){
     const out=[];
     if(!feature||!library||typeof library!=='object')return out;
     for(const [label,templates] of Object.entries(library)){
       if(!Array.isArray(templates)||!templates.length)continue;
       let best=Infinity;
-      for(const template of templates)best=Math.min(best,rmsDistance(feature,template));
+      for(const template of templates){
+        const distance=feature.length===96&&template.length===96
+          ?shiftedRmsDistance(feature,template,8,12,1)
+          :rmsDistance(feature,template);
+        best=Math.min(best,distance);
+      }
       if(Number.isFinite(best))out.push({label,distance:best});
     }
     return out.sort((a,b)=>a.distance-b.distance);
@@ -36,7 +60,7 @@
     }
     return shift/current.length<=maxShift;
   }
-  const api=Object.freeze({rmsDistance,rankLabels,classify,stableEnough});
+  const api=Object.freeze({rmsDistance,shiftedRmsDistance,rankLabels,classify,stableEnough});
   root.M7RecognitionCoreV33=api;
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })(typeof window!=='undefined'?window:globalThis);
