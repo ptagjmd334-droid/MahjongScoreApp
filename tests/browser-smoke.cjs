@@ -34,74 +34,70 @@ const server=http.createServer((req,res)=>{
     const errors=[];page.on('pageerror',e=>errors.push(String(e)));
     await page.goto('http://127.0.0.1:'+port+'/',{waitUntil:'domcontentloaded',timeout:30000});
     await page.waitForSelector('#go-confirm-button',{timeout:12000});
-    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'M7 v35');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'M7 v36');
+    // v36 analyzes one long row after the shutter instead of requiring 14 live connected components.
     const synthetic=await page.evaluate(()=>{
-      const canvas=document.createElement('canvas');canvas.width=480;canvas.height=190;
-      const ctx=canvas.getContext('2d');ctx.fillStyle='#111';ctx.fillRect(0,0,480,190);
-      ctx.fillStyle='#f4f1e8';
-      for(let i=0;i<14;i++)ctx.fillRect(5+i*34,58,26,72);
-      const boxes=window.M7CameraV33.detectCandidates(ctx,480,190);
-      return boxes.map(b=>({x:b.x,y:b.y,w:b.w,h:b.h,cx:b.cx}));
+      const canvas=document.createElement('canvas');canvas.width=840;canvas.height=260;
+      const ctx=canvas.getContext('2d');ctx.fillStyle='#a97448';ctx.fillRect(0,0,840,260);
+      ctx.fillStyle='#eeeae3';ctx.fillRect(86,78,668,112);
+      ctx.fillStyle='#222';
+      for(let i=0;i<14;i++){
+        const x=94+i*47.7;ctx.fillRect(Math.round(x),105,3,42);ctx.fillRect(Math.round(x+9),122,7,12);
+      }
+      const row=window.M7CameraV36.locateTileRow(ctx);
+      const boxes=window.M7CameraV36.splitRow(row,14);
+      const mapping=window.M7CameraV36.sourceRectForCover(1920,1080,932,430,{x:56,y:112,w:820,h:190});
+      return {row,boxes,mapping};
     });
-    assert.equal(synthetic.length,14,'synthetic 14-tile row not segmented: '+JSON.stringify(synthetic));
-    // Reproduce iPhone regression: a row of touching tiles can produce zero candidates.
-    // The manual capture must still open 14 editable slots, with capture/cancel non-overlapping.
-    const manual=await page.evaluate(async()=>{
+    assert(synthetic.row,'fixed-frame row locator failed '+JSON.stringify(synthetic));
+    assert.equal(synthetic.boxes.length,14,'fixed-frame row must split into 14 tiles '+JSON.stringify(synthetic));
+    assert(synthetic.row.w>560&&synthetic.row.h>80,'unexpected row geometry '+JSON.stringify(synthetic));
+    assert(synthetic.mapping&&synthetic.mapping.w>1500&&synthetic.mapping.h>300,
+      'object-fit cover mapping lost high-resolution source area '+JSON.stringify(synthetic));
+
+    // Simulate a landscape camera frame and verify shutter -> post-capture 14 editable previews.
+    const shutter=await page.evaluate(async()=>{
       const fake=document.createElement('div');
-      fake.id='realtime-hand-camera-m7v3';
-      fake.className='realtime-hand-camera-m7v3';
-      const canvas=document.createElement('canvas');canvas.width=480;canvas.height=190;
+      fake.id='realtime-hand-camera-m7v3';fake.className='realtime-hand-camera-m7v3';
+      const canvas=document.createElement('canvas');canvas.width=1920;canvas.height=1080;
       canvas.className='realtime-hand-video-m7v3';
-      const ctx=canvas.getContext('2d');ctx.fillStyle='#111';ctx.fillRect(0,0,480,190);
+      canvas.style.width='100%';canvas.style.height='100%';canvas.style.objectFit='cover';
+      const ctx=canvas.getContext('2d');ctx.fillStyle='#a97448';ctx.fillRect(0,0,1920,1080);
+      ctx.fillStyle='#eeeae3';ctx.fillRect(210,470,1500,145);
+      ctx.fillStyle='#222';
+      for(let i=0;i<14;i++){const x=230+i*105;ctx.fillRect(x,500,6,55);ctx.fillRect(x+18,525,13,17);}
       Object.defineProperty(canvas,'readyState',{value:4});
-      Object.defineProperty(canvas,'videoWidth',{value:480});
-      Object.defineProperty(canvas,'videoHeight',{value:190});
-      const count=document.createElement('span');count.id='realtime-hand-count-m7v3';count.textContent='0 / 14';
+      Object.defineProperty(canvas,'videoWidth',{value:1920});
+      Object.defineProperty(canvas,'videoHeight',{value:1080});
+      const guide=document.createElement('div');guide.className='realtime-hand-guide-m7v3';
+      guide.innerHTML='<div class="realtime-hand-guide-box-m7v3"></div>';
+      const status=document.createElement('div');status.className='realtime-hand-status-m7v3';
+      status.innerHTML='<b>test</b><span id="realtime-hand-count-m7v3">0 / 14</span><small>test</small>';
       const cancel=document.createElement('button');cancel.className='realtime-hand-cancel-m7v3';cancel.textContent='キャンセル';
       cancel.onclick=()=>fake.remove();
-      fake.append(canvas,count,cancel);document.body.append(fake);
-      const original=document.createElement('button');original.id='open-realtime-hand-camera-m7v3';
-      document.body.append(original);original.click();original.remove();
-      await new Promise(resolve=>setTimeout(resolve,950));
-      const capture=fake.querySelector('.m7v33-capture');
-      if(!capture)return {error:'capture button missing'};
-      const rect=capture.getBoundingClientRect(),other=cancel.getBoundingClientRect();
-      const overlap=!(rect.right<=other.left||other.right<=rect.left||
-        rect.bottom<=other.top||other.bottom<=rect.top);
-      capture.click();
-      await new Promise(resolve=>setTimeout(resolve,160));
+      fake.append(canvas,guide,status,cancel);document.body.append(fake);
+      const trigger=document.createElement('button');trigger.id='open-realtime-hand-camera-m7v3';
+      document.body.append(trigger);trigger.click();trigger.remove();
+      await new Promise(resolve=>setTimeout(resolve,900));
+      const button=fake.querySelector('.m7v36-shutter');
+      if(!button)return {error:'v36 shutter missing'};
+      const a=button.getBoundingClientRect(),b=cancel.getBoundingClientRect();
+      const overlap=!(a.right<=b.left||b.right<=a.left||a.bottom<=b.top||b.bottom<=a.top);
+      button.click();
+      await new Promise(resolve=>setTimeout(resolve,220));
       const result=document.getElementById('hand-result-overlay-m7v5');
-      const countTiles=result?.querySelectorAll('.hand-result-tile-m7v5').length||0;
-      const empty=result?.querySelectorAll('.hand-result-tile-m7v5:not([data-tile])').length||0;
+      const tiles=result?.querySelectorAll('.hand-result-tile-m7v5').length||0;
+      const crops=result?.querySelectorAll('.hand-result-tile-m7v5.m7v36-crop').length||0;
       const note=result?.querySelector('.hand-result-note-m7v5')?.textContent||'';
+      const diag=window.M7V36LastDiagnostics||null;
       result?.remove();fake.remove();
-      return {overlap,countTiles,empty,note};
+      return {overlap,tiles,crops,note,diag};
     });
-    assert.equal(manual.overlap,false,'camera capture and cancel overlap '+JSON.stringify(manual));
-    assert.equal(manual.countTiles,14,'0-candidate capture did not open manual review '+JSON.stringify(manual));
-    assert.equal(manual.empty,14,'manual review must not fabricate recognition '+JSON.stringify(manual));
-    assert(manual.note.includes('撮影した画像全体'),'full-photo fallback explanation missing '+JSON.stringify(manual));
-    // Touching real tiles are one bright connected component. v35 must crop
-    // the physical tile row, rather than slice the whole camera frame.
-    const crop=await page.evaluate(()=>{
-      const canvas=document.createElement('canvas');canvas.width=480;canvas.height=190;
-      const ctx=canvas.getContext('2d');
-      ctx.fillStyle='#ad794c';ctx.fillRect(0,0,480,190);
-      ctx.fillStyle='#ecebe6';ctx.fillRect(72,58,336,42);
-      ctx.fillStyle='#252525';
-      for(let i=0;i<14;i++){
-        ctx.fillRect(79+i*24,70,2,13);
-        ctx.fillRect(83+i*24,77,4,5);
-      }
-      const row=window.M7CameraV33.estimateTileRow(ctx);
-      const boxes=window.M7CameraV33.manualGuideBoxes(ctx);
-      return {row,boxes};
-    });
-    assert(crop.row&&crop.row.x>60&&crop.row.x<85&&crop.row.y>45&&crop.row.y<67,
-      'tile row not located '+JSON.stringify(crop));
-    assert.equal(crop.boxes.length,14,'tile row should create 14 aligned slots '+JSON.stringify(crop));
-    assert(crop.boxes.every(b=>b.y>45&&b.h<70&&b.w>10),
-      'manual previews include background instead of tiles '+JSON.stringify(crop));
+    assert.equal(shutter.overlap,false,'v36 shutter and cancel overlap '+JSON.stringify(shutter));
+    assert.equal(shutter.tiles,14,'v36 shutter did not open 14 editable slots '+JSON.stringify(shutter));
+    assert.equal(shutter.crops,14,'v36 did not use 14 high-resolution row crops '+JSON.stringify(shutter));
+    assert(shutter.note.includes('白枠内'),'v36 result explanation missing '+JSON.stringify(shutter));
+    assert(shutter.diag?.rowFound,'v36 diagnostics did not record the located row '+JSON.stringify(shutter));
     await page.click('#go-confirm-button');
     await page.waitForSelector('#start-game-button',{visible:true,timeout:8000});
     await page.click('#start-game-button');
