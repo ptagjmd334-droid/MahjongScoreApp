@@ -218,62 +218,87 @@
     if(w<8||h<8)return null;
     const ctx=source.getContext('2d',{willReadFrequently:true});
     const data=ctx.getImageData(0,0,w,h).data;
-    const mask=new Uint8Array(w*h),visited=new Uint8Array(w*h);
+
+    function geometryFromMask(mask){
+      const visited=new Uint8Array(w*h),stack=[];
+      let bestPixels=null,bestScore=0;
+      const minArea=Math.max(24,Math.round(w*h*.07));
+      for(let p=0;p<w*h;p++){
+        if(!mask[p]||visited[p])continue;
+        stack.length=0;stack.push(p);visited[p]=1;
+        const pixels=[];let sx=0,sy=0;
+        while(stack.length){
+          const q=stack.pop(),x=q%w,y=(q/w)|0;
+          pixels.push(q);sx+=x;sy+=y;
+          if(x>0){const n=q-1;if(mask[n]&&!visited[n]){visited[n]=1;stack.push(n);}}
+          if(x<w-1){const n=q+1;if(mask[n]&&!visited[n]){visited[n]=1;stack.push(n);}}
+          if(y>0){const n=q-w;if(mask[n]&&!visited[n]){visited[n]=1;stack.push(n);}}
+          if(y<h-1){const n=q+w;if(mask[n]&&!visited[n]){visited[n]=1;stack.push(n);}}
+        }
+        if(pixels.length<minArea)continue;
+        const cx=sx/pixels.length,cy=sy/pixels.length;
+        const dx=(cx-(w-1)/2)/(w*.5),dy=(cy-(h-1)/2)/(h*.5);
+        const centerPenalty=Math.min(.75,Math.hypot(dx,dy)*.58);
+        const score=pixels.length*(1-centerPenalty);
+        if(score>bestScore){bestScore=score;bestPixels=pixels;}
+      }
+      if(!bestPixels?.length)return null;
+      let sx=0,sy=0;
+      for(const p of bestPixels){sx+=p%w;sy+=(p/w)|0;}
+      const cx=sx/bestPixels.length,cy=sy/bestPixels.length;
+      let cxx=0,cyy=0,cxy=0;
+      for(const p of bestPixels){
+        const dx=(p%w)-cx,dy=((p/w)|0)-cy;
+        cxx+=dx*dx;cyy+=dy*dy;cxy+=dx*dy;
+      }
+      cxx/=bestPixels.length;cyy/=bestPixels.length;cxy/=bestPixels.length;
+      let theta=.5*Math.atan2(2*cxy,cxx-cyy);
+      if(Math.sin(theta)<0)theta+=Math.PI;
+      const sin=Math.sin(theta),cos=Math.cos(theta),us=[],vs=[];
+      for(const p of bestPixels){
+        const dx=(p%w)-cx,dy=((p/w)|0)-cy;
+        us.push(sin*dx-cos*dy);
+        vs.push(cos*dx+sin*dy);
+      }
+      us.sort((a,b)=>a-b);vs.sort((a,b)=>a-b);
+      const lo=Math.floor(bestPixels.length*.006),hi=Math.max(lo+1,Math.ceil(bestPixels.length*.994)-1);
+      const minU=us[lo],maxU=us[Math.min(us.length-1,hi)],minV=vs[lo],maxV=vs[Math.min(vs.length-1,hi)];
+      const faceW=maxU-minU,faceH=maxV-minV;
+      if(!(faceW>w*.25&&faceH>h*.25))return null;
+      const aspect=faceH/faceW,fill=bestPixels.length/Math.max(1,faceW*faceH);
+      if(!(aspect>.82&&aspect<2.7&&fill>.18))return null;
+      return {cx,cy,theta,faceW,faceH,fill,area:bestPixels.length};
+    }
+
+    // First try foreground-vs-border contrast. This also works on v43/v44 images,
+    // whose corners are the synthetic beige normalization background.
+    const corner=Math.max(2,Math.round(Math.min(w,h)*.09));
+    let br=0,bg=0,bb=0,bn=0;
+    const addCorner=(x0,y0)=>{
+      for(let y=y0;y<Math.min(h,y0+corner);y++)for(let x=x0;x<Math.min(w,x0+corner);x++){
+        const i=(y*w+x)*4;br+=data[i];bg+=data[i+1];bb+=data[i+2];bn++;
+      }
+    };
+    addCorner(0,0);addCorner(Math.max(0,w-corner),0);addCorner(0,Math.max(0,h-corner));addCorner(Math.max(0,w-corner),Math.max(0,h-corner));
+    br/=Math.max(1,bn);bg/=Math.max(1,bn);bb/=Math.max(1,bn);
+    const contrastMask=new Uint8Array(w*h);
+    for(let p=0;p<w*h;p++){
+      const i=p*4,dr=data[i]-br,dg=data[i+1]-bg,db=data[i+2]-bb;
+      const diff=Math.sqrt(dr*dr+dg*dg+db*db);
+      if(diff>=24)contrastMask[p]=1;
+    }
+    const contrastGeom=geometryFromMask(contrastMask);
+    if(contrastGeom&&contrastGeom.area<w*h*.93)return contrastGeom;
+
+    // Fallback for scenes where border color is not stable: bright, low-chroma tile face.
+    const neutralMask=new Uint8Array(w*h);
     for(let p=0;p<w*h;p++){
       const i=p*4,r=data[i],g=data[i+1],b=data[i+2];
       const max=Math.max(r,g,b),min=Math.min(r,g,b),lum=(r*3+g*6+b)/10;
       const neutral=(max-min)/(lum+1);
-      if(lum>=72&&neutral<=.48)mask[p]=1;
+      if(lum>=72&&neutral<=.48)neutralMask[p]=1;
     }
-    let bestPixels=null,bestScore=0;
-    const minArea=Math.max(24,Math.round(w*h*.07));
-    const stack=[];
-    for(let p=0;p<w*h;p++){
-      if(!mask[p]||visited[p])continue;
-      stack.length=0;stack.push(p);visited[p]=1;
-      const pixels=[];let sx=0,sy=0;
-      while(stack.length){
-        const q=stack.pop(),x=q%w,y=(q/w)|0;
-        pixels.push(q);sx+=x;sy+=y;
-        if(x>0){const n=q-1;if(mask[n]&&!visited[n]){visited[n]=1;stack.push(n);}}
-        if(x<w-1){const n=q+1;if(mask[n]&&!visited[n]){visited[n]=1;stack.push(n);}}
-        if(y>0){const n=q-w;if(mask[n]&&!visited[n]){visited[n]=1;stack.push(n);}}
-        if(y<h-1){const n=q+w;if(mask[n]&&!visited[n]){visited[n]=1;stack.push(n);}}
-      }
-      if(pixels.length<minArea)continue;
-      const cx=sx/pixels.length,cy=sy/pixels.length;
-      const dx=(cx-(w-1)/2)/(w*.5),dy=(cy-(h-1)/2)/(h*.5);
-      const centerPenalty=Math.min(.72,Math.hypot(dx,dy)*.55);
-      const score=pixels.length*(1-centerPenalty);
-      if(score>bestScore){bestScore=score;bestPixels=pixels;}
-    }
-    if(!bestPixels?.length)return null;
-    let sx=0,sy=0;
-    for(const p of bestPixels){sx+=p%w;sy+=(p/w)|0;}
-    const cx=sx/bestPixels.length,cy=sy/bestPixels.length;
-    let cxx=0,cyy=0,cxy=0;
-    for(const p of bestPixels){
-      const dx=(p%w)-cx,dy=((p/w)|0)-cy;
-      cxx+=dx*dx;cyy+=dy*dy;cxy+=dx*dy;
-    }
-    cxx/=bestPixels.length;cyy/=bestPixels.length;cxy/=bestPixels.length;
-    let theta=.5*Math.atan2(2*cxy,cxx-cyy);
-    if(Math.sin(theta)<0)theta+=Math.PI;
-    const sin=Math.sin(theta),cos=Math.cos(theta),us=[],vs=[];
-    for(const p of bestPixels){
-      const dx=(p%w)-cx,dy=((p/w)|0)-cy;
-      us.push(sin*dx-cos*dy);
-      vs.push(cos*dx+sin*dy);
-    }
-    us.sort((a,b)=>a-b);vs.sort((a,b)=>a-b);
-    const lo=Math.floor(bestPixels.length*.006),hi=Math.max(lo+1,Math.ceil(bestPixels.length*.994)-1);
-    const minU=us[lo],maxU=us[Math.min(us.length-1,hi)],minV=vs[lo],maxV=vs[Math.min(vs.length-1,hi)];
-    const faceW=maxU-minU,faceH=maxV-minV;
-    if(!(faceW>w*.28&&faceH>h*.28))return null;
-    const aspect=faceH/faceW;
-    if(!(aspect>.85&&aspect<2.6))return null;
-    const fill=bestPixels.length/Math.max(1,faceW*faceH);
-    return {cx,cy,theta,faceW,faceH,fill,area:bestPixels.length};
+    return geometryFromMask(neutralMask);
   }
 
   function canonicalizeCanvas(source,width=64,height=96){
