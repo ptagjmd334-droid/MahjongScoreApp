@@ -89,14 +89,37 @@ const server=http.createServer((req,res)=>{
       const tiles=result?.querySelectorAll('.hand-result-tile-m7v5').length||0;
       const crops=result?.querySelectorAll('.hand-result-tile-m7v5.m7v36-crop').length||0;
       const note=result?.querySelector('.hand-result-note-m7v5')?.textContent||'';
+      const firstCrop=result?.querySelector('.hand-result-tile-m7v5.m7v36-crop');
+      const cropStyle=firstCrop?getComputedStyle(firstCrop):null;
+      const preview={backgroundSize:cropStyle?.backgroundSize||'',height:firstCrop?.getBoundingClientRect().height||0};
       const diag=window.M7V36LastDiagnostics||null;
+      let learned=0;
+      if(result){
+        const resultTiles=[...result.querySelectorAll('.hand-result-tile-m7v5')];
+        resultTiles.forEach((b,i)=>b.dataset.tile='test-'+i);
+        const ok=result.querySelector('.hand-result-ok-m7v5');
+        if(ok){
+          ok.disabled=false;
+          ok.onclick=()=>result.remove();
+          ok.click();
+          await new Promise(resolve=>setTimeout(resolve,40));
+          try{
+            const lib=JSON.parse(localStorage.getItem('MahjongScoreApp_tile_templates_m7v33')||'{}');
+            learned=Object.values(lib).reduce((n,list)=>n+(Array.isArray(list)&&list.length?1:0),0);
+          }catch(_){}
+        }
+      }
       result?.remove();fake.remove();
-      return {overlap,tiles,crops,note,diag};
+      localStorage.removeItem('MahjongScoreApp_tile_templates_m7v33');
+      return {overlap,tiles,crops,note,diag,preview,learned};
     });
     assert.equal(shutter.overlap,false,'v36 shutter and cancel overlap '+JSON.stringify(shutter));
     assert.equal(shutter.tiles,14,'v36 shutter did not open 14 editable slots '+JSON.stringify(shutter));
     assert.equal(shutter.crops,14,'v36 did not use 14 high-resolution row crops '+JSON.stringify(shutter));
-    assert(shutter.note.includes('白枠内'),'v36 result explanation missing '+JSON.stringify(shutter));
+    assert(shutter.note.includes('初回学習'),'v36 first calibration explanation missing '+JSON.stringify(shutter));
+    assert.equal(shutter.preview.backgroundSize,'contain','tile preview must show the full crop '+JSON.stringify(shutter));
+    assert(shutter.preview.height<190,'tile preview should not stretch through the whole result card '+JSON.stringify(shutter));
+    assert.equal(shutter.learned,14,'verified first calibration was not persisted before result close '+JSON.stringify(shutter));
     assert(shutter.diag?.rowFound,'v36 diagnostics did not record the located row '+JSON.stringify(shutter));
     await page.click('#go-confirm-button');
     await page.waitForSelector('#start-game-button',{visible:true,timeout:8000});
