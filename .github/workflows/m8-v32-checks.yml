@@ -20,6 +20,7 @@ on:
       - work/m7-v40-robust-ranking-picker
       - work/m7-v41-picker-sync
       - work/m7-v42-picker-current-event
+      - work/m7-v43-hog-color-training-images
   workflow_dispatch:
 
 jobs:
