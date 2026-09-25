@@ -60,6 +60,15 @@
     #hand-result-overlay-m7v5 .m7v36-photo{
       width:100%;height:70px;max-height:23%;object-fit:contain;background:#272727;border-radius:8px;flex:none
     }
+    #tile-picker-m7v5 .m7v39-suggestions{
+      margin:6px 0 8px;padding:7px;border-radius:9px;background:#eef7ff
+    }
+    #tile-picker-m7v5 .m7v39-suggestions b{
+      display:block;margin-bottom:5px;font-size:12px;color:#245
+    }
+    #tile-picker-m7v5 .m7v39-suggestions button{
+      margin-right:6px;min-height:34px;padding:5px 10px;border:1px solid #9cc7eb;border-radius:8px;background:white;font-weight:800
+    }
     @media (orientation:landscape) and (max-height:500px){
       #realtime-hand-camera-m7v3 .realtime-hand-guide-box-m7v3{height:min(29vh,124px)!important}
       #realtime-hand-camera-m7v3 .m7v36-shutter{min-height:40px}
@@ -155,23 +164,58 @@
     return c.toDataURL('image/jpeg',.84);
   }
 
+  function confidentCandidate(ranked){
+    if(!Array.isArray(ranked)||!ranked.length)return null;
+    const best=ranked[0],second=ranked.find(x=>x.label!==best.label);
+    if(!best||!Number.isFinite(best.distance))return null;
+    // False positives are worse than leaving a tile as "?". v38 real-shuffle test
+    // produced 8 auto candidates but only 4 were correct, so v39 is precision-first.
+    if(best.distance>.22)return null;
+    if(!second||!Number.isFinite(second.distance)){
+      return best.distance<=.16?best:null;
+    }
+    const gap=second.distance-best.distance;
+    const ratio=second.distance>0?best.distance/second.distance:1;
+    if(gap<.028||ratio>.82)return null;
+    return best;
+  }
+
   function predict(features){
     const lib=loadLibrary(),used={},debug=[];
     const labels=features.map((feature,index)=>{
       const ranked=core.rankLabels(feature,lib);
       debug[index]=ranked.slice(0,3).map(x=>({label:x.label,distance:Number(x.distance.toFixed(4))}));
-      for(const item of ranked){
-        if(item.distance>.30)break;
-        if((used[item.label]||0)>=4)continue;
-        const second=ranked.find(x=>x.label!==item.label);
-        if(second&&second.distance-item.distance<.012)return '';
-        used[item.label]=(used[item.label]||0)+1;
-        return item.label;
-      }
-      return '';
+      const available=ranked.filter(x=>(used[x.label]||0)<4);
+      const accepted=confidentCandidate(available);
+      if(!accepted)return '';
+      used[accepted.label]=(used[accepted.label]||0)+1;
+      return accepted.label;
     });
     state.predictionDebug=debug;
     return labels;
+  }
+
+  function decorateTilePicker(tileButton){
+    const raw=tileButton?.dataset?.m7v39Suggestions;
+    if(!raw)return;
+    let suggestions=[];
+    try{suggestions=JSON.parse(raw);}catch(_){return;}
+    if(!Array.isArray(suggestions)||!suggestions.length)return;
+    const picker=document.getElementById('tile-picker-m7v5');
+    const card=picker?.querySelector('.tile-picker-card-m7v5');
+    const grid=picker?.querySelector('.tile-picker-grid-m7v5');
+    if(!card||!grid||card.querySelector('.m7v39-suggestions'))return;
+    const box=document.createElement('div');box.className='m7v39-suggestions';
+    const title=document.createElement('b');title.textContent='近い候補（タップで入力）';box.appendChild(title);
+    suggestions.slice(0,3).forEach(name=>{
+      const b=document.createElement('button');b.type='button';b.textContent=name;
+      b.onclick=()=>{
+        const target=[...grid.querySelectorAll('button')].find(x=>x.textContent===name);
+        target?.click();
+      };
+      box.appendChild(b);
+    });
+    grid.insertAdjacentElement('beforebegin',box);
   }
 
   function sourceRectForCover(videoW,videoH,viewW,viewH,guide){
@@ -373,6 +417,8 @@
       buttons.forEach((b,i)=>{
         const url=state.pendingCrops[i];
         if(url){b.classList.add('m7v36-crop');b.style.backgroundImage=`url("${url}")`;b.dataset.m7v36Index=String(i);}
+        const suggestions=(state.predictionDebug?.[i]||[]).map(x=>x.label).filter(Boolean);
+        if(suggestions.length)b.dataset.m7v39Suggestions=JSON.stringify(suggestions.slice(0,3));
       });
       const auto=predicted.filter(Boolean).length;
       const learnedLabels=Object.keys(loadLibrary()).filter(label=>Array.isArray(loadLibrary()[label])&&loadLibrary()[label].length).length;
@@ -385,7 +431,7 @@
         :'白枠内から牌列を特定できませんでした。撮影画像を確認し、14枠を手動入力するか「読み取り直す」で再撮影してください。';
       const status=root.querySelector('.hand-result-status-m7v5');
       if(status&&auto<14)status.textContent=features.length===14
-        ?(firstCalibration?'初回学習：14枚を指定してください':`${auto} / 14枚を自動候補化`)
+        ?(firstCalibration?'初回学習：14枚を指定してください':`${auto} / 14枚を高信頼候補化`)
         :'手動入力：0 / 14枚';
       if(features.length!==14&&analysis.photo){
         const img=document.createElement('img');img.className='m7v36-photo';img.alt='白枠内を撮影した画像';img.src=analysis.photo;
@@ -444,6 +490,11 @@
     }
   });
 
+  document.addEventListener('click',e=>{
+    const tile=e.target.closest?.('.hand-result-tile-m7v5');if(!tile)return;
+    setTimeout(()=>decorateTilePicker(tile),0);
+  });
+
   // Learn only after all 14 labels were explicitly verified.
   document.addEventListener('click',e=>{
     const ok=e.target.closest?.('.hand-result-ok-m7v5');if(!ok)return;
@@ -463,6 +514,6 @@
   },true);
 
   window.M7CameraV36=Object.freeze({
-    sourceRectForCover,locateTileRow,splitRow,splitRowBySeams,analyzeGuideCanvas,featureFromBox,tileFaceRect,loadLibrary
+    sourceRectForCover,locateTileRow,splitRow,splitRowBySeams,analyzeGuideCanvas,featureFromBox,tileFaceRect,loadLibrary,confidentCandidate
   });
 })();
