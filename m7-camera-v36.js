@@ -164,27 +164,76 @@
     return c.toDataURL('image/jpeg',.84);
   }
 
+  function medianFeature(templates){
+    const valid=(templates||[]).filter(Array.isArray);
+    if(!valid.length)return [];
+    const len=Math.min(...valid.map(v=>v.length));
+    const out=new Array(len);
+    for(let i=0;i<len;i++){
+      const xs=valid.map(v=>v[i]).filter(Number.isFinite).sort((a,b)=>a-b);
+      if(!xs.length){out[i]=0;continue;}
+      const m=Math.floor(xs.length/2);
+      out[i]=xs.length%2?xs[m]:(xs[m-1]+xs[m])/2;
+    }
+    return out;
+  }
+
+  function capturePrototype(features){
+    const valid=(features||[]).filter(Array.isArray);
+    if(!valid.length)return [];
+    const len=Math.min(...valid.map(v=>v.length));
+    const out=new Array(len).fill(0);
+    valid.forEach(v=>{for(let i=0;i<len;i++)out[i]+=Number(v[i])||0;});
+    for(let i=0;i<len;i++)out[i]/=valid.length;
+    return out;
+  }
+
+  function rankLabelsStable(feature,library){
+    if(!Array.isArray(feature)||!library||typeof library!=='object')return [];
+    const out=[];
+    for(const [label,templates] of Object.entries(library)){
+      const valid=(Array.isArray(templates)?templates:[]).filter(Array.isArray);
+      if(!valid.length)continue;
+      const distances=valid.map(t=>core.rmsDistance(feature,t)).filter(Number.isFinite).sort((a,b)=>a-b);
+      if(!distances.length)continue;
+      const proto=medianFeature(valid);
+      const protoDistance=proto.length?core.rmsDistance(feature,proto):distances[0];
+      // A single noisy template should not dominate once a label has several examples.
+      // Blend robust prototype distance with the nearest observation.
+      const distance=valid.length>=2 ? protoDistance*.72+distances[0]*.28 : distances[0];
+      out.push({label,distance,support:valid.length,nearest:distances[0],prototype:protoDistance});
+    }
+    return out.sort((a,b)=>a.distance-b.distance);
+  }
+
   function confidentCandidate(ranked){
     if(!Array.isArray(ranked)||!ranked.length)return null;
     const best=ranked[0],second=ranked.find(x=>x.label!==best.label);
     if(!best||!Number.isFinite(best.distance))return null;
-    // False positives are worse than leaving a tile as "?". v38 real-shuffle test
-    // produced 8 auto candidates but only 4 were correct, so v39 is precision-first.
-    if(best.distance>.22)return null;
+    // v39 achieved perfect precision once, but after another learning pass fell to 2/6.
+    // v40 therefore requires either repeated support or an exceptionally close singleton.
+    const maxDistance=(best.support||0)>=2?.205:.145;
+    if(best.distance>maxDistance)return null;
     if(!second||!Number.isFinite(second.distance)){
-      return best.distance<=.16?best:null;
+      return best.distance<=maxDistance*.82?best:null;
     }
     const gap=second.distance-best.distance;
     const ratio=second.distance>0?best.distance/second.distance:1;
-    if(gap<.028||ratio>.82)return null;
+    const minGap=(best.support||0)>=2?.032:.04;
+    const maxRatio=(best.support||0)>=2?.79:.72;
+    if(gap<minGap||ratio>maxRatio)return null;
     return best;
   }
 
   function predict(features){
     const lib=loadLibrary(),used={},debug=[];
     const labels=features.map((feature,index)=>{
-      const ranked=core.rankLabels(feature,lib);
-      debug[index]=ranked.slice(0,3).map(x=>({label:x.label,distance:Number(x.distance.toFixed(4))}));
+      const ranked=rankLabelsStable(feature,lib);
+      debug[index]=ranked.slice(0,3).map(x=>({
+        label:x.label,
+        distance:Number(x.distance.toFixed(4)),
+        support:x.support||0
+      }));
       const available=ranked.filter(x=>(used[x.label]||0)<4);
       const accepted=confidentCandidate(available);
       if(!accepted)return '';
@@ -195,27 +244,56 @@
     return labels;
   }
 
-  function decorateTilePicker(tileButton){
+  function suggestionNamesForTile(tileButton){
     const raw=tileButton?.dataset?.m7v39Suggestions;
-    if(!raw)return;
-    let suggestions=[];
-    try{suggestions=JSON.parse(raw);}catch(_){return;}
-    if(!Array.isArray(suggestions)||!suggestions.length)return;
+    if(!raw)return [];
+    try{
+      const parsed=JSON.parse(raw);
+      return Array.isArray(parsed)?parsed.filter(Boolean).slice(0,3):[];
+    }catch(_){return [];}
+  }
+
+  function decorateTilePicker(tileButton){
     const picker=document.getElementById('tile-picker-m7v5');
-    const card=picker?.querySelector('.tile-picker-card-m7v5');
     const grid=picker?.querySelector('.tile-picker-grid-m7v5');
-    if(!card||!grid||card.querySelector('.m7v39-suggestions'))return;
+    if(!picker||!grid)return;
+    picker.querySelector('.m7v39-suggestions')?.remove();
+    const suggestions=suggestionNamesForTile(tileButton);
+    if(!suggestions.length)return;
     const box=document.createElement('div');box.className='m7v39-suggestions';
     const title=document.createElement('b');title.textContent='近い候補（タップで入力）';box.appendChild(title);
-    suggestions.slice(0,3).forEach(name=>{
+    suggestions.forEach(name=>{
       const b=document.createElement('button');b.type='button';b.textContent=name;
       b.onclick=()=>{
-        const target=[...grid.querySelectorAll('button')].find(x=>x.textContent===name);
+        const target=[...grid.querySelectorAll('button')].find(x=>{
+          const tileName=x.dataset.tileName||x.getAttribute('aria-label')||x.textContent.trim();
+          return tileName===name;
+        });
         target?.click();
       };
       box.appendChild(b);
     });
     grid.insertAdjacentElement('beforebegin',box);
+  }
+
+  function currentPickerResultTile(){
+    const picker=document.getElementById('tile-picker-m7v5');
+    const root=document.getElementById('hand-result-overlay-m7v5');
+    if(!picker||!root)return null;
+    const resultTiles=[...root.querySelectorAll('.hand-result-tile-m7v5')];
+    const strip=[...picker.querySelectorAll('.m8v31-slot')];
+    let index=strip.findIndex(x=>x.classList.contains('current'));
+    if(index<0){
+      const title=picker.querySelector('.tile-picker-title-m7v5')?.textContent||'';
+      const m=title.match(/(\d+)枚目/);
+      index=m?Number(m[1])-1:0;
+    }
+    return resultTiles[Math.max(0,Math.min(resultTiles.length-1,index))]||null;
+  }
+
+  function refreshPickerSuggestions(){
+    const tile=currentPickerResultTile();
+    if(tile)decorateTilePicker(tile);
   }
 
   function sourceRectForCover(videoW,videoH,viewW,viewH,guide){
@@ -494,6 +572,7 @@
     const tile=e.target.closest?.('.hand-result-tile-m7v5');if(!tile)return;
     setTimeout(()=>decorateTilePicker(tile),0);
   });
+  document.addEventListener('m8v31-current-change',()=>setTimeout(refreshPickerSuggestions,0));
 
   // Learn only after all 14 labels were explicitly verified.
   document.addEventListener('click',e=>{
@@ -501,19 +580,24 @@
     const root=document.getElementById('hand-result-overlay-m7v5');if(!root)return;
     const buttons=[...root.querySelectorAll('.hand-result-tile-m7v5')];
     if(state.pendingFeatures.length!==14)return;
-    const lib=loadLibrary();
+    const lib=loadLibrary(),byLabel={};
     buttons.forEach((b,i)=>{
       const label=b.dataset.tile,feature=state.pendingFeatures[i];
       if(!label||!Array.isArray(feature))return;
+      (byLabel[label]||(byLabel[label]=[])).push(feature);
+    });
+    Object.entries(byLabel).forEach(([label,features])=>{
+      const prototype=capturePrototype(features);
+      if(!prototype.length)return;
       const list=Array.isArray(lib[label])?lib[label]:[];
-      if(!list.some(t=>core.rmsDistance(feature,t)<.045)){
-        list.unshift(feature);lib[label]=list.slice(0,MAX_TEMPLATES);
+      if(!list.some(t=>core.rmsDistance(prototype,t)<.035)){
+        list.unshift(prototype);lib[label]=list.slice(0,MAX_TEMPLATES);
       }
     });
     saveLibrary(lib);
   },true);
 
   window.M7CameraV36=Object.freeze({
-    sourceRectForCover,locateTileRow,splitRow,splitRowBySeams,analyzeGuideCanvas,featureFromBox,tileFaceRect,loadLibrary,confidentCandidate
+    sourceRectForCover,locateTileRow,splitRow,splitRowBySeams,analyzeGuideCanvas,featureFromBox,tileFaceRect,loadLibrary,confidentCandidate,rankLabelsStable,capturePrototype,refreshPickerSuggestions
   });
 })();
