@@ -50,6 +50,29 @@ test('structured HOG color ink distance weights shape and color',()=>{
   assert.equal(ranked[0].label,'same');
 });
 
+test('direct image distance tolerates small transform',()=>{
+  const w=16,h=24;
+  function feat(shiftX=0,circle=false){
+    const gray=Array(w*h).fill(0),edge=Array(w*h).fill(0),red=Array(w*h).fill(0),green=Array(w*h).fill(0);
+    for(let y=4;y<20;y++)for(let x=3;x<13;x++){
+      const xx=x+shiftX;if(xx<0||xx>=w)continue;
+      const on=circle?Math.abs(Math.hypot(x-8,y-12)-4)<1.2:(x===4||x===11||y===5||y===18);
+      if(on)gray[y*w+xx]=.9;
+    }
+    for(let y=1;y<h-1;y++)for(let x=1;x<w-1;x++){
+      const gx=gray[y*w+x+1]-gray[y*w+x-1],gy=gray[(y+1)*w+x]-gray[(y-1)*w+x];
+      edge[y*w+x]=Math.min(1,Math.hypot(gx,gy));
+    }
+    return {kind:'direct-edge-v1',width:w,height:h,gray,edge,red,green};
+  }
+  const a=feat(0,false),shifted=feat(1,false),other=feat(0,true);
+  const same=core.directImageDistance(a,shifted),different=core.directImageDistance(a,other);
+  assert(Number.isFinite(same)&&Number.isFinite(different));
+  assert(same<different,{same,different});
+  const ranked=core.rankLabelsRobust(shifted,{correct:[a,a],wrong:[other,other]},{singlePenalty:.018,maxTemplates:3});
+  assert.equal(ranked[0].label,'correct');
+});
+
 test('13/14 candidate position stability requires similar positions',()=>{
   const p=Array.from({length:14},(_,i)=>i/14);
   assert.equal(core.stableEnough(p,p.map(x=>x+.01)),true);
