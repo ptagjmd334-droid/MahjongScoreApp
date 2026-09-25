@@ -12,6 +12,7 @@ on:
       - work/m7-v36-preview-learning-fix
       - work/m7-v36-face-normalization
       - work/m7-v36-face-library-key
+      - work/m7-v36-seam-segmentation
   workflow_dispatch:
 
 jobs:
