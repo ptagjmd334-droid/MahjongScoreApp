@@ -170,9 +170,10 @@
     if(!best||!Number.isFinite(best.distance))return null;
     // False positives are worse than leaving a tile as "?". v38 real-shuffle test
     // produced 8 auto candidates but only 4 were correct, so v39 is precision-first.
-    if(best.distance>.255||best.bestDistance>.21)return null;
+    const bestRaw=Number.isFinite(best.bestDistance)?best.bestDistance:best.distance;
+    if(best.distance>.255||bestRaw>.21)return null;
     if(!second||!Number.isFinite(second.distance)){
-      return best.distance<=.19&&best.bestDistance<=.16?best:null;
+      return best.distance<=.19&&bestRaw<=.16?best:null;
     }
     const gap=second.distance-best.distance;
     const ratio=second.distance>0?best.distance/second.distance:1;
