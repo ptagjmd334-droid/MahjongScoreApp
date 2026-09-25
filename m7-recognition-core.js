@@ -26,6 +26,41 @@
     }
     return best;
   }
+  function featureDistance(a,b){
+    if(Array.isArray(a)&&Array.isArray(b)&&a.length===b.length){
+      if(a.length===96)return shiftedRmsDistance(a,b,8,12,1);
+      if(a.length===216)return shiftedRmsDistance(a,b,12,18,1);
+    }
+    return rmsDistance(a,b);
+  }
+
+  function rankLabelsRobust(feature,library,options={}){
+    const out=[];
+    const singlePenalty=Number.isFinite(options.singlePenalty)?options.singlePenalty:.035;
+    const maxTemplates=Number.isFinite(options.maxTemplates)?Math.max(1,options.maxTemplates|0):3;
+    if(!feature||!library||typeof library!=='object')return out;
+    for(const [label,templates] of Object.entries(library)){
+      if(!Array.isArray(templates)||!templates.length)continue;
+      const distances=templates
+        .map(t=>featureDistance(feature,t))
+        .filter(Number.isFinite)
+        .sort((a,b)=>a-b);
+      if(!distances.length)continue;
+      const take=Math.min(maxTemplates,distances.length);
+      const chosen=distances.slice(0,take);
+      const mean=chosen.reduce((s,v)=>s+v,0)/chosen.length;
+      const score=distances.length===1?mean+singlePenalty:mean;
+      out.push({
+        label,
+        distance:score,
+        bestDistance:distances[0],
+        sampleCount:distances.length,
+        spread:chosen.length>1?chosen[chosen.length-1]-chosen[0]:0
+      });
+    }
+    return out.sort((a,b)=>a.distance-b.distance);
+  }
+
   function rankLabels(feature,library){
     const out=[];
     if(!feature||!library||typeof library!=='object')return out;
@@ -61,7 +96,7 @@
     }
     return shift/current.length<=maxShift;
   }
-  const api=Object.freeze({rmsDistance,shiftedRmsDistance,rankLabels,classify,stableEnough});
+  const api=Object.freeze({rmsDistance,shiftedRmsDistance,rankLabels,rankLabelsRobust,classify,stableEnough});
   root.M7RecognitionCoreV33=api;
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })(typeof window!=='undefined'?window:globalThis);

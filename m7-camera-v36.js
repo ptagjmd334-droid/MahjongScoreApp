@@ -170,20 +170,21 @@
     if(!best||!Number.isFinite(best.distance))return null;
     // False positives are worse than leaving a tile as "?". v38 real-shuffle test
     // produced 8 auto candidates but only 4 were correct, so v39 is precision-first.
-    if(best.distance>.22)return null;
+    const bestRaw=Number.isFinite(best.bestDistance)?best.bestDistance:best.distance;
+    if(best.distance>.255||bestRaw>.21)return null;
     if(!second||!Number.isFinite(second.distance)){
-      return best.distance<=.16?best:null;
+      return best.distance<=.19&&bestRaw<=.16?best:null;
     }
     const gap=second.distance-best.distance;
     const ratio=second.distance>0?best.distance/second.distance:1;
-    if(gap<.028||ratio>.82)return null;
+    if(gap<.032||ratio>.80)return null;
     return best;
   }
 
   function predict(features){
     const lib=loadLibrary(),used={},debug=[];
     const labels=features.map((feature,index)=>{
-      const ranked=core.rankLabels(feature,lib);
+      const ranked=core.rankLabelsRobust(feature,lib,{singlePenalty:.035,maxTemplates:3});
       debug[index]=ranked.slice(0,3).map(x=>({label:x.label,distance:Number(x.distance.toFixed(4))}));
       const available=ranked.filter(x=>(used[x.label]||0)<4);
       const accepted=confidentCandidate(available);
@@ -195,27 +196,66 @@
     return labels;
   }
 
-  function decorateTilePicker(tileButton){
-    const raw=tileButton?.dataset?.m7v39Suggestions;
-    if(!raw)return;
-    let suggestions=[];
-    try{suggestions=JSON.parse(raw);}catch(_){return;}
-    if(!Array.isArray(suggestions)||!suggestions.length)return;
+  function resultButtons(){
+    return [...document.querySelectorAll('#hand-result-overlay-m7v5 .hand-result-tile-m7v5')];
+  }
+
+  function suggestionsForResultIndex(index){
+    const b=resultButtons()[index];
+    if(!b)return [];
+    const raw=b.dataset?.m7v39Suggestions;
+    if(!raw)return [];
+    try{
+      const x=JSON.parse(raw);
+      return Array.isArray(x)?x.filter(Boolean).slice(0,3):[];
+    }catch(_){return [];}
+  }
+
+  function pickerCurrentIndex(picker,fallback=0){
+    if(!picker)return fallback;
+    const text=picker.textContent||'';
+    const m=text.match(/(\d+)\s*枚目を(?:選択中|修正)/);
+    if(m){
+      const n=Number(m[1])-1;
+      if(Number.isInteger(n)&&n>=0&&n<14)return n;
+    }
+    const stored=Number(picker.dataset.m7v40Index);
+    return Number.isInteger(stored)&&stored>=0&&stored<14?stored:fallback;
+  }
+
+  function renderPickerSuggestions(index){
     const picker=document.getElementById('tile-picker-m7v5');
-    const card=picker?.querySelector('.tile-picker-card-m7v5');
     const grid=picker?.querySelector('.tile-picker-grid-m7v5');
-    if(!card||!grid||card.querySelector('.m7v39-suggestions'))return;
+    if(!picker||!grid)return;
+    picker.dataset.m7v40Index=String(index);
+    picker.querySelector('.m7v39-suggestions')?.remove();
+    const suggestions=suggestionsForResultIndex(index);
+    if(!suggestions.length)return;
     const box=document.createElement('div');box.className='m7v39-suggestions';
     const title=document.createElement('b');title.textContent='近い候補（タップで入力）';box.appendChild(title);
-    suggestions.slice(0,3).forEach(name=>{
+    suggestions.forEach(name=>{
       const b=document.createElement('button');b.type='button';b.textContent=name;
       b.onclick=()=>{
-        const target=[...grid.querySelectorAll('button')].find(x=>x.textContent===name);
+        const target=[...grid.querySelectorAll('button')].find(x=>(x.dataset.tileName||x.textContent.trim())===name);
         target?.click();
+        setTimeout(()=>{
+          const still=document.getElementById('tile-picker-m7v5');
+          if(!still)return;
+          const next=pickerCurrentIndex(still,Math.min(13,index+1));
+          renderPickerSuggestions(next===index?Math.min(13,index+1):next);
+        },30);
       };
       box.appendChild(b);
     });
     grid.insertAdjacentElement('beforebegin',box);
+  }
+
+  function decorateTilePicker(tileButton){
+    const buttons=resultButtons(),index=buttons.indexOf(tileButton);
+    if(index<0)return;
+    const picker=document.getElementById('tile-picker-m7v5');
+    if(picker)picker.dataset.m7v40Index=String(index);
+    renderPickerSuggestions(index);
   }
 
   function sourceRectForCover(videoW,videoH,viewW,viewH,guide){
@@ -491,8 +531,21 @@
   });
 
   document.addEventListener('click',e=>{
-    const tile=e.target.closest?.('.hand-result-tile-m7v5');if(!tile)return;
-    setTimeout(()=>decorateTilePicker(tile),0);
+    const tile=e.target.closest?.('.hand-result-tile-m7v5');
+    if(tile){
+      setTimeout(()=>decorateTilePicker(tile),0);
+      return;
+    }
+    const gridChoice=e.target.closest?.('#tile-picker-m7v5 .tile-picker-grid-m7v5 button');
+    if(gridChoice){
+      const picker=document.getElementById('tile-picker-m7v5');
+      const before=pickerCurrentIndex(picker,0);
+      setTimeout(()=>{
+        const still=document.getElementById('tile-picker-m7v5');if(!still)return;
+        const detected=pickerCurrentIndex(still,Math.min(13,before+1));
+        renderPickerSuggestions(detected===before?Math.min(13,before+1):detected);
+      },30);
+    }
   });
 
   // Learn only after all 14 labels were explicitly verified.
@@ -514,6 +567,6 @@
   },true);
 
   window.M7CameraV36=Object.freeze({
-    sourceRectForCover,locateTileRow,splitRow,splitRowBySeams,analyzeGuideCanvas,featureFromBox,tileFaceRect,loadLibrary,confidentCandidate
+    sourceRectForCover,locateTileRow,splitRow,splitRowBySeams,analyzeGuideCanvas,featureFromBox,tileFaceRect,loadLibrary,confidentCandidate,renderPickerSuggestions,pickerCurrentIndex
   });
 })();
