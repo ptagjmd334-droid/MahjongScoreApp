@@ -9,13 +9,13 @@
   const core=window.M7RecognitionCoreV33;
   if(!core)return;
 
-  const LIB_KEY='MahjongScoreApp_tile_templates_m7v43hog1';
+  const LIB_KEY='MahjongScoreApp_tile_templates_m7v44direct1';
   const TRAINING_DB='MahjongScoreAppM7Training';
   const TRAINING_STORE='samples';
-  const FEATURE_KIND='hog-color-ink-v1';
-  const MAX_TEMPLATES=8;
+  const FEATURE_KIND='direct-edge-v1';
+  const MAX_TEMPLATES=5;
   const MAX_IMAGES_PER_LABEL=10;
-  const state={overlay:null,captured:false,pendingFeatures:[],pendingCrops:[],pendingTrainingImages:[],diagnostics:null,predictionDebug:[]};
+  const state={overlay:null,captured:false,pendingFeatures:[],pendingCrops:[],pendingTrainingImages:[],diagnostics:null,predictionDebug:[],learnedLabelCount:0};
 
   const style=document.createElement('style');
   style.textContent=`
@@ -206,83 +206,39 @@
   }
 
   function descriptorFromCanvas(source){
-    const width=48,height=72;
+    const width=16,height=24;
     const c=document.createElement('canvas');c.width=width;c.height=height;
     const ctx=c.getContext('2d',{willReadFrequently:true});
     ctx.fillStyle='#f4f1e8';ctx.fillRect(0,0,width,height);
     ctx.drawImage(source,0,0,width,height);
     const data=ctx.getImageData(0,0,width,height).data;
-    const gray=new Float64Array(width*height),neutrals=[];
+    const lums=[],gray=Array(width*height).fill(0),red=Array(width*height).fill(0),green=Array(width*height).fill(0);
     for(let p=0;p<width*height;p++){
       const i=p*4,r=data[i],g=data[i+1],b=data[i+2];
-      const lum=(r*3+g*6+b)/10;gray[p]=lum;
-      if(Math.max(r,g,b)-Math.min(r,g,b)<42)neutrals.push(lum);
+      const lum=(r*3+g*6+b)/10;
+      const max=Math.max(r,g,b),min=Math.min(r,g,b);
+      if(max-min<46)lums.push(lum);
     }
-    neutrals.sort((a,b)=>a-b);
-    const bgLum=neutrals.length?neutrals[Math.min(neutrals.length-1,Math.floor(neutrals.length*.86))]:235;
-
-    // HOG: 6x9 cells, 8 unsigned orientation bins. This preserves line shape/direction.
-    const hogW=6,hogH=9,bins=8,hog=Array(hogW*hogH*bins).fill(0);
-    const cellW=width/hogW,cellH=height/hogH;
+    lums.sort((a,b)=>a-b);
+    const bg=lums.length?lums[Math.min(lums.length-1,Math.floor(lums.length*.88))]:235;
+    const denom=Math.max(75,bg*.74);
+    for(let p=0;p<width*height;p++){
+      const i=p*4,r=data[i],g=data[i+1],b=data[i+2],lum=(r*3+g*6+b)/10;
+      gray[p]=Math.round(Math.min(1,Math.max(0,(bg-lum)/denom))*10000)/10000;
+      red[p]=Math.round(Math.min(1,Math.max(0,(r-Math.max(g,b))/150))*10000)/10000;
+      green[p]=Math.round(Math.min(1,Math.max(0,(g-Math.max(r,b))/150))*10000)/10000;
+    }
+    const edge=Array(width*height).fill(0);
     for(let y=1;y<height-1;y++)for(let x=1;x<width-1;x++){
       const gx=gray[y*width+x+1]-gray[y*width+x-1];
       const gy=gray[(y+1)*width+x]-gray[(y-1)*width+x];
-      const mag=Math.hypot(gx,gy);
-      if(mag<4)continue;
-      let angle=Math.atan2(gy,gx);
-      if(angle<0)angle+=Math.PI;
-      if(angle>=Math.PI)angle-=Math.PI;
-      const bin=Math.min(bins-1,Math.floor(angle/Math.PI*bins));
-      const cx=Math.min(hogW-1,Math.floor(x/cellW));
-      const cy=Math.min(hogH-1,Math.floor(y/cellH));
-      hog[(cy*hogW+cx)*bins+bin]+=mag;
+      edge[y*width+x]=Math.round(Math.min(1,Math.hypot(gx,gy)/1.35)*10000)/10000;
     }
-    for(let cy=0;cy<hogH;cy++)for(let cx=0;cx<hogW;cx++){
-      const base=(cy*hogW+cx)*bins;
-      let norm=0;for(let k=0;k<bins;k++)norm+=hog[base+k]*hog[base+k];
-      norm=Math.sqrt(norm)+1e-6;
-      for(let k=0;k<bins;k++)hog[base+k]/=norm;
-    }
-
-    // Color: 4x6 spatial cells, [red dominance, green dominance, darkness].
-    const colorW=4,colorH=6,color=[];
-    for(let cy=0;cy<colorH;cy++)for(let cx=0;cx<colorW;cx++){
-      const x0=Math.floor(width*cx/colorW),x1=Math.max(x0+1,Math.floor(width*(cx+1)/colorW));
-      const y0=Math.floor(height*cy/colorH),y1=Math.max(y0+1,Math.floor(height*(cy+1)/colorH));
-      let red=0,green=0,dark=0,n=0;
-      for(let y=y0;y<y1;y++)for(let x=x0;x<x1;x++){
-        const i=(y*width+x)*4,r=data[i],g=data[i+1],b=data[i+2];
-        const lum=gray[y*width+x];
-        red+=Math.max(0,r-Math.max(g,b))/255;
-        green+=Math.max(0,g-Math.max(r,b))/255;
-        dark+=Math.max(0,(bgLum-lum)/Math.max(80,bgLum));
-        n++;
-      }
-      color.push(red/n,green/n,Math.min(1,dark/n));
-    }
-
-    // Coarse ink occupancy remains as a low-weight shape fallback.
-    const inkW=8,inkH=12,ink=[];
-    for(let gy=0;gy<inkH;gy++)for(let gx=0;gx<inkW;gx++){
-      const x0=Math.floor(width*(.055+.89*gx/inkW));
-      const x1=Math.max(x0+1,Math.floor(width*(.055+.89*(gx+1)/inkW)));
-      const y0=Math.floor(height*(.045+.91*gy/inkH));
-      const y1=Math.max(y0+1,Math.floor(height*(.045+.91*(gy+1)/inkH)));
-      let sum=0,n=0;
-      for(let y=y0;y<Math.min(height,y1);y++)for(let x=x0;x<Math.min(width,x1);x++){
-        const i=(y*width+x)*4,r=data[i],g=data[i+1],b=data[i+2];
-        const max=Math.max(r,g,b),min=Math.min(r,g,b),lum=gray[y*width+x];
-        const darkness=Math.max(0,(bgLum-lum)/Math.max(80,bgLum));
-        const chroma=(max-min)/255;
-        sum+=Math.min(1,Math.max(darkness*1.35,chroma*.92));n++;
-      }
-      ink.push(n?sum/n:0);
-    }
-    return {kind:FEATURE_KIND,hog,color,ink};
+    return {kind:FEATURE_KIND,width,height,gray,edge,red,green};
   }
 
   function featureFromBox(ctx,b){
-    return descriptorFromCanvas(normalizedFaceCanvas(ctx,b,48,72));
+    return descriptorFromCanvas(normalizedFaceCanvas(ctx,b,64,96));
   }
 
   function trainingImageDataUrl(ctx,b){
@@ -314,7 +270,7 @@
       const feature=await featureFromDataUrl(row.imageDataUrl);
       if(!feature)continue;
       const list=Array.isArray(lib[row.label])?lib[row.label]:[];
-      if(!list.some(t=>core.featureDistance(feature,t)<.020)){
+      if(!list.some(t=>core.featureDistance(feature,t)<.012)){
         list.push(feature);lib[row.label]=list.slice(0,MAX_TEMPLATES);
       }
     }
@@ -344,20 +300,21 @@
     // False positives are worse than leaving a tile as "?". v38 real-shuffle test
     // produced 8 auto candidates but only 4 were correct, so v39 is precision-first.
     const bestRaw=Number.isFinite(best.bestDistance)?best.bestDistance:best.distance;
-    if(best.distance>.20||bestRaw>.17)return null;
+    if(best.distance>.145||bestRaw>.12)return null;
     if(!second||!Number.isFinite(second.distance)){
-      return best.distance<=.15&&bestRaw<=.13?best:null;
+      return best.distance<=.105&&bestRaw<=.09?best:null;
     }
     const gap=second.distance-best.distance;
     const ratio=second.distance>0?best.distance/second.distance:1;
-    if(gap<.020||ratio>.78)return null;
+    if(gap<.018||ratio>.74)return null;
     return best;
   }
 
   function predict(features){
     const lib=loadLibrary(),used={},debug=[];
+    state.learnedLabelCount=Object.keys(lib).filter(label=>Array.isArray(lib[label])&&lib[label].length).length;
     const labels=features.map((feature,index)=>{
-      const ranked=core.rankLabelsRobust(feature,lib,{singlePenalty:.035,maxTemplates:3});
+      const ranked=core.rankLabelsRobust(feature,lib,{singlePenalty:.018,maxTemplates:3});
       debug[index]=ranked.slice(0,3).map(x=>({label:x.label,distance:Number(x.distance.toFixed(4))}));
       const available=ranked.filter(x=>(used[x.label]||0)<4);
       const accepted=confidentCandidate(available);
@@ -414,7 +371,7 @@
     const suggestions=suggestionsForResultIndex(index);
     if(!suggestions.length)return;
     const box=document.createElement('div');box.className='m7v39-suggestions';box.dataset.m7v41Index=String(index);
-    const title=document.createElement('b');title.textContent='近い候補（タップで入力）';box.appendChild(title);
+    const title=document.createElement('b');title.textContent='候補（参考・左から1位→3位）';box.appendChild(title);
     suggestions.forEach(name=>{
       const b=document.createElement('button');b.type='button';b.textContent=name;
       b.onclick=()=>{
@@ -673,12 +630,12 @@
       const note=root.querySelector('.hand-result-note-m7v5');
       if(note)note.textContent=features.length===14
         ?(firstCalibration
-          ?'14枚の切り出しに成功しました。M7 v43の新しい形状認識を初回学習します。今回は14枚を正しく指定してください。確定後は牌画像も端末内に保存し、今後の認識改善に再利用します。'
-          :`白枠内の手牌列を14枚に分割しました。自動候補 ${auto}枚。間違っている牌・?だけタップして修正してください。`)
+          ?'保存済みの牌画像がないため、M7 v44の初回学習が必要です。14枚を正しく指定してください。確定後は牌画像も端末内に保存します。'
+          :`白枠内の手牌列を14枚に分割しました。高信頼候補 ${auto}枚。候補欄は入力補助で、精度評価は左端の1位候補を基準にします。`)
         :'白枠内から牌列を特定できませんでした。撮影画像を確認し、14枠を手動入力するか「読み取り直す」で再撮影してください。';
       const status=root.querySelector('.hand-result-status-m7v5');
       if(status&&auto<14)status.textContent=features.length===14
-        ?(firstCalibration?'初回学習：14枚を指定してください':`${auto} / 14枚を高信頼候補化`)
+        ?(firstCalibration?'初回学習：14枚を指定してください':`学習済み ${learnedLabels}種類 / 高信頼 ${auto}枚`)
         :'手動入力：0 / 14枚';
       if(features.length!==14&&analysis.photo){
         const img=document.createElement('img');img.className='m7v36-photo';img.alt='白枠内を撮影した画像';img.src=analysis.photo;
@@ -768,7 +725,7 @@
       const label=b.dataset.tile,feature=state.pendingFeatures[i],imageDataUrl=state.pendingTrainingImages[i];
       if(!label||!feature||feature.kind!==FEATURE_KIND)return;
       const list=Array.isArray(lib[label])?lib[label]:[];
-      if(!list.some(t=>core.featureDistance(feature,t)<.020)){
+      if(!list.some(t=>core.featureDistance(feature,t)<.012)){
         list.unshift(feature);lib[label]=list.slice(0,MAX_TEMPLATES);
       }
       if(imageDataUrl)raw.push({label,imageDataUrl});
