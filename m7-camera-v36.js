@@ -9,7 +9,7 @@
   const core=window.M7RecognitionCoreV33;
   if(!core)return;
 
-  const LIB_KEY='MahjongScoreApp_tile_templates_m7v33';
+  const LIB_KEY='MahjongScoreApp_tile_templates_m7v36face1';
   const MAX_TEMPLATES=4;
   const state={overlay:null,captured:false,pendingFeatures:[],pendingCrops:[],diagnostics:null};
 
