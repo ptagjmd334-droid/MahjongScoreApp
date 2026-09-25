@@ -61,14 +61,17 @@ const server=http.createServer((req,res)=>{
       ctx.fillStyle='#161616';ctx.fillRect(51,68,10,42);ctx.fillRect(74,82,24,10);
       const rect=window.M7CameraV36.tileFaceRect(ctx,{x:0,y:0,w:140,h:180});
       const feat=window.M7CameraV36.featureFromBox(ctx,{x:0,y:0,w:140,h:180});
-      return {rect,kind:feat.kind,hog:feat.hog.length,color:feat.color.length,ink:feat.ink.length};
+      return {rect,kind:feat.kind,width:feat.width,height:feat.height,gray:feat.gray.length,edge:feat.edge.length,red:feat.red.length,green:feat.green.length};
     });
     assert(faceNorm.rect.w<120&&faceNorm.rect.h<140&&faceNorm.rect.y>20,
       'tile face normalization did not remove row background '+JSON.stringify(faceNorm));
-    assert.equal(faceNorm.kind,'hog-color-ink-v1','v43 descriptor kind missing '+JSON.stringify(faceNorm));
-    assert.equal(faceNorm.hog,432,'v43 HOG descriptor size changed unexpectedly '+JSON.stringify(faceNorm));
-    assert.equal(faceNorm.color,72,'v43 color descriptor size changed unexpectedly '+JSON.stringify(faceNorm));
-    assert.equal(faceNorm.ink,96,'v43 ink descriptor size changed unexpectedly '+JSON.stringify(faceNorm));
+    assert.equal(faceNorm.kind,'direct-edge-v1','v44 descriptor kind missing '+JSON.stringify(faceNorm));
+    assert.equal(faceNorm.width,16,'v44 descriptor width changed unexpectedly '+JSON.stringify(faceNorm));
+    assert.equal(faceNorm.height,24,'v44 descriptor height changed unexpectedly '+JSON.stringify(faceNorm));
+    assert.equal(faceNorm.gray,384,'v44 gray map size changed unexpectedly '+JSON.stringify(faceNorm));
+    assert.equal(faceNorm.edge,384,'v44 edge map size changed unexpectedly '+JSON.stringify(faceNorm));
+    assert.equal(faceNorm.red,384,'v44 red map size changed unexpectedly '+JSON.stringify(faceNorm));
+    assert.equal(faceNorm.green,384,'v44 green map size changed unexpectedly '+JSON.stringify(faceNorm));
     const descriptorRobustness=await page.evaluate(()=>{
       function make(bg,face,ink,variant){
         const canvas=document.createElement('canvas');canvas.width=140;canvas.height=180;
@@ -92,9 +95,9 @@ const server=http.createServer((req,res)=>{
       };
     });
     assert(descriptorRobustness.same<descriptorRobustness.different,
-      'v43 shape descriptor is not more stable to lighting than to a different symbol '+JSON.stringify(descriptorRobustness));
+      'v44 direct matcher is not more stable to lighting than to a different symbol '+JSON.stringify(descriptorRobustness));
     assert(descriptorRobustness.redGreen>0,
-      'v43 color channel failed to distinguish red and green ink '+JSON.stringify(descriptorRobustness));
+      'v44 color maps failed to distinguish red and green ink '+JSON.stringify(descriptorRobustness));
 
     // Simulate a landscape camera frame and verify shutter -> post-capture 14 editable previews.
     const shutter=await page.evaluate(async()=>{
@@ -161,14 +164,14 @@ const server=http.createServer((req,res)=>{
           ok.click();
           await new Promise(resolve=>setTimeout(resolve,180));
           try{
-            const lib=JSON.parse(localStorage.getItem('MahjongScoreApp_tile_templates_m7v43hog1')||'{}');
+            const lib=JSON.parse(localStorage.getItem('MahjongScoreApp_tile_templates_m7v44direct1')||'{}');
             learned=Object.values(lib).reduce((n,list)=>n+(Array.isArray(list)&&list.length?1:0),0);
             rawSaved=(await window.M7CameraV36.loadTrainingSamples()).length;
           }catch(_){}
         }
       }
       result?.remove();fake.remove();
-      localStorage.removeItem('MahjongScoreApp_tile_templates_m7v43hog1');
+      localStorage.removeItem('MahjongScoreApp_tile_templates_m7v44direct1');
       const suggestionCount=window.__m7v39SuggestionCount||0;delete window.__m7v39SuggestionCount;
       const secondSuggestions=window.__m7v42SecondSuggestions||[];delete window.__m7v42SecondSuggestions;
       const ownerIndex=window.__m7v42OwnerIndex;delete window.__m7v42OwnerIndex;
@@ -177,10 +180,10 @@ const server=http.createServer((req,res)=>{
     assert.equal(shutter.overlap,false,'v36 shutter and cancel overlap '+JSON.stringify(shutter));
     assert.equal(shutter.tiles,14,'v36 shutter did not open 14 editable slots '+JSON.stringify(shutter));
     assert.equal(shutter.crops,14,'v36 did not use 14 high-resolution row crops '+JSON.stringify(shutter));
-    assert(shutter.note.includes('初回学習'),'v36 first calibration explanation missing '+JSON.stringify(shutter));
+    assert(shutter.note.includes('初回学習'),'v44 first calibration explanation missing '+JSON.stringify(shutter));
     assert.equal(shutter.preview.backgroundSize,'contain','tile preview must show the full crop '+JSON.stringify(shutter));
     assert(shutter.preview.height<190,'tile preview should not stretch through the whole result card '+JSON.stringify(shutter));
-    assert.equal(shutter.learned,14,'verified v43 calibration was not persisted before result close '+JSON.stringify(shutter));
+    assert.equal(shutter.learned,14,'verified v44 calibration was not persisted before result close '+JSON.stringify(shutter));
     assert(shutter.rawSaved>=14,'verified tile images were not persisted to IndexedDB '+JSON.stringify(shutter));
     assert.equal(shutter.suggestionCount,3,'top-3 quick suggestions missing '+JSON.stringify(shutter));
     assert.equal(shutter.ownerIndex,1,'continuous picker owner did not advance to tile 2 '+JSON.stringify(shutter));
