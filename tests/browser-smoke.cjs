@@ -54,6 +54,18 @@ const server=http.createServer((req,res)=>{
     assert(synthetic.row.w>560&&synthetic.row.h>80,'unexpected row geometry '+JSON.stringify(synthetic));
     assert(synthetic.mapping&&synthetic.mapping.w>1500&&synthetic.mapping.h>300,
       'object-fit cover mapping lost high-resolution source area '+JSON.stringify(synthetic));
+    const faceNorm=await page.evaluate(()=>{
+      const canvas=document.createElement('canvas');canvas.width=140;canvas.height=180;
+      const ctx=canvas.getContext('2d');ctx.fillStyle='#80542f';ctx.fillRect(0,0,140,180);
+      ctx.fillStyle='#d7d4ca';ctx.fillRect(24,46,92,86);
+      ctx.fillStyle='#161616';ctx.fillRect(51,68,10,42);ctx.fillRect(74,82,24,10);
+      const rect=window.M7CameraV36.tileFaceRect(ctx,{x:0,y:0,w:140,h:180});
+      const feat=window.M7CameraV36.featureFromBox(ctx,{x:0,y:0,w:140,h:180});
+      return {rect,featureLength:feat.length};
+    });
+    assert(faceNorm.rect.w<120&&faceNorm.rect.h<140&&faceNorm.rect.y>20,
+      'tile face normalization did not remove row background '+JSON.stringify(faceNorm));
+    assert.equal(faceNorm.featureLength,96,'normalized feature vector changed unexpectedly '+JSON.stringify(faceNorm));
 
     // Simulate a landscape camera frame and verify shutter -> post-capture 14 editable previews.
     const shutter=await page.evaluate(async()=>{

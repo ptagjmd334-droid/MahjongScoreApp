@@ -10,6 +10,7 @@ on:
       - work/m7-v36-hardening
       - work/m7-v36-shift-tolerant-recognition
       - work/m7-v36-preview-learning-fix
+      - work/m7-v36-face-normalization
   workflow_dispatch:
 
 jobs:
