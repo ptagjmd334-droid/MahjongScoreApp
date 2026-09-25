@@ -133,16 +133,16 @@ const server=http.createServer((req,res)=>{
           resultTiles[0].dataset.m7v39Suggestions=JSON.stringify(['1萬','2萬','3萬']);
           if(resultTiles[1])resultTiles[1].dataset.m7v39Suggestions=JSON.stringify(['4筒','5筒','6筒']);
           resultTiles[0].click();
-          await new Promise(resolve=>setTimeout(resolve,30));
+          await new Promise(resolve=>setTimeout(resolve,70));
           const suggestionButtons=[...document.querySelectorAll('#tile-picker-m7v5 .m7v39-suggestions button')];
           window.__m7v39SuggestionCount=suggestionButtons.length;
           const picker=document.getElementById('tile-picker-m7v5');
-          window.M7CameraV36.attachPickerSuggestionObserver(picker);
-          const title=picker?.querySelector('.tile-picker-title-m7v5');
-          if(title)title.textContent='2枚目を選択中　選ぶと自動で次へ';
-          await new Promise(resolve=>setTimeout(resolve,140));
+          const normalChoice=picker?.querySelector('.tile-picker-grid-m7v5 button');
+          normalChoice?.click();
+          await new Promise(resolve=>setTimeout(resolve,110));
+          window.__m7v42OwnerIndex=Number(picker?.dataset.m8v31Current);
           const secondTexts=[...document.querySelectorAll('#tile-picker-m7v5 .m7v39-suggestions button')].map(b=>b.textContent.trim());
-          window.__m7v41SecondSuggestions=secondTexts;
+          window.__m7v42SecondSuggestions=secondTexts;
           document.querySelector('#tile-picker-m7v5 .tile-picker-cancel-m7v5')?.click();
         }
         resultTiles.forEach((b,i)=>b.dataset.tile='test-'+i);
@@ -161,8 +161,9 @@ const server=http.createServer((req,res)=>{
       result?.remove();fake.remove();
       localStorage.removeItem('MahjongScoreApp_tile_templates_m7v38ink1');
       const suggestionCount=window.__m7v39SuggestionCount||0;delete window.__m7v39SuggestionCount;
-      const secondSuggestions=window.__m7v41SecondSuggestions||[];delete window.__m7v41SecondSuggestions;
-      return {overlap,tiles,crops,note,diag,preview,learned,suggestionCount,secondSuggestions};
+      const secondSuggestions=window.__m7v42SecondSuggestions||[];delete window.__m7v42SecondSuggestions;
+      const ownerIndex=window.__m7v42OwnerIndex;delete window.__m7v42OwnerIndex;
+      return {overlap,tiles,crops,note,diag,preview,learned,suggestionCount,secondSuggestions,ownerIndex};
     });
     assert.equal(shutter.overlap,false,'v36 shutter and cancel overlap '+JSON.stringify(shutter));
     assert.equal(shutter.tiles,14,'v36 shutter did not open 14 editable slots '+JSON.stringify(shutter));
@@ -172,7 +173,8 @@ const server=http.createServer((req,res)=>{
     assert(shutter.preview.height<190,'tile preview should not stretch through the whole result card '+JSON.stringify(shutter));
     assert.equal(shutter.learned,14,'verified first calibration was not persisted before result close '+JSON.stringify(shutter));
     assert.equal(shutter.suggestionCount,3,'top-3 quick suggestions missing '+JSON.stringify(shutter));
-    assert.deepEqual(shutter.secondSuggestions,['4筒','5筒','6筒'],'picker title advance kept stale suggestions '+JSON.stringify(shutter));
+    assert.equal(shutter.ownerIndex,1,'continuous picker owner did not advance to tile 2 '+JSON.stringify(shutter));
+    assert.deepEqual(shutter.secondSuggestions,['4筒','5筒','6筒'],'normal-grid advance kept stale suggestions '+JSON.stringify(shutter));
     const confidence=await page.evaluate(()=>{
       const api=window.M7CameraV36;
       const clear=api.confidentCandidate([{label:'A',distance:.11},{label:'B',distance:.24}]);
