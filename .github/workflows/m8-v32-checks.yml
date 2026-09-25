@@ -14,6 +14,7 @@ on:
       - work/m7-v36-face-library-key
       - work/m7-v36-seam-segmentation
       - work/m7-v36-seam-library-reset
+      - work/m7-v37-version-bump
   workflow_dispatch:
 
 jobs:
