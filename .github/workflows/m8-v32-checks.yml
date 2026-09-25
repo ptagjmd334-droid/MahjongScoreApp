@@ -22,6 +22,7 @@ on:
       - work/m7-v42-picker-current-event
       - work/m7-v43-hog-color-training-images
       - work/m7-v44-direct-template-match
+      - work/m7-v45-oriented-normalization
   workflow_dispatch:
 
 jobs:
