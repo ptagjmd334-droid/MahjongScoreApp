@@ -213,6 +213,14 @@
 
   function pickerCurrentIndex(picker,fallback=0){
     if(!picker)return fallback;
+    const owner=Number(picker.dataset.m8v31Current);
+    if(Number.isInteger(owner)&&owner>=0&&owner<14)return owner;
+    const help=picker.querySelector('.m8v31-help')?.textContent||'';
+    const hm=help.match(/(\d+)\s*枚目を選択中/);
+    if(hm){
+      const n=Number(hm[1])-1;
+      if(Number.isInteger(n)&&n>=0&&n<14)return n;
+    }
     const text=picker.textContent||'';
     const m=text.match(/(\d+)\s*枚目を(?:選択中|修正)/);
     if(m){
@@ -263,10 +271,10 @@
   function attachPickerSuggestionObserver(picker){
     if(!picker||picker.dataset.m7v41Observer==='1')return;
     picker.dataset.m7v41Observer='1';
-    const title=picker.querySelector('.tile-picker-title-m7v5');
-    if(title&&typeof MutationObserver!=='undefined'){
+    const help=picker.querySelector('.m8v31-help');
+    if(help&&typeof MutationObserver!=='undefined'){
       const observer=new MutationObserver(()=>schedulePickerSuggestionSync(pickerCurrentIndex(picker,0)));
-      observer.observe(title,{childList:true,characterData:true,subtree:true});
+      observer.observe(help,{childList:true,characterData:true,subtree:true});
       picker.__m7v41Observer=observer;
     }
   }
@@ -552,6 +560,11 @@
       document.querySelector('#realtime-hand-camera-m7v3 .realtime-hand-cancel-m7v3')?.click();
       stopLocalState();
     }
+  });
+
+  document.addEventListener('m8v31-current-change',e=>{
+    const index=Number(e.detail?.index);
+    if(Number.isInteger(index)&&index>=0&&index<14)renderPickerSuggestions(index);
   });
 
   document.addEventListener('click',e=>{
