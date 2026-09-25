@@ -192,43 +192,115 @@
     return {x:sx,y:sy,w:Math.max(1,ex-sx),h:Math.max(1,ey-sy)};
   }
 
-  function featureFromBox(ctx,b){
+  function normalizedFaceCanvas(ctx,b,width=48,height=72){
     const face=tileFaceRect(ctx,b);
-    const out=document.createElement('canvas');out.width=48;out.height=72;
+    const out=document.createElement('canvas');out.width=width;out.height=height;
     const o=out.getContext('2d',{willReadFrequently:true});
-    o.fillStyle='#f4f1e8';o.fillRect(0,0,out.width,out.height);
+    o.fillStyle='#f4f1e8';o.fillRect(0,0,width,height);
     const padX=Math.max(1,face.w*.035),padY=Math.max(1,face.h*.035);
     const srcW=Math.max(1,face.w-padX*2),srcH=Math.max(1,face.h-padY*2);
-    const scale=Math.min(out.width/srcW,out.height/srcH);
-    const dw=srcW*scale,dh=srcH*scale,dx=(out.width-dw)/2,dy=(out.height-dh)/2;
+    const scale=Math.min(width/srcW,height/srcH);
+    const dw=srcW*scale,dh=srcH*scale,dx=(width-dw)/2,dy=(height-dh)/2;
     o.drawImage(ctx.canvas,face.x+padX,face.y+padY,srcW,srcH,dx,dy,dw,dh);
-    const data=o.getImageData(0,0,out.width,out.height).data;
-    const neutrals=[];
-    for(let i=0;i<data.length;i+=4){
-      const r=data[i],g=data[i+1],bl=data[i+2];
-      const max=Math.max(r,g,bl),min=Math.min(r,g,bl);
-      if(max-min<42)neutrals.push((r*3+g*6+bl)/10);
+    return out;
+  }
+
+  function descriptorFromCanvas(source){
+    const width=48,height=72;
+    const c=document.createElement('canvas');c.width=width;c.height=height;
+    const ctx=c.getContext('2d',{willReadFrequently:true});
+    ctx.fillStyle='#f4f1e8';ctx.fillRect(0,0,width,height);
+    ctx.drawImage(source,0,0,width,height);
+    const data=ctx.getImageData(0,0,width,height).data;
+    const gray=new Float64Array(width*height),neutrals=[];
+    for(let p=0;p<width*height;p++){
+      const i=p*4,r=data[i],g=data[i+1],b=data[i+2];
+      const lum=(r*3+g*6+b)/10;gray[p]=lum;
+      if(Math.max(r,g,b)-Math.min(r,g,b)<42)neutrals.push(lum);
     }
     neutrals.sort((a,b)=>a-b);
     const bgLum=neutrals.length?neutrals[Math.min(neutrals.length-1,Math.floor(neutrals.length*.86))]:235;
-    const gridW=12,gridH=18,vals=[];
-    for(let gy=0;gy<gridH;gy++)for(let gx=0;gx<gridW;gx++){
-      const x0=Math.floor(out.width*(.055+.89*gx/gridW));
-      const x1=Math.max(x0+1,Math.floor(out.width*(.055+.89*(gx+1)/gridW)));
-      const y0=Math.floor(out.height*(.045+.91*gy/gridH));
-      const y1=Math.max(y0+1,Math.floor(out.height*(.045+.91*(gy+1)/gridH)));
+
+    // HOG: 6x9 cells, 8 unsigned orientation bins. This preserves line shape/direction.
+    const hogW=6,hogH=9,bins=8,hog=Array(hogW*hogH*bins).fill(0);
+    const cellW=width/hogW,cellH=height/hogH;
+    for(let y=1;y<height-1;y++)for(let x=1;x<width-1;x++){
+      const gx=gray[y*width+x+1]-gray[y*width+x-1];
+      const gy=gray[(y+1)*width+x]-gray[(y-1)*width+x];
+      const mag=Math.hypot(gx,gy);
+      if(mag<4)continue;
+      let angle=Math.atan2(gy,gx);
+      if(angle<0)angle+=Math.PI;
+      if(angle>=Math.PI)angle-=Math.PI;
+      const bin=Math.min(bins-1,Math.floor(angle/Math.PI*bins));
+      const cx=Math.min(hogW-1,Math.floor(x/cellW));
+      const cy=Math.min(hogH-1,Math.floor(y/cellH));
+      hog[(cy*hogW+cx)*bins+bin]+=mag;
+    }
+    for(let cy=0;cy<hogH;cy++)for(let cx=0;cx<hogW;cx++){
+      const base=(cy*hogW+cx)*bins;
+      let norm=0;for(let k=0;k<bins;k++)norm+=hog[base+k]*hog[base+k];
+      norm=Math.sqrt(norm)+1e-6;
+      for(let k=0;k<bins;k++)hog[base+k]/=norm;
+    }
+
+    // Color: 4x6 spatial cells, [red dominance, green dominance, darkness].
+    const colorW=4,colorH=6,color=[];
+    for(let cy=0;cy<colorH;cy++)for(let cx=0;cx<colorW;cx++){
+      const x0=Math.floor(width*cx/colorW),x1=Math.max(x0+1,Math.floor(width*(cx+1)/colorW));
+      const y0=Math.floor(height*cy/colorH),y1=Math.max(y0+1,Math.floor(height*(cy+1)/colorH));
+      let red=0,green=0,dark=0,n=0;
+      for(let y=y0;y<y1;y++)for(let x=x0;x<x1;x++){
+        const i=(y*width+x)*4,r=data[i],g=data[i+1],b=data[i+2];
+        const lum=gray[y*width+x];
+        red+=Math.max(0,r-Math.max(g,b))/255;
+        green+=Math.max(0,g-Math.max(r,b))/255;
+        dark+=Math.max(0,(bgLum-lum)/Math.max(80,bgLum));
+        n++;
+      }
+      color.push(red/n,green/n,Math.min(1,dark/n));
+    }
+
+    // Coarse ink occupancy remains as a low-weight shape fallback.
+    const inkW=8,inkH=12,ink=[];
+    for(let gy=0;gy<inkH;gy++)for(let gx=0;gx<inkW;gx++){
+      const x0=Math.floor(width*(.055+.89*gx/inkW));
+      const x1=Math.max(x0+1,Math.floor(width*(.055+.89*(gx+1)/inkW)));
+      const y0=Math.floor(height*(.045+.91*gy/inkH));
+      const y1=Math.max(y0+1,Math.floor(height*(.045+.91*(gy+1)/inkH)));
       let sum=0,n=0;
-      for(let y=y0;y<Math.min(out.height,y1);y++)for(let x=x0;x<Math.min(out.width,x1);x++){
-        const i=(y*out.width+x)*4,r=data[i],g=data[i+1],bl=data[i+2];
-        const max=Math.max(r,g,bl),min=Math.min(r,g,bl),lum=(r*3+g*6+bl)/10;
+      for(let y=y0;y<Math.min(height,y1);y++)for(let x=x0;x<Math.min(width,x1);x++){
+        const i=(y*width+x)*4,r=data[i],g=data[i+1],b=data[i+2];
+        const max=Math.max(r,g,b),min=Math.min(r,g,b),lum=gray[y*width+x];
         const darkness=Math.max(0,(bgLum-lum)/Math.max(80,bgLum));
         const chroma=(max-min)/255;
-        const ink=Math.min(1,Math.max(darkness*1.35,chroma*.92));
-        sum+=ink;n++;
+        sum+=Math.min(1,Math.max(darkness*1.35,chroma*.92));n++;
       }
-      vals.push(n?sum/n:0);
+      ink.push(n?sum/n:0);
     }
-    return vals;
+    return {kind:FEATURE_KIND,hog,color,ink};
+  }
+
+  function featureFromBox(ctx,b){
+    return descriptorFromCanvas(normalizedFaceCanvas(ctx,b,48,72));
+  }
+
+  function trainingImageDataUrl(ctx,b){
+    return normalizedFaceCanvas(ctx,b,96,144).toDataURL('image/jpeg',.88);
+  }
+
+  function featureFromDataUrl(url){
+    return new Promise(resolve=>{
+      const img=new Image();
+      img.onload=()=>{
+        const c=document.createElement('canvas');c.width=96;c.height=144;
+        const x=c.getContext('2d');x.fillStyle='#f4f1e8';x.fillRect(0,0,c.width,c.height);
+        x.drawImage(img,0,0,c.width,c.height);
+        resolve(descriptorFromCanvas(c));
+      };
+      img.onerror=()=>resolve(null);
+      img.src=url;
+    });
   }
 
   function cropDataUrl(ctx,b){
