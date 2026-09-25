@@ -34,7 +34,7 @@ const server=http.createServer((req,res)=>{
     const errors=[];page.on('pageerror',e=>errors.push(String(e)));
     await page.goto('http://127.0.0.1:'+port+'/',{waitUntil:'domcontentloaded',timeout:30000});
     await page.waitForSelector('#go-confirm-button',{timeout:12000});
-    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'M7 v44');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'M7 v45');
     // v36 analyzes one long row after the shutter instead of requiring 14 live connected components.
     const synthetic=await page.evaluate(()=>{
       const canvas=document.createElement('canvas');canvas.width=840;canvas.height=260;
@@ -65,7 +65,7 @@ const server=http.createServer((req,res)=>{
     });
     assert(faceNorm.rect.w<120&&faceNorm.rect.h<140&&faceNorm.rect.y>20,
       'tile face normalization did not remove row background '+JSON.stringify(faceNorm));
-    assert.equal(faceNorm.kind,'direct-edge-v1','v44 descriptor kind missing '+JSON.stringify(faceNorm));
+    assert.equal(faceNorm.kind,'oriented-direct-v1','v45 descriptor kind missing '+JSON.stringify(faceNorm));
     assert.equal(faceNorm.width,16,'v44 descriptor width changed unexpectedly '+JSON.stringify(faceNorm));
     assert.equal(faceNorm.height,24,'v44 descriptor height changed unexpectedly '+JSON.stringify(faceNorm));
     assert.equal(faceNorm.gray,384,'v44 gray map size changed unexpectedly '+JSON.stringify(faceNorm));
@@ -95,9 +95,30 @@ const server=http.createServer((req,res)=>{
       };
     });
     assert(descriptorRobustness.same<descriptorRobustness.different,
-      'v44 direct matcher is not more stable to lighting than to a different symbol '+JSON.stringify(descriptorRobustness));
+      'v45 oriented matcher is not more stable to lighting than to a different symbol '+JSON.stringify(descriptorRobustness));
     assert(descriptorRobustness.redGreen>0,
-      'v44 color maps failed to distinguish red and green ink '+JSON.stringify(descriptorRobustness));
+      'v45 color maps failed to distinguish red and green ink '+JSON.stringify(descriptorRobustness));
+    const orientationRobustness=await page.evaluate(()=>{
+      function make(rot=0,variant='same'){
+        const source=document.createElement('canvas');source.width=100;source.height=140;
+        const s=source.getContext('2d');s.fillStyle='#80542f';s.fillRect(0,0,100,140);
+        s.fillStyle='#ddd9cf';s.fillRect(22,18,56,104);
+        s.fillStyle='#171717';
+        if(variant==='same'){s.fillRect(42,38,9,58);s.fillRect(51,65,18,8);}
+        else{s.beginPath();s.arc(50,70,18,0,Math.PI*2);s.fill();}
+        if(!rot)return source;
+        const out=document.createElement('canvas');out.width=120;out.height=160;
+        const o=out.getContext('2d');o.fillStyle='#80542f';o.fillRect(0,0,120,160);
+        o.translate(60,80);o.rotate(rot*Math.PI/180);o.drawImage(source,-50,-70);return out;
+      }
+      const api=window.M7CameraV36,core=window.M7RecognitionCoreV33;
+      const a=api.descriptorFromCanvas(api.canonicalizeCanvas(make(0,'same'),64,96));
+      const tilted=api.descriptorFromCanvas(api.canonicalizeCanvas(make(6,'same'),64,96));
+      const different=api.descriptorFromCanvas(api.canonicalizeCanvas(make(0,'other'),64,96));
+      return {same:core.featureDistance(a,tilted),different:core.featureDistance(a,different)};
+    });
+    assert(orientationRobustness.same<orientationRobustness.different,
+      'v45 orientation normalization did not stabilize the same tile '+JSON.stringify(orientationRobustness));
 
     // Simulate a landscape camera frame and verify shutter -> post-capture 14 editable previews.
     const shutter=await page.evaluate(async()=>{
@@ -164,14 +185,14 @@ const server=http.createServer((req,res)=>{
           ok.click();
           await new Promise(resolve=>setTimeout(resolve,180));
           try{
-            const lib=JSON.parse(localStorage.getItem('MahjongScoreApp_tile_templates_m7v44direct1')||'{}');
+            const lib=JSON.parse(localStorage.getItem('MahjongScoreApp_tile_templates_m7v45oriented1')||'{}');
             learned=Object.values(lib).reduce((n,list)=>n+(Array.isArray(list)&&list.length?1:0),0);
             rawSaved=(await window.M7CameraV36.loadTrainingSamples()).length;
           }catch(_){}
         }
       }
       result?.remove();fake.remove();
-      localStorage.removeItem('MahjongScoreApp_tile_templates_m7v44direct1');
+      localStorage.removeItem('MahjongScoreApp_tile_templates_m7v45oriented1');
       const suggestionCount=window.__m7v39SuggestionCount||0;delete window.__m7v39SuggestionCount;
       const secondSuggestions=window.__m7v42SecondSuggestions||[];delete window.__m7v42SecondSuggestions;
       const ownerIndex=window.__m7v42OwnerIndex;delete window.__m7v42OwnerIndex;
@@ -180,10 +201,10 @@ const server=http.createServer((req,res)=>{
     assert.equal(shutter.overlap,false,'v36 shutter and cancel overlap '+JSON.stringify(shutter));
     assert.equal(shutter.tiles,14,'v36 shutter did not open 14 editable slots '+JSON.stringify(shutter));
     assert.equal(shutter.crops,14,'v36 did not use 14 high-resolution row crops '+JSON.stringify(shutter));
-    assert(shutter.note.includes('初回学習'),'v44 first calibration explanation missing '+JSON.stringify(shutter));
+    assert(shutter.note.includes('初回学習'),'v45 first calibration explanation missing '+JSON.stringify(shutter));
     assert.equal(shutter.preview.backgroundSize,'contain','tile preview must show the full crop '+JSON.stringify(shutter));
     assert(shutter.preview.height<190,'tile preview should not stretch through the whole result card '+JSON.stringify(shutter));
-    assert.equal(shutter.learned,14,'verified v44 calibration was not persisted before result close '+JSON.stringify(shutter));
+    assert.equal(shutter.learned,14,'verified v45 calibration was not persisted before result close '+JSON.stringify(shutter));
     assert(shutter.rawSaved>=14,'verified tile images were not persisted to IndexedDB '+JSON.stringify(shutter));
     assert.equal(shutter.suggestionCount,3,'top-3 quick suggestions missing '+JSON.stringify(shutter));
     assert.equal(shutter.ownerIndex,1,'continuous picker owner did not advance to tile 2 '+JSON.stringify(shutter));
