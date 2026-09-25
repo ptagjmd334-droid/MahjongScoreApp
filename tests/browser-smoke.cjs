@@ -66,6 +66,27 @@ const server=http.createServer((req,res)=>{
     assert(faceNorm.rect.w<120&&faceNorm.rect.h<140&&faceNorm.rect.y>20,
       'tile face normalization did not remove row background '+JSON.stringify(faceNorm));
     assert.equal(faceNorm.featureLength,96,'normalized feature vector changed unexpectedly '+JSON.stringify(faceNorm));
+    const seamSplit=await page.evaluate(()=>{
+      const canvas=document.createElement('canvas');canvas.width=980;canvas.height=220;
+      const ctx=canvas.getContext('2d');ctx.fillStyle='#6f482d';ctx.fillRect(0,0,980,220);
+      const widths=[61,65,60,66,63,64,62,67,61,65,64,63,66,63];
+      let x=46;const starts=[];
+      for(let i=0;i<14;i++){
+        starts.push(x);
+        const w=widths[i];
+        ctx.fillStyle='#d4d3cc';ctx.fillRect(x,58,w,112);
+        ctx.fillStyle='#252525';
+        ctx.fillRect(x+Math.round(w*.36),82,5,54);
+        ctx.fillRect(x+Math.round(w*.55),102,Math.max(6,Math.round(w*.16)),9);
+        x+=w+3+(i%3===0?2:0);
+      }
+      const row={x:42,y:50,w:x-39,h:128};
+      const boxes=window.M7CameraV36.splitRowBySeams(ctx,row,14);
+      return {starts,boxes:boxes.map(b=>({x:b.x,w:b.w}))};
+    });
+    assert.equal(seamSplit.boxes.length,14,'adaptive seam split lost tiles '+JSON.stringify(seamSplit));
+    const boundaryErrors=seamSplit.boxes.slice(1).map((b,i)=>Math.abs(b.x-seamSplit.starts[i+1]));
+    assert(Math.max(...boundaryErrors)<16,'adaptive seams drifted away from physical tile boundaries '+JSON.stringify({boundaryErrors,seamSplit}));
 
     // Simulate a landscape camera frame and verify shutter -> post-capture 14 editable previews.
     const shutter=await page.evaluate(async()=>{

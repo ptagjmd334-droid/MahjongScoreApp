@@ -254,6 +254,59 @@
     });
   }
 
+
+  function splitRowBySeams(ctx,row,count=14){
+    if(!ctx||!row||!Number.isFinite(row.x)||!Number.isFinite(row.w)||row.w<=0)return splitRow(row,count);
+    const x0=Math.max(0,Math.round(row.x)),y0=Math.max(0,Math.round(row.y));
+    const x1=Math.min(ctx.canvas.width,Math.round(row.x+row.w));
+    const y1=Math.min(ctx.canvas.height,Math.round(row.y+row.h));
+    const w=Math.max(1,x1-x0),h=Math.max(1,y1-y0);
+    if(w<count*8||h<12)return splitRow(row,count);
+    const data=ctx.getImageData(x0,y0,w,h).data;
+    const score=new Float64Array(w);
+    const ys=Math.max(1,Math.round(h*.08)),ye=Math.min(h-1,Math.round(h*.92));
+    for(let x=1;x<w-1;x++){
+      let edge=0,white=0,n=0;
+      for(let y=ys;y<ye;y++){
+        const i=(y*w+x)*4,il=(y*w+x-1)*4,ir=(y*w+x+1)*4;
+        const lum=(data[i]*3+data[i+1]*6+data[i+2])/10;
+        const lumL=(data[il]*3+data[il+1]*6+data[il+2])/10;
+        const lumR=(data[ir]*3+data[ir+1]*6+data[ir+2])/10;
+        const max=Math.max(data[i],data[i+1],data[i+2]),min=Math.min(data[i],data[i+1],data[i+2]);
+        const neutral=(max-min)/(lum+1);
+        if(lum>=76&&neutral<=.62)white++;
+        edge+=Math.abs(lumR-lumL);n++;
+      }
+      const whiteRatio=n?white/n:0;
+      score[x]=(n?edge/n:0)*.7+(1-whiteRatio)*22;
+    }
+    const smoothScore=smooth(score,Math.max(1,Math.round(w*.002)));
+    const pitch=w/count;
+    const boundaries=[0];
+    let previous=0;
+    for(let i=1;i<count;i++){
+      const expected=pitch*i;
+      const radius=Math.max(4,pitch*.28);
+      let lo=Math.max(previous+pitch*.58,expected-radius);
+      let hi=Math.min(w-(count-i)*pitch*.58,expected+radius);
+      lo=Math.max(1,Math.floor(lo));hi=Math.min(w-2,Math.ceil(hi));
+      let bestX=Math.round(expected),best=-Infinity;
+      for(let x=lo;x<=hi;x++){
+        const distancePenalty=Math.abs(x-expected)/pitch*4.5;
+        const v=smoothScore[x]-distancePenalty;
+        if(v>best){best=v;bestX=x;}
+      }
+      boundaries.push(bestX);previous=bestX;
+    }
+    boundaries.push(w);
+    const boxes=[];
+    for(let i=0;i<count;i++){
+      const a=x0+boundaries[i],b=x0+boundaries[i+1];
+      boxes.push({x:a,y:y0,w:Math.max(1,b-a),h});
+    }
+    return boxes;
+  }
+
   function analyzeGuideCanvas(highCanvas){
     const highCtx=highCanvas.getContext('2d',{willReadFrequently:true});
     const low=document.createElement('canvas');
@@ -265,7 +318,7 @@
     if(!lowRow)return {row:null,boxes:[],features:[],crops:[],photo:highCanvas.toDataURL('image/jpeg',.80)};
     const sx=highCanvas.width/low.width,sy=highCanvas.height/low.height;
     const row={x:lowRow.x*sx,y:lowRow.y*sy,w:lowRow.w*sx,h:lowRow.h*sy};
-    const boxes=splitRow(row,14);
+    const boxes=splitRowBySeams(highCtx,row,14);
     return {
       row,boxes,
       features:boxes.map(b=>featureFromBox(highCtx,b)),
@@ -397,6 +450,6 @@
   },true);
 
   window.M7CameraV36=Object.freeze({
-    sourceRectForCover,locateTileRow,splitRow,analyzeGuideCanvas,featureFromBox,tileFaceRect,loadLibrary
+    sourceRectForCover,locateTileRow,splitRow,splitRowBySeams,analyzeGuideCanvas,featureFromBox,tileFaceRect,loadLibrary
   });
 })();
