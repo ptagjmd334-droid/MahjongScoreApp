@@ -23,16 +23,16 @@ test('13/14 candidate position stability requires similar positions',()=>{
   assert.equal(core.stableEnough(p.slice(0,12),p.slice(0,12)),false);
 });
 
-test('camera v33 is loaded before ui-fixes so learning sees verified clicks first',()=>{
+test('camera v36 is loaded before ui-fixes so verified clicks train the active camera module',()=>{
   const index=fs.readFileSync(path.join(root,'index.html'),'utf8');
-  for(const name of ['script.js','m7-recognition-core.js','m7-camera-v33.js','ui-fixes.js'])assert(index.includes(name));
+  for(const name of ['script.js','m7-recognition-core.js','m7-camera-v36.js','ui-fixes.js'])assert(index.includes(name));
   assert(index.indexOf('script.js')<index.indexOf('m7-recognition-core.js'));
-  assert(index.indexOf('m7-recognition-core.js')<index.indexOf('m7-camera-v33.js'));
-  assert(index.indexOf('m7-camera-v33.js')<index.indexOf('ui-fixes.js'));
-  assert(index.includes('M7 v33')||index.includes('M7 v34')||index.includes('M7 v35'));
+  assert(index.indexOf('m7-recognition-core.js')<index.indexOf('m7-camera-v36.js'));
+  assert(index.indexOf('m7-camera-v36.js')<index.indexOf('ui-fixes.js'));
+  assert(index.includes('M7 v36'));
 });
 
-test('legacy live detector and demo fill yield to v33 owner',()=>{
+test('legacy live detector and demo fill yield to the active camera owner',()=>{
   const script=fs.readFileSync(path.join(root,'script.js'),'utf8');
   const ui=fs.readFileSync(path.join(root,'ui-fixes.js'),'utf8');
   assert(script.includes('if(window.M7V33CameraOwner)return;'));
