@@ -9,9 +9,13 @@
   const core=window.M7RecognitionCoreV33;
   if(!core)return;
 
-  const LIB_KEY='MahjongScoreApp_tile_templates_m7v38ink1';
-  const MAX_TEMPLATES=4;
-  const state={overlay:null,captured:false,pendingFeatures:[],pendingCrops:[],diagnostics:null};
+  const LIB_KEY='MahjongScoreApp_tile_templates_m7v43hog1';
+  const TRAINING_DB='MahjongScoreAppM7Training';
+  const TRAINING_STORE='samples';
+  const FEATURE_KIND='hog-color-ink-v1';
+  const MAX_TEMPLATES=8;
+  const MAX_IMAGES_PER_LABEL=10;
+  const state={overlay:null,captured:false,pendingFeatures:[],pendingCrops:[],pendingTrainingImages:[],diagnostics:null,predictionDebug:[]};
 
   const style=document.createElement('style');
   style.textContent=`
@@ -84,6 +88,82 @@
   }
   function saveLibrary(lib){
     try{localStorage.setItem(LIB_KEY,JSON.stringify(lib));}catch(_){}
+  }
+
+
+  function openTrainingDb(){
+    return new Promise(resolve=>{
+      if(!('indexedDB' in window)){resolve(null);return;}
+      let req;
+      try{req=indexedDB.open(TRAINING_DB,1);}catch(_){resolve(null);return;}
+      req.onupgradeneeded=()=>{
+        const db=req.result;
+        if(!db.objectStoreNames.contains(TRAINING_STORE)){
+          const store=db.createObjectStore(TRAINING_STORE,{keyPath:'id',autoIncrement:true});
+          store.createIndex('label','label',{unique:false});
+          store.createIndex('createdAt','createdAt',{unique:false});
+        }
+      };
+      req.onsuccess=()=>resolve(req.result);
+      req.onerror=()=>resolve(null);
+      req.onblocked=()=>resolve(null);
+    });
+  }
+
+  async function loadTrainingSamples(){
+    const db=await openTrainingDb();if(!db)return [];
+    return new Promise(resolve=>{
+      let tx;
+      try{tx=db.transaction(TRAINING_STORE,'readonly');}catch(_){db.close();resolve([]);return;}
+      const req=tx.objectStore(TRAINING_STORE).getAll();
+      req.onsuccess=()=>resolve(Array.isArray(req.result)?req.result:[]);
+      req.onerror=()=>resolve([]);
+      tx.oncomplete=()=>db.close();
+      tx.onabort=()=>db.close();
+    });
+  }
+
+  async function saveTrainingBatch(records){
+    const valid=(Array.isArray(records)?records:[]).filter(x=>x&&x.label&&x.imageDataUrl);
+    if(!valid.length)return false;
+    const db=await openTrainingDb();if(!db)return false;
+    const written=await new Promise(resolve=>{
+      let tx;
+      try{tx=db.transaction(TRAINING_STORE,'readwrite');}catch(_){db.close();resolve(false);return;}
+      const store=tx.objectStore(TRAINING_STORE);
+      const now=Date.now();
+      valid.forEach((r,i)=>store.add({
+        label:r.label,
+        imageDataUrl:r.imageDataUrl,
+        createdAt:now+i,
+        featureKind:FEATURE_KIND
+      }));
+      tx.oncomplete=()=>resolve(true);
+      tx.onerror=()=>resolve(false);
+      tx.onabort=()=>resolve(false);
+    });
+    if(!written){db.close();return false;}
+    const labels=[...new Set(valid.map(x=>x.label))];
+    await new Promise(resolve=>{
+      let tx;
+      try{tx=db.transaction(TRAINING_STORE,'readwrite');}catch(_){db.close();resolve();return;}
+      const store=tx.objectStore(TRAINING_STORE),index=store.index('label');
+      let pending=labels.length;
+      if(!pending){resolve();return;}
+      labels.forEach(label=>{
+        const req=index.getAll(IDBKeyRange.only(label));
+        req.onsuccess=()=>{
+          const rows=(req.result||[]).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+          rows.slice(MAX_IMAGES_PER_LABEL).forEach(row=>store.delete(row.id));
+          if(--pending===0)resolve();
+        };
+        req.onerror=()=>{if(--pending===0)resolve();};
+      });
+      tx.oncomplete=()=>resolve();
+      tx.onabort=()=>resolve();
+    });
+    db.close();
+    return true;
   }
 
   function tileFaceRect(ctx,b){
