@@ -77,32 +77,69 @@
     try{localStorage.setItem(LIB_KEY,JSON.stringify(lib));}catch(_){}
   }
 
+  function tileFaceRect(ctx,b){
+    const x0=Math.max(0,Math.round(b.x)),y0=Math.max(0,Math.round(b.y));
+    const x1=Math.min(ctx.canvas.width,Math.round(b.x+b.w));
+    const y1=Math.min(ctx.canvas.height,Math.round(b.y+b.h));
+    const w=Math.max(1,x1-x0),h=Math.max(1,y1-y0);
+    const data=ctx.getImageData(x0,y0,w,h).data;
+    const cols=new Float64Array(w),rows=new Float64Array(h);
+    for(let y=0,p=0;y<h;y++){
+      for(let x=0;x<w;x++,p++){
+        const i=p*4,r=data[i],g=data[i+1],bl=data[i+2];
+        const max=Math.max(r,g,bl),min=Math.min(r,g,bl),lum=(r*3+g*6+bl)/10;
+        const neutral=(max-min)/(lum+1);
+        if(lum>=82&&neutral<=.58){cols[x]++;rows[y]++;}
+      }
+    }
+    const colCut=Math.max(2,h*.24),rowCut=Math.max(2,w*.26);
+    let lx=-1,rx=-1,ty=-1,by=-1;
+    for(let x=0;x<w;x++)if(cols[x]>=colCut){if(lx<0)lx=x;rx=x;}
+    for(let y=0;y<h;y++)if(rows[y]>=rowCut){if(ty<0)ty=y;by=y;}
+    if(lx<0||ty<0||rx-lx<w*.45||by-ty<h*.32)return {x:x0,y:y0,w,h};
+    const padX=Math.max(1,(rx-lx+1)*.04),padY=Math.max(1,(by-ty+1)*.04);
+    const sx=Math.max(x0,x0+lx-padX),sy=Math.max(y0,y0+ty-padY);
+    const ex=Math.min(x1,x0+rx+1+padX),ey=Math.min(y1,y0+by+1+padY);
+    return {x:sx,y:sy,w:Math.max(1,ex-sx),h:Math.max(1,ey-sy)};
+  }
+
   function featureFromBox(ctx,b){
+    const face=tileFaceRect(ctx,b);
     const out=document.createElement('canvas');out.width=32;out.height=48;
     const o=out.getContext('2d',{willReadFrequently:true});
-    const padX=Math.max(1,b.w*.08),padY=Math.max(1,b.h*.06);
-    o.drawImage(ctx.canvas,b.x+padX,b.y+padY,Math.max(1,b.w-padX*2),Math.max(1,b.h-padY*2),0,0,32,48);
+    const padX=Math.max(1,face.w*.045),padY=Math.max(1,face.h*.04);
+    o.drawImage(
+      ctx.canvas,
+      face.x+padX,face.y+padY,Math.max(1,face.w-padX*2),Math.max(1,face.h-padY*2),
+      0,0,32,48
+    );
     const data=o.getImageData(0,0,32,48).data,vals=[];
     for(let gy=0;gy<12;gy++)for(let gx=0;gx<8;gx++){
       let sum=0,n=0;
       for(let y=gy*4;y<gy*4+4;y++)for(let x=gx*4;x<gx*4+4;x++){
-        const i=(y*32+x)*4;sum+=(data[i]*3+data[i+1]*6+data[i+2])/10;n++;
+        const i=(y*32+x)*4;
+        const r=data[i],g=data[i+1],bl=data[i+2];
+        const lum=(r*3+g*6+bl)/10;
+        sum+=lum;n++;
       }
       vals.push(sum/n);
     }
-    const mean=vals.reduce((a,b)=>a+b,0)/vals.length;
+    const mean=vals.reduce((a,v)=>a+v,0)/vals.length;
     const sd=Math.sqrt(vals.reduce((s,v)=>s+(v-mean)*(v-mean),0)/vals.length)||1;
     return vals.map(v=>(v-mean)/sd);
   }
 
   function cropDataUrl(ctx,b){
+    const face=tileFaceRect(ctx,b);
     const c=document.createElement('canvas');c.width=96;c.height=128;
     const o=c.getContext('2d');
-    const px=Math.max(1,b.w*.035),py=Math.max(1,b.h*.025);
-    const sx=Math.max(0,b.x-px),sy=Math.max(0,b.y-py);
-    const x2=Math.min(ctx.canvas.width,b.x+b.w+px),y2=Math.min(ctx.canvas.height,b.y+b.h+py);
-    o.drawImage(ctx.canvas,sx,sy,Math.max(1,x2-sx),Math.max(1,y2-sy),0,0,c.width,c.height);
-    return c.toDataURL('image/jpeg',.82);
+    o.fillStyle='#f1eadc';o.fillRect(0,0,c.width,c.height);
+    const srcRatio=face.w/face.h,dstRatio=c.width/c.height;
+    let dw,dh,dx,dy;
+    if(srcRatio>dstRatio){dw=c.width;dh=dw/srcRatio;dx=0;dy=(c.height-dh)/2;}
+    else{dh=c.height;dw=dh*srcRatio;dy=0;dx=(c.width-dw)/2;}
+    o.drawImage(ctx.canvas,face.x,face.y,face.w,face.h,dx,dy,dw,dh);
+    return c.toDataURL('image/jpeg',.84);
   }
 
   function predict(features){
@@ -111,10 +148,10 @@
       const ranked=core.rankLabels(feature,lib);
       debug[index]=ranked.slice(0,3).map(x=>({label:x.label,distance:Number(x.distance.toFixed(4))}));
       for(const item of ranked){
-        if(item.distance>.24)break;
+        if(item.distance>.32)break;
         if((used[item.label]||0)>=4)continue;
         const second=ranked.find(x=>x.label!==item.label);
-        if(second&&second.distance-item.distance<.035)return '';
+        if(second&&second.distance-item.distance<.025)return '';
         used[item.label]=(used[item.label]||0)+1;
         return item.label;
       }
@@ -360,6 +397,6 @@
   },true);
 
   window.M7CameraV36=Object.freeze({
-    sourceRectForCover,locateTileRow,splitRow,analyzeGuideCanvas,featureFromBox,loadLibrary
+    sourceRectForCover,locateTileRow,splitRow,analyzeGuideCanvas,featureFromBox,tileFaceRect,loadLibrary
   });
 })();
