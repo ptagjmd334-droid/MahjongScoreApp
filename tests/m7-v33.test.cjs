@@ -39,6 +39,13 @@ test('legacy live detector and demo fill yield to the active camera owner',()=>{
   assert(ui.includes('if(window.M7V33CameraOwner)return;'));
 });
 
+test('v36 camera avoids fixed bright-white threshold and closes camera when hidden',()=>{
+  const camera=fs.readFileSync(path.join(root,'m7-camera-v36.js'),'utf8');
+  assert(camera.includes('neutral=(max-min)/(lum+1)'));
+  assert(camera.includes("visibilitychange"));
+  assert(camera.includes(".realtime-hand-cancel-m7v3')?.click()"));
+});
+
 test('all published JavaScript entrypoints parse',()=>{
   const index=fs.readFileSync(path.join(root,'index.html'),'utf8');
   const files=[...index.matchAll(/<script\s+src="([^"]+\.js)(?:\?[^"]*)?"/g)].map(m=>m[1]);
