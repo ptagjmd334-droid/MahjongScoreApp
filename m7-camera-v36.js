@@ -9,7 +9,7 @@
   const core=window.M7RecognitionCoreV33;
   if(!core)return;
 
-  const LIB_KEY='MahjongScoreApp_tile_templates_m7v36seam1';
+  const LIB_KEY='MahjongScoreApp_tile_templates_m7v38ink1';
   const MAX_TEMPLATES=4;
   const state={overlay:null,captured:false,pendingFeatures:[],pendingCrops:[],diagnostics:null};
 
@@ -105,28 +105,41 @@
 
   function featureFromBox(ctx,b){
     const face=tileFaceRect(ctx,b);
-    const out=document.createElement('canvas');out.width=32;out.height=48;
+    const out=document.createElement('canvas');out.width=48;out.height=72;
     const o=out.getContext('2d',{willReadFrequently:true});
-    const padX=Math.max(1,face.w*.045),padY=Math.max(1,face.h*.04);
-    o.drawImage(
-      ctx.canvas,
-      face.x+padX,face.y+padY,Math.max(1,face.w-padX*2),Math.max(1,face.h-padY*2),
-      0,0,32,48
-    );
-    const data=o.getImageData(0,0,32,48).data,vals=[];
-    for(let gy=0;gy<12;gy++)for(let gx=0;gx<8;gx++){
-      let sum=0,n=0;
-      for(let y=gy*4;y<gy*4+4;y++)for(let x=gx*4;x<gx*4+4;x++){
-        const i=(y*32+x)*4;
-        const r=data[i],g=data[i+1],bl=data[i+2];
-        const lum=(r*3+g*6+bl)/10;
-        sum+=lum;n++;
-      }
-      vals.push(sum/n);
+    o.fillStyle='#f4f1e8';o.fillRect(0,0,out.width,out.height);
+    const padX=Math.max(1,face.w*.035),padY=Math.max(1,face.h*.035);
+    const srcW=Math.max(1,face.w-padX*2),srcH=Math.max(1,face.h-padY*2);
+    const scale=Math.min(out.width/srcW,out.height/srcH);
+    const dw=srcW*scale,dh=srcH*scale,dx=(out.width-dw)/2,dy=(out.height-dh)/2;
+    o.drawImage(ctx.canvas,face.x+padX,face.y+padY,srcW,srcH,dx,dy,dw,dh);
+    const data=o.getImageData(0,0,out.width,out.height).data;
+    const neutrals=[];
+    for(let i=0;i<data.length;i+=4){
+      const r=data[i],g=data[i+1],bl=data[i+2];
+      const max=Math.max(r,g,bl),min=Math.min(r,g,bl);
+      if(max-min<42)neutrals.push((r*3+g*6+bl)/10);
     }
-    const mean=vals.reduce((a,v)=>a+v,0)/vals.length;
-    const sd=Math.sqrt(vals.reduce((s,v)=>s+(v-mean)*(v-mean),0)/vals.length)||1;
-    return vals.map(v=>(v-mean)/sd);
+    neutrals.sort((a,b)=>a-b);
+    const bgLum=neutrals.length?neutrals[Math.min(neutrals.length-1,Math.floor(neutrals.length*.86))]:235;
+    const gridW=12,gridH=18,vals=[];
+    for(let gy=0;gy<gridH;gy++)for(let gx=0;gx<gridW;gx++){
+      const x0=Math.floor(out.width*(.055+.89*gx/gridW));
+      const x1=Math.max(x0+1,Math.floor(out.width*(.055+.89*(gx+1)/gridW)));
+      const y0=Math.floor(out.height*(.045+.91*gy/gridH));
+      const y1=Math.max(y0+1,Math.floor(out.height*(.045+.91*(gy+1)/gridH)));
+      let sum=0,n=0;
+      for(let y=y0;y<Math.min(out.height,y1);y++)for(let x=x0;x<Math.min(out.width,x1);x++){
+        const i=(y*out.width+x)*4,r=data[i],g=data[i+1],bl=data[i+2];
+        const max=Math.max(r,g,bl),min=Math.min(r,g,bl),lum=(r*3+g*6+bl)/10;
+        const darkness=Math.max(0,(bgLum-lum)/Math.max(80,bgLum));
+        const chroma=(max-min)/255;
+        const ink=Math.min(1,Math.max(darkness*1.35,chroma*.92));
+        sum+=ink;n++;
+      }
+      vals.push(n?sum/n:0);
+    }
+    return vals;
   }
 
   function cropDataUrl(ctx,b){
@@ -148,10 +161,10 @@
       const ranked=core.rankLabels(feature,lib);
       debug[index]=ranked.slice(0,3).map(x=>({label:x.label,distance:Number(x.distance.toFixed(4))}));
       for(const item of ranked){
-        if(item.distance>.32)break;
+        if(item.distance>.30)break;
         if((used[item.label]||0)>=4)continue;
         const second=ranked.find(x=>x.label!==item.label);
-        if(second&&second.distance-item.distance<.025)return '';
+        if(second&&second.distance-item.distance<.012)return '';
         used[item.label]=(used[item.label]||0)+1;
         return item.label;
       }
@@ -318,7 +331,7 @@
     if(!lowRow)return {row:null,boxes:[],features:[],crops:[],photo:highCanvas.toDataURL('image/jpeg',.80)};
     const sx=highCanvas.width/low.width,sy=highCanvas.height/low.height;
     const row={x:lowRow.x*sx,y:lowRow.y*sy,w:lowRow.w*sx,h:lowRow.h*sy};
-    const boxes=splitRowBySeams(highCtx,row,14);
+    const boxes=splitRow(row,14);
     return {
       row,boxes,
       features:boxes.map(b=>featureFromBox(highCtx,b)),
