@@ -49,7 +49,7 @@ test('score core loads before actual M8 fu and yaku evaluators',()=>{
  assert(order.every(x=>index.includes(x)));
  assert(index.indexOf(order[0])<index.indexOf(order[1]));
  assert(index.indexOf(order[1])<index.indexOf(order[2]));
- assert(index.includes('M8 v32')||index.includes('M7 v33')||index.includes('M7 v34')||index.includes('M7 v35')||index.includes('M7 v36')||index.includes('M7 v37'));
+ assert(index.includes('M8 v32')||index.includes('M7 v33')||index.includes('M7 v34')||index.includes('M7 v35')||index.includes('M7 v36')||index.includes('M7 v37')||index.includes('M7 v38'));
 });
 test('legacy layout/score observer loops cannot be reattached',()=>{
  const v6=fs.readFileSync(path.join(root,'m8-v6.js'),'utf8');
