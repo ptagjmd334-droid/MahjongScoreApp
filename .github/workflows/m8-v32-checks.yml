@@ -17,6 +17,7 @@ on:
       - work/m7-v37-version-bump
       - work/m7-v38-ink-descriptor
       - work/m7-v39-confidence-suggestions
+      - work/m7-v40-robust-ranking-picker
   workflow_dispatch:
 
 jobs:
