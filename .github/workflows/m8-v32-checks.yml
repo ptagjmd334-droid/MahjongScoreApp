@@ -19,6 +19,7 @@ on:
       - work/m7-v39-confidence-suggestions
       - work/m7-v40-robust-ranking-picker
       - work/m7-v41-picker-sync
+      - work/m7-v42-picker-current-event
   workflow_dispatch:
 
 jobs:
