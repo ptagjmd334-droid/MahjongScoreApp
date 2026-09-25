@@ -67,7 +67,8 @@
   }
 
   function directImageDistance(a,b){
-    if(!a||!b||a.kind!=='direct-edge-v1'||b.kind!=='direct-edge-v1')return Infinity;
+    const directKinds=new Set(['direct-edge-v1','oriented-direct-v1']);
+    if(!a||!b||!directKinds.has(a.kind)||a.kind!==b.kind)return Infinity;
     const width=Number(a.width)||0,height=Number(a.height)||0;
     if(width!==Number(b.width)||height!==Number(b.height)||width<4||height<4)return Infinity;
     const channels=['gray','edge','red','green'];
@@ -111,7 +112,7 @@
   }
 
   function featureDistance(a,b){
-    if(a&&b&&a.kind==='direct-edge-v1'&&b.kind==='direct-edge-v1'){
+    if(a&&b&&['direct-edge-v1','oriented-direct-v1'].includes(a.kind)&&a.kind===b.kind){
       return directImageDistance(a,b);
     }
     if(a&&b&&a.kind==='hog-color-ink-v1'&&b.kind==='hog-color-ink-v1'){
