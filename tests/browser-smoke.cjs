@@ -38,8 +38,8 @@ const server=http.createServer((req,res)=>{
     // v36 analyzes one long row after the shutter instead of requiring 14 live connected components.
     const synthetic=await page.evaluate(()=>{
       const canvas=document.createElement('canvas');canvas.width=840;canvas.height=260;
-      const ctx=canvas.getContext('2d');ctx.fillStyle='#a97448';ctx.fillRect(0,0,840,260);
-      ctx.fillStyle='#eeeae3';ctx.fillRect(86,78,668,112);
+      const ctx=canvas.getContext('2d');ctx.fillStyle='#6d4930';ctx.fillRect(0,0,840,260);
+      ctx.fillStyle='#85847f';ctx.fillRect(86,78,668,112);
       ctx.fillStyle='#222';
       for(let i=0;i<14;i++){
         const x=94+i*47.7;ctx.fillRect(Math.round(x),105,3,42);ctx.fillRect(Math.round(x+9),122,7,12);
@@ -62,8 +62,8 @@ const server=http.createServer((req,res)=>{
       const canvas=document.createElement('canvas');canvas.width=1920;canvas.height=1080;
       canvas.className='realtime-hand-video-m7v3';
       canvas.style.width='100%';canvas.style.height='100%';canvas.style.objectFit='cover';
-      const ctx=canvas.getContext('2d');ctx.fillStyle='#a97448';ctx.fillRect(0,0,1920,1080);
-      ctx.fillStyle='#eeeae3';ctx.fillRect(210,470,1500,145);
+      const ctx=canvas.getContext('2d');ctx.fillStyle='#6d4930';ctx.fillRect(0,0,1920,1080);
+      ctx.fillStyle='#85847f';ctx.fillRect(210,470,1500,145);
       ctx.fillStyle='#222';
       for(let i=0;i<14;i++){const x=230+i*105;ctx.fillRect(x,500,6,55);ctx.fillRect(x+18,525,13,17);}
       Object.defineProperty(canvas,'readyState',{value:4});
