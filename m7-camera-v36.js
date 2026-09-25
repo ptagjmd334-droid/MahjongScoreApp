@@ -369,6 +369,17 @@
     return orientedFaceCanvas(ctx,b,96,144).toDataURL('image/jpeg',.90);
   }
 
+
+  function analyzeTileBox(ctx,b){
+    const canonical=orientedFaceCanvas(ctx,b,96,144);
+    const imageDataUrl=canonical.toDataURL('image/jpeg',.90);
+    return {
+      feature:descriptorFromCanvas(canonical),
+      crop:imageDataUrl,
+      trainingImage:imageDataUrl
+    };
+  }
+
   function featureFromDataUrl(url){
     return new Promise(resolve=>{
       const img=new Image();
@@ -694,11 +705,12 @@
     const sx=highCanvas.width/low.width,sy=highCanvas.height/low.height;
     const row={x:lowRow.x*sx,y:lowRow.y*sy,w:lowRow.w*sx,h:lowRow.h*sy};
     const boxes=splitRow(row,14);
+    const tileData=boxes.map(b=>analyzeTileBox(highCtx,b));
     return {
       row,boxes,
-      features:boxes.map(b=>featureFromBox(highCtx,b)),
-      crops:boxes.map(b=>cropDataUrl(highCtx,b)),
-      trainingImages:boxes.map(b=>trainingImageDataUrl(highCtx,b)),
+      features:tileData.map(x=>x.feature),
+      crops:tileData.map(x=>x.crop),
+      trainingImages:tileData.map(x=>x.trainingImage),
       photo:highCanvas.toDataURL('image/jpeg',.80)
     };
   }
@@ -854,6 +866,6 @@
   },true);
 
   window.M7CameraV36=Object.freeze({
-    sourceRectForCover,locateTileRow,splitRow,splitRowBySeams,analyzeGuideCanvas,featureFromBox,tileFaceRect,descriptorFromCanvas,detectFaceGeometry,canonicalizeCanvas,orientedFaceCanvas,trainingImageDataUrl,loadTrainingSamples,rebuildLibraryFromTrainingImages,loadLibrary,confidentCandidate,renderPickerSuggestions,pickerCurrentIndex,schedulePickerSuggestionSync,attachPickerSuggestionObserver
+    sourceRectForCover,locateTileRow,splitRow,splitRowBySeams,analyzeGuideCanvas,featureFromBox,tileFaceRect,descriptorFromCanvas,detectFaceGeometry,canonicalizeCanvas,orientedFaceCanvas,trainingImageDataUrl,analyzeTileBox,loadTrainingSamples,rebuildLibraryFromTrainingImages,loadLibrary,confidentCandidate,renderPickerSuggestions,pickerCurrentIndex,schedulePickerSuggestionSync,attachPickerSuggestionObserver
   });
 })();
