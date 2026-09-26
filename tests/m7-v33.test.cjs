@@ -87,6 +87,30 @@ test('class-balanced ranking removes template-count advantage',()=>{
   assert.equal(balanced.find(x=>x.label==='one').sampleCount,1);
 });
 
+test('family-first ranking prevents a single cross-family outlier from winning globally',()=>{
+  const w=4,h=4,n=w*h;
+  const feat=v=>({kind:'perspective-direct-v1',width:w,height:h,gray:Array(n).fill(v),edge:Array(n).fill(0),red:Array(n).fill(0),green:Array(n).fill(0)});
+  const query=feat(0);
+  const lib={
+    '1萬':[feat(.10)],'2萬':[feat(.10)],'3萬':[feat(.10)],
+    '5筒':[feat(.02)],'6筒':[feat(.80)],'8筒':[feat(.80)]
+  };
+  assert.equal(core.rankLabelsBalanced(query,lib)[0].label,'5筒','fixture must expose the global cross-family outlier');
+  const families=core.rankFamiliesBalanced(query,lib);
+  assert.equal(families[0].label,'萬');
+  const hierarchical=core.rankLabelsHierarchical(query,lib);
+  assert.equal(hierarchical[0].family,'萬');
+  assert.equal(hierarchical[0].label,'1萬');
+  assert(hierarchical.every(x=>core.tileFamily(x.label)==='萬'));
+});
+
+test('tile family mapping covers suits, honors and red fives',()=>{
+  assert.equal(core.tileFamily('3萬'),'萬');
+  assert.equal(core.tileFamily('赤5筒'),'筒');
+  assert.equal(core.tileFamily('7索'),'索');
+  for(const h of ['東','南','西','北','白','發','発','中'])assert.equal(core.tileFamily(h),'字');
+});
+
 test('perspective direct descriptor stays supported',()=>{
   const w=16,h=24,n=w*h;
   const a={kind:'perspective-direct-v1',width:w,height:h,gray:Array(n).fill(0),edge:Array(n).fill(0),red:Array(n).fill(0),green:Array(n).fill(0)};
@@ -107,7 +131,7 @@ test('camera v36 is loaded before ui-fixes so verified clicks train the active c
   assert(index.indexOf('script.js')<index.indexOf('m7-recognition-core.js'));
   assert(index.indexOf('m7-recognition-core.js')<index.indexOf('m7-camera-v36.js'));
   assert(index.indexOf('m7-camera-v36.js')<index.indexOf('ui-fixes.js'));
-  assert(index.includes('M7 v48'));
+  assert(index.includes('M7 v49'));
 });
 
 test('legacy live detector and demo fill yield to the active camera owner',()=>{
@@ -124,7 +148,7 @@ test('v36 camera avoids fixed bright-white threshold and closes camera when hidd
   assert(camera.includes(".realtime-hand-cancel-m7v3')?.click()"));
 });
 
-test('v48 uses higher-resolution class-balanced perspective matching',()=>{
+test('v49 uses family-first high-resolution perspective matching',()=>{
   const camera=fs.readFileSync(path.join(root,'m7-camera-v36.js'),'utf8');
   assert(camera.includes("badge.className='m7v45-top1'"));
   assert(camera.includes("position:absolute;right:3px;top:3px"));
@@ -134,7 +158,8 @@ test('v48 uses higher-resolution class-balanced perspective matching',()=>{
   assert(camera.includes('perspectiveFaceCanvas'));
   assert(camera.includes("MahjongScoreApp_tile_templates_m7v48balanced24x36"));
   assert(camera.includes('const width=24,height=36'));
-  assert(camera.includes('core.rankLabelsBalanced(feature,lib)'));
+  assert(camera.includes('core.rankLabelsHierarchical(feature,lib)'));
+  assert(camera.includes('/ 二段階 / 射影'));
   assert(camera.includes("MahjongScoreApp_tile_templates_m7v45oriented1"));
   assert(camera.includes('loadLegacyLibrary'));
   assert(camera.includes("if(raw.length)saveTrainingBatch(raw).catch(()=>{})"));
