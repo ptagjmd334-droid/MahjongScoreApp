@@ -46,12 +46,17 @@ const server=http.createServer((req,res)=>{
       }
       const row=window.M7CameraV36.locateTileRow(ctx);
       const boxes=window.M7CameraV36.splitRow(row,14);
+      const grid=window.M7CameraV36.fitGlobalRowGrid(ctx,row,14);
       const mapping=window.M7CameraV36.sourceRectForCover(1920,1080,932,430,{x:56,y:112,w:820,h:190});
-      return {row,boxes,mapping};
+      return {row,boxes,grid,mapping};
     });
     assert(synthetic.row,'fixed-frame row locator failed '+JSON.stringify(synthetic));
     assert.equal(synthetic.boxes.length,14,'fixed-frame row must split into 14 tiles '+JSON.stringify(synthetic));
     assert(synthetic.row.w>560&&synthetic.row.h>80,'unexpected row geometry '+JSON.stringify(synthetic));
+    if(synthetic.grid?.used){
+      assert(Math.abs(synthetic.grid.offsetPitch||0)<.08&&Math.abs((synthetic.grid.pitchScale||1)-1)<.025,
+        'v61 global grid chased repeated glyph edges instead of row geometry '+JSON.stringify(synthetic.grid));
+    }
     assert(synthetic.mapping&&synthetic.mapping.w>1500&&synthetic.mapping.h>300,
       'object-fit cover mapping lost high-resolution source area '+JSON.stringify(synthetic));
 
