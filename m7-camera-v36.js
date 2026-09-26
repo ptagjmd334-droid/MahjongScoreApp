@@ -540,8 +540,13 @@
     };
     const top=norm180(angle(quad[0],quad[1]));
     const bottom=norm180(angle(quad[3],quad[2]));
-    const left=norm180(angle(quad[0],quad[3]))-90;
-    const right=norm180(angle(quad[1],quad[2]))-90;
+    const verticalDeviation=(a,b)=>{
+      let d=angle(a,b)*180/Math.PI;
+      while(d>180)d-=360;while(d<-180)d+=360;
+      return Math.abs(Math.abs(d)-90);
+    };
+    const left=verticalDeviation(quad[0],quad[3]);
+    const right=verticalDeviation(quad[1],quad[2]);
     const dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
     const wt=dist(quad[0],quad[1]),wb=dist(quad[3],quad[2]);
     const hl=dist(quad[0],quad[3]),hr=dist(quad[1],quad[2]);
@@ -550,7 +555,7 @@
     // Accuracy-first: a physical hand row should not have each tile independently
     // rotated by a large amount. Reject unstable quads instead of forcing a warp.
     return Math.abs(top)<=8&&Math.abs(bottom)<=8&&
-      Math.abs(top-bottom)<=5&&Math.abs(left)<=8&&Math.abs(right)<=8&&
+      Math.abs(top-bottom)<=5&&left<=8&&right<=8&&
       wr<=1.22&&hrRatio<=1.22;
   }
 
