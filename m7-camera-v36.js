@@ -703,6 +703,7 @@
   }
 
   const trainingReadyPromise=rebuildLibraryFromTrainingImages().catch(()=>loadLibrary());
+  const diagnosticReadyPromise=trainingReadyPromise.then(()=>buildInnerDiagnosticLibrary()).catch(()=>({}));
 
   function cropDataUrl(ctx,b){
     return perspectiveFaceCanvas(ctx,b,96,144).toDataURL('image/jpeg',.90);
@@ -1052,7 +1053,10 @@
     state.diagnosticDebug=diagnosticRanked.map(ranked=>ranked.slice(0,3).map(x=>({
       label:x.label,distance:Number.isFinite(x.distance)?Number(x.distance.toFixed(4)):null
     })));
-    if(window.M7V36LastDiagnostics)window.M7V36LastDiagnostics.predictions=(state.predictionDebug||[]).map(x=>x.slice());
+    if(window.M7V36LastDiagnostics){
+      window.M7V36LastDiagnostics.predictions=(state.predictionDebug||[]).map(x=>x.slice());
+      window.M7V36LastDiagnostics.innerPredictions=(state.diagnosticDebug||[]).map(x=>x.slice());
+    }
     setTimeout(()=>{
       window.showHandResultM7V5?.(predicted.slice(0,14));
       const root=document.getElementById('hand-result-overlay-m7v5');if(!root)return;
@@ -1114,7 +1118,7 @@
       }
       state.captured=true;
       await trainingReadyPromise;
-      const diagnosticLibrary=await buildInnerDiagnosticLibrary();
+      const diagnosticLibrary=await diagnosticReadyPromise;
       const analysis=analyzeGuideCanvas(capture.canvas);
       analysis.diagnosticLibrary=diagnosticLibrary;
       state.diagnostics={
