@@ -34,7 +34,7 @@ const server=http.createServer((req,res)=>{
     const errors=[];page.on('pageerror',e=>errors.push(String(e)));
     await page.goto('http://127.0.0.1:'+port+'/',{waitUntil:'domcontentloaded',timeout:30000});
     await page.waitForSelector('#go-confirm-button',{timeout:12000});
-    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'M7 v65');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'M7 v66');
     // v36 analyzes one long row after the shutter instead of requiring 14 live connected components.
     const synthetic=await page.evaluate(()=>{
       const canvas=document.createElement('canvas');canvas.width=840;canvas.height=260;
@@ -393,9 +393,27 @@ const server=http.createServer((req,res)=>{
       const views=window.M7CameraV36.inferenceFeatureViews(c);
       return views.map(v=>({kind:v.kind,width:v.width,height:v.height,n:v.gray.length}));
     });
-    assert.equal(inferenceViews.length,5,'v65 must create five nearby inference crops '+JSON.stringify(inferenceViews));
+    assert.equal(inferenceViews.length,5,'v66 keeps five nearby inference crops '+JSON.stringify(inferenceViews));
     assert(inferenceViews.every(v=>v.kind==='perspective-direct-v1'&&v.width===24&&v.height===36&&v.n===864),
-      'v65 inference crops changed feature schema '+JSON.stringify(inferenceViews));
+      'v66 inference crops changed feature schema '+JSON.stringify(inferenceViews));
+    const fastVote=await page.evaluate(()=>{
+      const core=window.M7RecognitionCoreV33;
+      const base=[
+        {label:'5筒',distance:.100,family:'筒'},
+        {label:'8筒',distance:.103,family:'筒'},
+        {label:'7筒',distance:.130,family:'筒'}
+      ];
+      const aux=[
+        [{label:'8筒',distance:.05,family:'筒'},{label:'5筒',distance:.08,family:'筒'}],
+        [{label:'8筒',distance:.06,family:'筒'},{label:'5筒',distance:.09,family:'筒'}],
+        [{label:'8筒',distance:.07,family:'筒'},{label:'5筒',distance:.08,family:'筒'}],
+        [{label:'5筒',distance:.06,family:'筒'},{label:'8筒',distance:.07,family:'筒'}]
+      ];
+      const ranked=core.applyViewVoteConsensus(base,aux,{candidateLimit:3,votePenalty:.006});
+      return {top:ranked[0]?.label,votes:ranked[0]?.viewTopVotes,count:ranked[0]?.viewCount,base:ranked[0]?.baseDistance};
+    });
+    assert.equal(fastVote.top,'8筒','v66 auxiliary majority did not break a close race '+JSON.stringify(fastVote));
+    assert.equal(fastVote.count,5,'v66 lost five-view vote count '+JSON.stringify(fastVote));
 
     const confidence=await page.evaluate(()=>{
       const api=window.M7CameraV36;
@@ -428,8 +446,8 @@ const server=http.createServer((req,res)=>{
     assert.equal(confidence.rawFarReason,'template-consensus','v63 must reject weak multi-template consensus '+JSON.stringify(confidence));
     assert.equal(confidence.supported,'A','v63 repeated nearby templates should support a real representative even when the representative alone is farther '+JSON.stringify(confidence));
     assert.equal(confidence.supportedReason,'accepted','v64 supported candidate should pass confidence '+JSON.stringify(confidence));
-    assert.equal(confidence.viewDisagree,'','v65 must not auto-confirm when fewer than half of nearby crops agree '+JSON.stringify(confidence));
-    assert.equal(confidence.viewDisagreeReason,'view-disagreement','v65 must explain crop-view disagreement '+JSON.stringify(confidence));
+    assert.equal(confidence.viewDisagree,'','v66 must not auto-confirm when fewer than half of nearby crops agree '+JSON.stringify(confidence));
+    assert.equal(confidence.viewDisagreeReason,'view-disagreement','v66 must explain crop-view disagreement '+JSON.stringify(confidence));
     assert(shutter.diag?.rowFound,'v36 diagnostics did not record the located row '+JSON.stringify(shutter));
     assert.equal(shutter.diag?.gridUsed,false,'v62 must not apply the v61 global-grid candidate to production crops '+JSON.stringify(shutter.diag));
     const innerApi=await page.evaluate(()=>{
