@@ -34,7 +34,7 @@ const server=http.createServer((req,res)=>{
     const errors=[];page.on('pageerror',e=>errors.push(String(e)));
     await page.goto('http://127.0.0.1:'+port+'/',{waitUntil:'domcontentloaded',timeout:30000});
     await page.waitForSelector('#go-confirm-button',{timeout:12000});
-    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'M7 v62');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'M7 v63');
     // v36 analyzes one long row after the shutter instead of requiring 14 live connected components.
     const synthetic=await page.evaluate(()=>{
       const canvas=document.createElement('canvas');canvas.width=840;canvas.height=260;
@@ -376,20 +376,28 @@ const server=http.createServer((req,res)=>{
       const clear=api.confidentCandidate([{label:'A',distance:.11},{label:'B',distance:.24}]);
       const ambiguousAssessment=api.confidenceAssessment([{label:'A',distance:.09,family:'萬'},{label:'B',distance:.10,family:'萬'}]);
       const ambiguous=ambiguousAssessment.candidate;
-      const farAssessment=api.confidenceAssessment([{label:'A',distance:.25,bestDistance:.08},{label:'B',distance:.40,bestDistance:.09}]);
+      const farAssessment=api.confidenceAssessment([{label:'A',distance:.25,representativeDistance:.25,templateConsensusDistance:.09,bestDistance:.08,sampleCount:1},{label:'B',distance:.40,bestDistance:.09}]);
       const far=farAssessment.candidate;
-      const rawFarAssessment=api.confidenceAssessment([{label:'A',distance:.10,bestDistance:.14},{label:'B',distance:.24,bestDistance:.15}]);
+      const rawFarAssessment=api.confidenceAssessment([{label:'A',distance:.10,representativeDistance:.10,templateConsensusDistance:.14,bestDistance:.08,sampleCount:3},{label:'B',distance:.24,bestDistance:.15}]);
       const rawFar=rawFarAssessment.candidate;
+      const supportedAssessment=api.confidenceAssessment([
+        {label:'A',distance:.11,representativeDistance:.17,templateConsensusDistance:.09,bestDistance:.08,sampleCount:3,family:'萬',sameFamilyGap:.08,sameFamilyRatio:.55},
+        {label:'B',distance:.24,representativeDistance:.24,templateConsensusDistance:.20,bestDistance:.18,sampleCount:3,family:'萬'}
+      ]);
       return {clear:clear?.label||'',ambiguous:ambiguous?.label||'',far:far?.label||'',rawFar:rawFar?.label||'',
-        ambiguousReason:ambiguousAssessment.reason,farReason:farAssessment.reason,rawFarReason:rawFarAssessment.reason};
+        supported:supportedAssessment.candidate?.label||'',
+        ambiguousReason:ambiguousAssessment.reason,farReason:farAssessment.reason,rawFarReason:rawFarAssessment.reason,
+        supportedReason:supportedAssessment.reason};
     });
     assert.equal(confidence.clear,'A','clear candidate should be accepted '+JSON.stringify(confidence));
     assert.equal(confidence.ambiguous,'','ambiguous candidate must be withheld '+JSON.stringify(confidence));
-    assert.equal(confidence.ambiguousReason,'same-family-margin','v62 must explain same-family ambiguity '+JSON.stringify(confidence));
+    assert.equal(confidence.ambiguousReason,'same-family-margin','v63 must explain same-family ambiguity '+JSON.stringify(confidence));
     assert.equal(confidence.far,'','far candidate must be withheld '+JSON.stringify(confidence));
-    assert.equal(confidence.farReason,'prototype-distance','v62 must separate prototype-distance rejection '+JSON.stringify(confidence));
+    assert.equal(confidence.farReason,'representative-distance','v63 must reject a far representative without multi-template support '+JSON.stringify(confidence));
     assert.equal(confidence.rawFar,'','nearest-template distance must also be able to reject '+JSON.stringify(confidence));
-    assert.equal(confidence.rawFarReason,'template-distance','v62 must separate nearest-template rejection '+JSON.stringify(confidence));
+    assert.equal(confidence.rawFarReason,'template-consensus','v63 must reject weak multi-template consensus '+JSON.stringify(confidence));
+    assert.equal(confidence.supported,'A','v63 repeated nearby templates should support a real representative even when the representative alone is farther '+JSON.stringify(confidence));
+    assert.equal(confidence.supportedReason,'accepted','v63 supported candidate should pass confidence '+JSON.stringify(confidence));
     assert(shutter.diag?.rowFound,'v36 diagnostics did not record the located row '+JSON.stringify(shutter));
     assert.equal(shutter.diag?.gridUsed,false,'v62 must not apply the v61 global-grid candidate to production crops '+JSON.stringify(shutter.diag));
     const innerApi=await page.evaluate(()=>{
