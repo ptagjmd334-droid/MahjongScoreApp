@@ -21,7 +21,7 @@
   const FEATURE_KIND='perspective-direct-v1';
   const MAX_TEMPLATES=5;
   const MAX_IMAGES_PER_LABEL=10;
-  const state={overlay:null,captured:false,pendingFeatures:[],pendingCrops:[],pendingTrainingImages:[],diagnostics:null,predictionDebug:[],learnedLabelCount:0,librarySource:''};
+  const state={overlay:null,captured:false,pendingFeatures:[],pendingCrops:[],pendingTrainingImages:[],diagnostics:null,predictionDebug:[],diagnosticDebug:[],learnedLabelCount:0,diagnosticLibraryLabels:0,librarySource:''};
 
   const style=document.createElement('style');
   style.textContent=`
@@ -68,13 +68,13 @@
       font-size:12px;font-weight:900;line-height:1;color:#b43;background:rgba(255,255,255,.86);
       border-radius:999px;padding:3px 5px
     }
-    #hand-result-overlay-m7v5 .m7v45-top1{
+    #hand-result-overlay-m7v5 .m7v52-compare{
       position:absolute;left:2px;right:2px;bottom:2px;z-index:2;
-      padding:2px 1px;border-radius:4px;background:rgba(0,0,0,.68);color:#fff;
-      font-size:9px;line-height:1.15;font-weight:800;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+      padding:2px 1px;border-radius:4px;background:rgba(0,0,0,.72);color:#fff;
+      font-size:8.5px;line-height:1.15;font-weight:800;text-align:center;white-space:pre-line;
       pointer-events:none
     }
-    #hand-result-overlay-m7v5 .hand-result-tile-m7v5[data-tile] .m7v45-top1{display:none!important}
+    #hand-result-overlay-m7v5 .hand-result-tile-m7v5[data-tile] .m7v52-compare{display:none!important}
     #hand-result-overlay-m7v5 .m7v36-photo{
       width:100%;height:70px;max-height:23%;object-fit:contain;background:#272727;border-radius:8px;flex:none
     }
@@ -589,11 +589,64 @@
   }
 
 
+
+  function innerDiagnosticCanvas(source,width=96,height=144,trimX=.12,trimY=.08){
+    const out=document.createElement('canvas');out.width=width;out.height=height;
+    const o=out.getContext('2d',{willReadFrequently:true});
+    o.fillStyle='#f4f1e8';o.fillRect(0,0,width,height);
+    const sx=Math.max(0,Math.round(source.width*trimX));
+    const sy=Math.max(0,Math.round(source.height*trimY));
+    const sw=Math.max(1,source.width-sx*2),sh=Math.max(1,source.height-sy*2);
+    o.drawImage(source,sx,sy,sw,sh,0,0,width,height);
+    return out;
+  }
+
+  function diagnosticFeatureFromCanonical(source){
+    return descriptorFromCanvas(innerDiagnosticCanvas(source,96,144));
+  }
+
+  function diagnosticFeatureFromDataUrl(url){
+    return new Promise(resolve=>{
+      const img=new Image();
+      img.onload=()=>{
+        const c=document.createElement('canvas');c.width=96;c.height=144;
+        const x=c.getContext('2d',{willReadFrequently:true});x.fillStyle='#f4f1e8';x.fillRect(0,0,c.width,c.height);
+        x.drawImage(img,0,0,c.width,c.height);
+        const canonical=perspectiveFaceCanvas(x,{x:0,y:0,w:c.width,h:c.height},96,144);
+        resolve(diagnosticFeatureFromCanonical(canonical));
+      };
+      img.onerror=()=>resolve(null);
+      img.src=url;
+    });
+  }
+
+  async function buildInnerDiagnosticLibrary(){
+    const rows=(await loadTrainingSamples()).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+    const lib={};
+    for(const row of rows){
+      if(!row?.label||!row?.imageDataUrl)continue;
+      const feature=await diagnosticFeatureFromDataUrl(row.imageDataUrl);
+      if(!feature)continue;
+      const list=Array.isArray(lib[row.label])?lib[row.label]:[];
+      if(!list.some(t=>core.featureDistance(feature,t)<.012)){
+        list.push(feature);lib[row.label]=list.slice(0,MAX_TEMPLATES);
+      }
+    }
+    state.diagnosticLibraryLabels=Object.keys(lib).filter(label=>Array.isArray(lib[label])&&lib[label].length).length;
+    return lib;
+  }
+
+  function rankDiagnosticFeature(feature,lib){
+    if(!feature||!lib||typeof lib!=='object')return [];
+    return core.rankLabelsFamilyDiscriminative(feature,lib,{blend:.84,priorWeight:.26,maxPenalty:.016});
+  }
+
   function analyzeTileBox(ctx,b){
     const canonical=perspectiveFaceCanvas(ctx,b,96,144);
     const imageDataUrl=canonical.toDataURL('image/jpeg',.90);
     return {
       feature:descriptorFromCanvas(canonical),
+      diagnosticFeature:diagnosticFeatureFromCanonical(canonical),
       crop:imageDataUrl,
       trainingImage:imageDataUrl,
       perspectiveUsed:canonical.__m7v46Perspective===true
@@ -950,7 +1003,7 @@
     const lowCtx=low.getContext('2d',{willReadFrequently:true});
     lowCtx.drawImage(highCanvas,0,0,low.width,low.height);
     const lowRow=locateTileRow(lowCtx);
-    if(!lowRow)return {row:null,boxes:[],features:[],crops:[],trainingImages:[],perspectiveCount:0,photo:highCanvas.toDataURL('image/jpeg',.80)};
+    if(!lowRow)return {row:null,boxes:[],features:[],diagnosticFeatures:[],crops:[],trainingImages:[],perspectiveCount:0,photo:highCanvas.toDataURL('image/jpeg',.80)};
     const sx=highCanvas.width/low.width,sy=highCanvas.height/low.height;
     const row={x:lowRow.x*sx,y:lowRow.y*sy,w:lowRow.w*sx,h:lowRow.h*sy};
     const boxes=splitRow(row,14);
@@ -958,6 +1011,7 @@
     return {
       row,boxes,
       features:tileData.map(x=>x.feature),
+      diagnosticFeatures:tileData.map(x=>x.diagnosticFeature),
       crops:tileData.map(x=>x.crop),
       trainingImages:tileData.map(x=>x.trainingImage),
       perspectiveCount:tileData.filter(x=>x.perspectiveUsed).length,
@@ -984,13 +1038,20 @@
   }
 
   function showResult(analysis){
-    const features=analysis.features||[],crops=analysis.crops||[],trainingImages=analysis.trainingImages||[];
+    const features=analysis.features||[],diagnosticFeatures=analysis.diagnosticFeatures||[],crops=analysis.crops||[],trainingImages=analysis.trainingImages||[];
+    const diagnosticLibrary=analysis.diagnosticLibrary||{};
     state.pendingFeatures=features.slice(0,14);
     state.pendingCrops=crops.slice(0,14);
     state.pendingTrainingImages=trainingImages.slice(0,14);
     window.M7V36PendingFeatures=state.pendingFeatures;
     const predicted=features.length===14?predict(features):[];
     while(predicted.length<14)predicted.push('');
+    const diagnosticRanked=diagnosticFeatures.length===14
+      ?diagnosticFeatures.map(feature=>rankDiagnosticFeature(feature,diagnosticLibrary))
+      :[];
+    state.diagnosticDebug=diagnosticRanked.map(ranked=>ranked.slice(0,3).map(x=>({
+      label:x.label,distance:Number.isFinite(x.distance)?Number(x.distance.toFixed(4)):null
+    })));
     if(window.M7V36LastDiagnostics)window.M7V36LastDiagnostics.predictions=(state.predictionDebug||[]).map(x=>x.slice());
     setTimeout(()=>{
       window.showHandResultM7V5?.(predicted.slice(0,14));
@@ -1000,9 +1061,12 @@
         const url=state.pendingCrops[i];
         if(url){b.classList.add('m7v36-crop');b.style.backgroundImage=`url("${url}")`;b.dataset.m7v36Index=String(i);}
         const suggestions=(state.predictionDebug?.[i]||[]).map(x=>x.label).filter(Boolean);
-        if(suggestions.length){
-          b.dataset.m7v39Suggestions=JSON.stringify(suggestions.slice(0,3));
-          const badge=document.createElement('span');badge.className='m7v45-top1';badge.textContent=`1位 ${suggestions[0]}`;b.appendChild(badge);
+        const innerSuggestions=(state.diagnosticDebug?.[i]||[]).map(x=>x.label).filter(Boolean);
+        if(suggestions.length)b.dataset.m7v39Suggestions=JSON.stringify(suggestions.slice(0,3));
+        if(suggestions.length||innerSuggestions.length){
+          const badge=document.createElement('span');badge.className='m7v52-compare';
+          badge.textContent=`通常 ${suggestions[0]||'—'}\n内側 ${innerSuggestions[0]||'—'}`;
+          b.appendChild(badge);
         }
       });
       const auto=predicted.filter(Boolean).length;
@@ -1011,12 +1075,12 @@
       const note=root.querySelector('.hand-result-note-m7v5');
       if(note)note.textContent=features.length===14
         ?(firstCalibration
-          ?'保存済みの牌画像がないため、M7 v51の初回学習が必要です。14枚を正しく指定してください。確定後は牌画像も端末内に保存します。'
-          :`白枠内の手牌列を14枚に分割しました。全牌種を候補に残しつつ、同じファミリー内で牌種ごとの差が大きい部分を自動で強調して比較します。高信頼候補 ${auto}枚。`)
+          ?'保存済みの牌画像がないため、M7 v52の初回学習が必要です。14枚を正しく指定してください。確定後は牌画像も端末内に保存します。'
+          :`診断版です。同じ1枚から「通常crop」と外周を除いた「内側crop」を作り、同じ認識器でTop1を比較します。内側cropは学習には保存しません。高信頼候補 ${auto}枚。`)
         :'白枠内から牌列を特定できませんでした。撮影画像を確認し、14枠を手動入力するか「読み取り直す」で再撮影してください。';
       const status=root.querySelector('.hand-result-status-m7v5');
       if(status&&auto<14)status.textContent=features.length===14
-        ?(firstCalibration?'初回学習：14枚を指定してください':`学習済み ${learnedLabels}種類${state.librarySource?` / 元:${state.librarySource}`:''} / 差分強調 / 射影 ${analysis.perspectiveCount||0}/14 / 高信頼 ${auto}枚`)
+        ?(firstCalibration?'初回学習：14枚を指定してください':`学習済み ${learnedLabels}種類${state.librarySource?` / 元:${state.librarySource}`:''} / 診断内側 ${state.diagnosticLibraryLabels}種類 / 射影 ${analysis.perspectiveCount||0}/14 / 高信頼 ${auto}枚`)
         :'手動入力：0 / 14枚';
       if(features.length!==14&&analysis.photo){
         const img=document.createElement('img');img.className='m7v36-photo';img.alt='白枠内を撮影した画像';img.src=analysis.photo;
@@ -1050,7 +1114,9 @@
       }
       state.captured=true;
       await trainingReadyPromise;
+      const diagnosticLibrary=await buildInnerDiagnosticLibrary();
       const analysis=analyzeGuideCanvas(capture.canvas);
+      analysis.diagnosticLibrary=diagnosticLibrary;
       state.diagnostics={
         sourceWidth:Math.round(capture.source.w),sourceHeight:Math.round(capture.source.h),
         rowFound:!!analysis.row,row:analysis.row?{...analysis.row}:null
@@ -1116,6 +1182,6 @@
   },true);
 
   window.M7CameraV36=Object.freeze({
-    sourceRectForCover,locateTileRow,splitRow,splitRowBySeams,analyzeGuideCanvas,featureFromBox,tileFaceRect,descriptorFromCanvas,detectFaceGeometry,detectFaceQuad,canonicalizeCanvas,orientedFaceCanvas,perspectiveFaceCanvas,warpQuadToCanvas,trainingImageDataUrl,analyzeTileBox,loadTrainingSamples,rebuildLibraryFromTrainingImages,loadLibrary,loadLegacyLibrary,convertLegacyDirectFeature,confidentCandidate,renderPickerSuggestions,pickerCurrentIndex,schedulePickerSuggestionSync,attachPickerSuggestionObserver
+    sourceRectForCover,locateTileRow,splitRow,splitRowBySeams,analyzeGuideCanvas,featureFromBox,tileFaceRect,descriptorFromCanvas,detectFaceGeometry,detectFaceQuad,canonicalizeCanvas,orientedFaceCanvas,perspectiveFaceCanvas,warpQuadToCanvas,trainingImageDataUrl,innerDiagnosticCanvas,diagnosticFeatureFromCanonical,diagnosticFeatureFromDataUrl,buildInnerDiagnosticLibrary,rankDiagnosticFeature,analyzeTileBox,loadTrainingSamples,rebuildLibraryFromTrainingImages,loadLibrary,loadLegacyLibrary,convertLegacyDirectFeature,confidentCandidate,renderPickerSuggestions,pickerCurrentIndex,schedulePickerSuggestionSync,attachPickerSuggestionObserver
   });
 })();
