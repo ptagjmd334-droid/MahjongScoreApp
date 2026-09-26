@@ -199,6 +199,57 @@
     return out.sort((a,b)=>a.distance-b.distance);
   }
 
+
+  function tileFamily(label){
+    const s=String(label||'').replace(/\s+/g,'');
+    if(s.includes('萬'))return '萬';
+    if(s.includes('筒'))return '筒';
+    if(s.includes('索'))return '索';
+    if(['東','南','西','北','白','發','発','中'].includes(s))return '字';
+    return '';
+  }
+
+  function buildFamilyLibrary(library){
+    const out={};
+    if(!library||typeof library!=='object')return out;
+    for(const [label,templates] of Object.entries(library)){
+      const family=tileFamily(label);
+      if(!family||!Array.isArray(templates)||!templates.length)continue;
+      const labelPrototype=prototypeFeature(templates);
+      if(!labelPrototype)continue;
+      (out[family]||(out[family]=[])).push(labelPrototype);
+    }
+    return out;
+  }
+
+  function rankFamiliesBalanced(feature,library){
+    return rankLabelsBalanced(feature,buildFamilyLibrary(library)).map(x=>({...x,family:x.label}));
+  }
+
+  function rankLabelsHierarchical(feature,library){
+    if(!feature||!library||typeof library!=='object')return [];
+    const families=rankFamiliesBalanced(feature,library);
+    if(!families.length)return rankLabelsBalanced(feature,library);
+    const chosen=families[0],runner=families[1];
+    const filtered={};
+    for(const [label,templates] of Object.entries(library)){
+      if(tileFamily(label)===chosen.label)filtered[label]=templates;
+    }
+    const labels=rankLabelsBalanced(feature,filtered);
+    const familyGap=runner&&Number.isFinite(runner.distance)?runner.distance-chosen.distance:Infinity;
+    const familyRatio=runner&&runner.distance>0?chosen.distance/runner.distance:0;
+    return labels.map(x=>({
+      ...x,
+      family:chosen.label,
+      familyDistance:chosen.distance,
+      familyBestDistance:Number.isFinite(chosen.bestDistance)?chosen.bestDistance:chosen.distance,
+      familyRunnerUpDistance:runner?.distance??Infinity,
+      familyGap,
+      familyRatio,
+      familyRanked:families.slice(0,4).map(f=>({family:f.label,distance:f.distance}))
+    }));
+  }
+
   function rankLabels(feature,library){
     const out=[];
     if(!feature||!library||typeof library!=='object')return out;
@@ -230,7 +281,7 @@
     }
     return shift/current.length<=maxShift;
   }
-  const api=Object.freeze({rmsDistance,shiftedRmsDistance,shiftedGroupedRmsDistance,structuredFeatureDistance,directImageDistance,featureDistance,prototypeFeature,rankLabels,rankLabelsRobust,rankLabelsBalanced,classify,stableEnough});
+  const api=Object.freeze({rmsDistance,shiftedRmsDistance,shiftedGroupedRmsDistance,structuredFeatureDistance,directImageDistance,featureDistance,prototypeFeature,rankLabels,rankLabelsRobust,rankLabelsBalanced,tileFamily,buildFamilyLibrary,rankFamiliesBalanced,rankLabelsHierarchical,classify,stableEnough});
   root.M7RecognitionCoreV33=api;
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })(typeof window!=='undefined'?window:globalThis);
