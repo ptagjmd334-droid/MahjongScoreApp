@@ -915,7 +915,11 @@
     }
 
     const bestRaw=Number.isFinite(best.bestDistance)?best.bestDistance:best.distance;
-    if(best.distance>.150||bestRaw>.125)return {candidate:null,reason:'absolute-distance'};
+    // v62 keeps thresholds unchanged but separates which evidence failed.
+    // This tells us whether class/prototype alignment or even the nearest learned
+    // example is the current bottleneck before changing recognition thresholds.
+    if(best.distance>.150)return {candidate:null,reason:'prototype-distance'};
+    if(bestRaw>.125)return {candidate:null,reason:'template-distance'};
 
     const spread=Math.max(0,Number.isFinite(best.templateSpread)?best.templateSpread:0);
     const sameFamily=ranked.find(x=>x.label!==best.label&&x.family===best.family&&Number.isFinite(x.distance));
@@ -956,7 +960,8 @@
       counts[reason]=(counts[reason]||0)+1;
     }
     const labels={
-      'absolute-distance':'距離',
+      'prototype-distance':'原型距離',
+      'template-distance':'実例距離',
       'same-family-margin':'同系差',
       'global-margin':'全体差',
       'family-conflict':'family競合',
@@ -1357,13 +1362,13 @@
     lowCtx.drawImage(highCanvas,0,0,low.width,low.height);
     const lowRow=locateTileRow(lowCtx);
     if(!lowRow)return {row:null,boxes:[],features:[],crops:[],trainingImages:[],perspectiveCount:0,gridUsed:false,gridFit:null,photo:highCanvas.toDataURL('image/jpeg',.80)};
-    // v61: keep equal-width tiles, but refine the row with one global periodic
-    // phase/pitch fit. Unlike the old per-seam v37 approach, no individual
-    // boundary is allowed to chase a glyph edge.
+    // v62: v61 real-device A/B showed the global periodic correction can lock
+    // onto repeated glyph structure and make crops much worse. Keep measuring the
+    // candidate fit for diagnostics, but production crops return to the verified
+    // equal split of the detected row until a safer alignment method is proven.
     const gridFit=fitGlobalRowGrid(lowCtx,lowRow,14);
-    const fittedLowRow=gridFit.used?gridFit.row:lowRow;
     const sx=highCanvas.width/low.width,sy=highCanvas.height/low.height;
-    const row={x:fittedLowRow.x*sx,y:fittedLowRow.y*sy,w:fittedLowRow.w*sx,h:fittedLowRow.h*sy};
+    const row={x:lowRow.x*sx,y:lowRow.y*sy,w:lowRow.w*sx,h:lowRow.h*sy};
     const boxes=splitRow(row,14);
     const tileData=boxes.map(b=>analyzeTileBox(highCtx,b));
     return {
@@ -1372,7 +1377,8 @@
       crops:tileData.map(x=>x.crop),
       trainingImages:tileData.map(x=>x.trainingImage),
       perspectiveCount:tileData.filter(x=>x.perspectiveUsed).length,
-      gridUsed:gridFit.used===true,
+      gridUsed:false,
+      gridCandidate:gridFit.used===true,
       gridFit:{
         reason:gridFit.reason||'',
         gain:Number.isFinite(gridFit.gain)?Number(gridFit.gain.toFixed(4)):null,
@@ -1431,11 +1437,11 @@
       if(note)note.textContent=features.length===14
         ?(firstCalibration
           ?'この保存領域には学習データがありません。今回だけ14枚を正しく指定してください。「この手牌で進む」を押した時に保存完了を確認してから次へ進みます。'
-          :`精度優先版です。14枚の境界は個別シームではなく列全体の周期だけで補正します。内側cropと強い台形拒否も維持します。高信頼候補 ${auto}枚。保留理由: ${confidenceReasonSummary()}。`)
+          :`精度優先版です。v61の全体格子補正は実機で悪化したため認識には使わず、安定していた牌列14等分へ戻しています。内側cropと強い台形拒否は維持します。高信頼候補 ${auto}枚。保留理由: ${confidenceReasonSummary()}。`)
         :'白枠内から牌列を特定できませんでした。撮影画像を確認し、14枠を手動入力するか「読み取り直す」で再撮影してください。';
       const status=root.querySelector('.hand-result-status-m7v5');
       if(status&&auto<14)status.textContent=features.length===14
-        ?(firstCalibration?'初回学習：14枚を指定してください':`学習済み ${learnedLabels}種類${state.librarySource?` / 元:${state.librarySource}`:''} / 安定保存 / 精度優先${analysis.gridUsed?' / 全体格子補正':''} / 射影採用 ${analysis.perspectiveCount||0}/14 / 高信頼 ${auto}枚`)
+        ?(firstCalibration?'初回学習：14枚を指定してください':`学習済み ${learnedLabels}種類${state.librarySource?` / 元:${state.librarySource}`:''} / 安定保存 / 精度優先 / 射影採用 ${analysis.perspectiveCount||0}/14 / 高信頼 ${auto}枚`)
         :'手動入力：0 / 14枚';
       if(features.length!==14&&analysis.photo){
         const img=document.createElement('img');img.className='m7v36-photo';img.alt='白枠内を撮影した画像';img.src=analysis.photo;
@@ -1473,7 +1479,7 @@
       state.diagnostics={
         sourceWidth:Math.round(capture.source.w),sourceHeight:Math.round(capture.source.h),
         rowFound:!!analysis.row,row:analysis.row?{...analysis.row}:null,
-        gridUsed:analysis.gridUsed===true,gridFit:analysis.gridFit||null
+        gridUsed:false,gridCandidate:analysis.gridCandidate===true,gridFit:analysis.gridFit||null
       };
       window.M7V36LastDiagnostics=state.diagnostics;
       // Existing cancel owns the MediaStream and removes the camera overlay.

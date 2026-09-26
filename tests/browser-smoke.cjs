@@ -34,7 +34,7 @@ const server=http.createServer((req,res)=>{
     const errors=[];page.on('pageerror',e=>errors.push(String(e)));
     await page.goto('http://127.0.0.1:'+port+'/',{waitUntil:'domcontentloaded',timeout:30000});
     await page.waitForSelector('#go-confirm-button',{timeout:12000});
-    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'M7 v61');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'M7 v62');
     // v36 analyzes one long row after the shutter instead of requiring 14 live connected components.
     const synthetic=await page.evaluate(()=>{
       const canvas=document.createElement('canvas');canvas.width=840;canvas.height=260;
@@ -301,7 +301,8 @@ const server=http.createServer((req,res)=>{
               tileCount:grid?.querySelectorAll('button').length||0,
               gridOverflowY:grid?getComputedStyle(grid).overflowY:'',
               gridClientHeight:grid?.clientHeight||0,gridScrollHeight:grid?.scrollHeight||0,
-              gridBottom:gr?.bottom??999
+              gridBottom:gr?.bottom??999,
+              tileNames:[...grid.querySelectorAll('button')].map(b=>b.textContent.trim())
             };
           }
           const normalChoice=picker?.querySelector('.tile-picker-grid-m7v5 button');
@@ -361,22 +362,36 @@ const server=http.createServer((req,res)=>{
     assert.equal(shutter.pickerLayout.gridOverflowY,'hidden','v60 tile list must not require inner scrolling '+JSON.stringify(shutter.pickerLayout));
     assert(shutter.pickerLayout.gridScrollHeight<=shutter.pickerLayout.gridClientHeight+1,
       'v60 tile grid still scrolls in iPhone-sized landscape viewport '+JSON.stringify(shutter.pickerLayout));
+    assert.deepEqual(shutter.pickerLayout.tileNames.slice(0,12),
+      ['1萬','2萬','3萬','4萬','5萬','6萬','7萬','8萬','9萬','東','南','西'],
+      'v62 first row must keep manzu positions and group honors on right '+JSON.stringify(shutter.pickerLayout.tileNames));
+    assert.deepEqual(shutter.pickerLayout.tileNames.slice(12,24),
+      ['1筒','2筒','3筒','4筒','5筒','6筒','7筒','8筒','9筒','北','白','發'],
+      'v62 pinzu must sit directly below manzu '+JSON.stringify(shutter.pickerLayout.tileNames));
+    assert.deepEqual(shutter.pickerLayout.tileNames.slice(24,34),
+      ['1索','2索','3索','4索','5索','6索','7索','8索','9索','中'],
+      'v62 souzu must sit directly below pinzu '+JSON.stringify(shutter.pickerLayout.tileNames));
     const confidence=await page.evaluate(()=>{
       const api=window.M7CameraV36;
       const clear=api.confidentCandidate([{label:'A',distance:.11},{label:'B',distance:.24}]);
       const ambiguousAssessment=api.confidenceAssessment([{label:'A',distance:.09,family:'萬'},{label:'B',distance:.10,family:'萬'}]);
       const ambiguous=ambiguousAssessment.candidate;
-      const farAssessment=api.confidenceAssessment([{label:'A',distance:.25},{label:'B',distance:.40}]);
+      const farAssessment=api.confidenceAssessment([{label:'A',distance:.25,bestDistance:.08},{label:'B',distance:.40,bestDistance:.09}]);
       const far=farAssessment.candidate;
-      return {clear:clear?.label||'',ambiguous:ambiguous?.label||'',far:far?.label||'',
-        ambiguousReason:ambiguousAssessment.reason,farReason:farAssessment.reason};
+      const rawFarAssessment=api.confidenceAssessment([{label:'A',distance:.10,bestDistance:.14},{label:'B',distance:.24,bestDistance:.15}]);
+      const rawFar=rawFarAssessment.candidate;
+      return {clear:clear?.label||'',ambiguous:ambiguous?.label||'',far:far?.label||'',rawFar:rawFar?.label||'',
+        ambiguousReason:ambiguousAssessment.reason,farReason:farAssessment.reason,rawFarReason:rawFarAssessment.reason};
     });
     assert.equal(confidence.clear,'A','clear candidate should be accepted '+JSON.stringify(confidence));
     assert.equal(confidence.ambiguous,'','ambiguous candidate must be withheld '+JSON.stringify(confidence));
-    assert.equal(confidence.ambiguousReason,'same-family-margin','v61 must explain same-family ambiguity '+JSON.stringify(confidence));
+    assert.equal(confidence.ambiguousReason,'same-family-margin','v62 must explain same-family ambiguity '+JSON.stringify(confidence));
     assert.equal(confidence.far,'','far candidate must be withheld '+JSON.stringify(confidence));
-    assert.equal(confidence.farReason,'absolute-distance','v61 must explain absolute-distance rejection '+JSON.stringify(confidence));
+    assert.equal(confidence.farReason,'prototype-distance','v62 must separate prototype-distance rejection '+JSON.stringify(confidence));
+    assert.equal(confidence.rawFar,'','nearest-template distance must also be able to reject '+JSON.stringify(confidence));
+    assert.equal(confidence.rawFarReason,'template-distance','v62 must separate nearest-template rejection '+JSON.stringify(confidence));
     assert(shutter.diag?.rowFound,'v36 diagnostics did not record the located row '+JSON.stringify(shutter));
+    assert.equal(shutter.diag?.gridUsed,false,'v62 must not apply the v61 global-grid candidate to production crops '+JSON.stringify(shutter.diag));
     const innerApi=await page.evaluate(()=>{
       const c=document.createElement('canvas');c.width=100;c.height=100;
       const x=c.getContext('2d');x.fillStyle='#f00';x.fillRect(0,0,100,100);x.fillStyle='#111';x.fillRect(12,8,76,84);

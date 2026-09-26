@@ -22575,10 +22575,11 @@ if (
    ======================================== */
 (() => {
   const TILE_OPTIONS_M7V5 = [
-    '1萬','2萬','3萬','4萬','5萬','6萬','7萬','8萬','9萬',
-    '1筒','2筒','3筒','4筒','5筒','6筒','7筒','8筒','9筒',
-    '1索','2索','3索','4索','5索','6索','7索','8索','9索',
-    '東','南','西','北','白','發','中'
+    // v62: keep manzu in the first 9 positions; put pinzu/souzu directly below.
+    // Honors stay grouped on the right side of the same 12-column grid.
+    '1萬','2萬','3萬','4萬','5萬','6萬','7萬','8萬','9萬','東','南','西',
+    '1筒','2筒','3筒','4筒','5筒','6筒','7筒','8筒','9筒','北','白','發',
+    '1索','2索','3索','4索','5索','6索','7索','8索','9索','中'
   ];
 
   function closeResultM7V5(){ document.getElementById('hand-result-overlay-m7v5')?.remove(); }
