@@ -9,13 +9,18 @@
   const core=window.M7RecognitionCoreV33;
   if(!core)return;
 
-  const LIB_KEY='MahjongScoreApp_tile_templates_m7v46perspective1';
+  const LIB_KEY='MahjongScoreApp_tile_templates_m7v47migration1';
+  const LEGACY_LIB_KEYS=[
+    'MahjongScoreApp_tile_templates_m7v46perspective1',
+    'MahjongScoreApp_tile_templates_m7v45oriented1',
+    'MahjongScoreApp_tile_templates_m7v44direct1'
+  ];
   const TRAINING_DB='MahjongScoreAppM7Training';
   const TRAINING_STORE='samples';
   const FEATURE_KIND='perspective-direct-v1';
   const MAX_TEMPLATES=5;
   const MAX_IMAGES_PER_LABEL=10;
-  const state={overlay:null,captured:false,pendingFeatures:[],pendingCrops:[],pendingTrainingImages:[],diagnostics:null,predictionDebug:[],learnedLabelCount:0};
+  const state={overlay:null,captured:false,pendingFeatures:[],pendingCrops:[],pendingTrainingImages:[],diagnostics:null,predictionDebug:[],learnedLabelCount:0,librarySource:''};
 
   const style=document.createElement('style');
   style.textContent=`
@@ -96,6 +101,34 @@
   }
   function saveLibrary(lib){
     try{localStorage.setItem(LIB_KEY,JSON.stringify(lib));}catch(_){}
+  }
+
+
+  function loadLegacyLibrary(){
+    for(const key of LEGACY_LIB_KEYS){
+      try{
+        const raw=JSON.parse(localStorage.getItem(key)||'{}');
+        if(!raw||typeof raw!=='object')continue;
+        const labels=Object.keys(raw).filter(label=>Array.isArray(raw[label])&&raw[label].length);
+        if(!labels.length)continue;
+        const lib={};
+        for(const label of labels){
+          const converted=[];
+          for(const t of raw[label]){
+            if(!t||!Array.isArray(t.gray)||!Array.isArray(t.edge)||!Array.isArray(t.red)||!Array.isArray(t.green))continue;
+            if(Number(t.width)!==16||Number(t.height)!==24)continue;
+            converted.push({...t,kind:FEATURE_KIND});
+            if(converted.length>=MAX_TEMPLATES)break;
+          }
+          if(converted.length)lib[label]=converted;
+        }
+        if(Object.keys(lib).length){
+          state.librarySource=key.includes('m7v46')?'v46':key.includes('m7v45')?'v45':'v44';
+          return lib;
+        }
+      }catch(_){}
+    }
+    return {};
   }
 
 
@@ -557,21 +590,35 @@
 
   async function rebuildLibraryFromTrainingImages(){
     const existing=loadLibrary();
-    if(Object.values(existing).some(list=>Array.isArray(list)&&list.length))return existing;
+    if(Object.values(existing).some(list=>Array.isArray(list)&&list.length)){
+      state.librarySource='v47';
+      return existing;
+    }
     const rows=(await loadTrainingSamples()).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
-    if(!rows.length)return existing;
-    const lib={};
-    for(const row of rows){
-      if(!row?.label||!row?.imageDataUrl)continue;
-      const feature=await featureFromDataUrl(row.imageDataUrl);
-      if(!feature)continue;
-      const list=Array.isArray(lib[row.label])?lib[row.label]:[];
-      if(!list.some(t=>core.featureDistance(feature,t)<.012)){
-        list.push(feature);lib[row.label]=list.slice(0,MAX_TEMPLATES);
+    if(rows.length){
+      const lib={};
+      for(const row of rows){
+        if(!row?.label||!row?.imageDataUrl)continue;
+        const feature=await featureFromDataUrl(row.imageDataUrl);
+        if(!feature)continue;
+        const list=Array.isArray(lib[row.label])?lib[row.label]:[];
+        if(!list.some(t=>core.featureDistance(feature,t)<.012)){
+          list.push(feature);lib[row.label]=list.slice(0,MAX_TEMPLATES);
+        }
+      }
+      if(Object.keys(lib).length){
+        state.librarySource='raw';
+        saveLibrary(lib);
+        return lib;
       }
     }
-    saveLibrary(lib);
-    return lib;
+    const legacy=loadLegacyLibrary();
+    if(Object.keys(legacy).length){
+      saveLibrary(legacy);
+      return legacy;
+    }
+    state.librarySource='';
+    return existing;
   }
 
   const trainingReadyPromise=rebuildLibraryFromTrainingImages().catch(()=>loadLibrary());
@@ -922,12 +969,12 @@
       const note=root.querySelector('.hand-result-note-m7v5');
       if(note)note.textContent=features.length===14
         ?(firstCalibration
-          ?'保存済みの牌画像がないため、M7 v46の初回学習が必要です。14枚を正しく指定してください。確定後は牌画像も端末内に保存します。'
+          ?'保存済みの牌画像がないため、M7 v47の初回学習が必要です。14枚を正しく指定してください。確定後は牌画像も端末内に保存します。'
           :`白枠内の手牌列を14枚に分割しました。高信頼候補 ${auto}枚。各枠の下に1位候補を表示しています。精度評価はこの1位候補を基準にします。`)
         :'白枠内から牌列を特定できませんでした。撮影画像を確認し、14枠を手動入力するか「読み取り直す」で再撮影してください。';
       const status=root.querySelector('.hand-result-status-m7v5');
       if(status&&auto<14)status.textContent=features.length===14
-        ?(firstCalibration?'初回学習：14枚を指定してください':`学習済み ${learnedLabels}種類 / 射影 ${analysis.perspectiveCount||0}/14 / 高信頼 ${auto}枚`)
+        ?(firstCalibration?'初回学習：14枚を指定してください':`学習済み ${learnedLabels}種類${state.librarySource?` / 元:${state.librarySource}`:''} / 射影 ${analysis.perspectiveCount||0}/14 / 高信頼 ${auto}枚`)
         :'手動入力：0 / 14枚';
       if(features.length!==14&&analysis.photo){
         const img=document.createElement('img');img.className='m7v36-photo';img.alt='白枠内を撮影した画像';img.src=analysis.photo;
@@ -1027,6 +1074,6 @@
   },true);
 
   window.M7CameraV36=Object.freeze({
-    sourceRectForCover,locateTileRow,splitRow,splitRowBySeams,analyzeGuideCanvas,featureFromBox,tileFaceRect,descriptorFromCanvas,detectFaceGeometry,detectFaceQuad,canonicalizeCanvas,orientedFaceCanvas,perspectiveFaceCanvas,warpQuadToCanvas,trainingImageDataUrl,analyzeTileBox,loadTrainingSamples,rebuildLibraryFromTrainingImages,loadLibrary,confidentCandidate,renderPickerSuggestions,pickerCurrentIndex,schedulePickerSuggestionSync,attachPickerSuggestionObserver
+    sourceRectForCover,locateTileRow,splitRow,splitRowBySeams,analyzeGuideCanvas,featureFromBox,tileFaceRect,descriptorFromCanvas,detectFaceGeometry,detectFaceQuad,canonicalizeCanvas,orientedFaceCanvas,perspectiveFaceCanvas,warpQuadToCanvas,trainingImageDataUrl,analyzeTileBox,loadTrainingSamples,rebuildLibraryFromTrainingImages,loadLibrary,loadLegacyLibrary,confidentCandidate,renderPickerSuggestions,pickerCurrentIndex,schedulePickerSuggestionSync,attachPickerSuggestionObserver
   });
 })();
