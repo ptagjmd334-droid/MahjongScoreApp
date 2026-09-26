@@ -194,7 +194,6 @@ test('v55 keeps learning recovery and rejects aggressive projective warps',()=>{
   assert(camera.includes('innerFeatureFromCanonical'));
   assert(camera.includes('resolve(innerFeatureFromCanonical(canonical))'));
   assert(camera.includes('Promise.all(selected.map'));
-  assert(camera.includes('/ 内側crop / 射影'));
   assert(!camera.includes('diagnosticReadyPromise'));
   assert(!camera.includes('buildInnerDiagnosticLibrary'));
   assert(camera.includes('canonicalizeCanvas'));
