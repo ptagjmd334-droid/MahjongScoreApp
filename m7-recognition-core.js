@@ -1,6 +1,13 @@
 // M7 v33: lightweight on-device recognition helpers (pure/testable).
 (function(root){
   'use strict';
+  // v67: recognition objects are immutable during one loaded learning library.
+  // Cache expensive derived values by object identity so repeated views/tiles do
+  // not rebuild medoids, pooled shape maps, or discriminative masks.
+  const MEDOID_CACHE=new WeakMap();
+  const STRUCTURAL_SIGNATURE_CACHE=new WeakMap();
+  const FAMILY_WEIGHT_CACHE=new WeakMap();
+  const LABEL_WEIGHT_CACHE=new WeakMap();
   function rmsDistance(a,b){
     if(!Array.isArray(a)||!Array.isArray(b)||a.length!==b.length||!a.length)return Infinity;
     let s=0;
@@ -199,26 +206,51 @@
     return Math.sqrt(s/a.length);
   }
 
-  function structuralDistance(a,b){
+  function structuralSignature(feature){
+    if(!feature||typeof feature!=='object')return null;
+    const cached=STRUCTURAL_SIGNATURE_CACHE.get(feature);if(cached)return cached;
     const directKinds=new Set(['direct-edge-v1','oriented-direct-v1','perspective-direct-v1']);
-    if(!a||!b||!directKinds.has(a.kind)||a.kind!==b.kind)return featureDistance(a,b);
-    if(Number(a.width)!==Number(b.width)||Number(a.height)!==Number(b.height))return Infinity;
-    const oneScale=(cols,rows)=>{
-      const ag=pooledChannel(a,'gray',cols,rows),bg=pooledChannel(b,'gray',cols,rows);
-      const ae=pooledChannel(a,'edge',cols,rows),be=pooledChannel(b,'edge',cols,rows);
-      const ar=pooledChannel(a,'red',cols,rows),br=pooledChannel(b,'red',cols,rows);
-      const an=pooledChannel(a,'green',cols,rows),bn=pooledChannel(b,'green',cols,rows);
-      if(!ag||!bg||!ae||!be||!ar||!br||!an||!bn)return Infinity;
-      const gray=pooledRms(ag,bg),edge=pooledRms(ae,be);
-      const color=Math.sqrt((pooledRms(ar,br)**2+pooledRms(an,bn)**2)/2);
+    if(!directKinds.has(feature.kind))return null;
+    const width=Number(feature.width)||0,height=Number(feature.height)||0;
+    if(width<1||height<1)return null;
+    const makeScale=(cols,rows)=>({
+      gray:pooledChannel(feature,'gray',cols,rows),
+      edge:pooledChannel(feature,'edge',cols,rows),
+      red:pooledChannel(feature,'red',cols,rows),
+      green:pooledChannel(feature,'green',cols,rows)
+    });
+    const sig={
+      kind:feature.kind,width,height,
+      fine:makeScale(6,9),
+      coarse:makeScale(3,5),
+      rowGray:pooledChannel(feature,'gray',1,9),
+      colGray:pooledChannel(feature,'gray',6,1)
+    };
+    const ok=[sig.fine.gray,sig.fine.edge,sig.fine.red,sig.fine.green,
+      sig.coarse.gray,sig.coarse.edge,sig.coarse.red,sig.coarse.green,sig.rowGray,sig.colGray]
+      .every(Array.isArray);
+    if(!ok)return null;
+    STRUCTURAL_SIGNATURE_CACHE.set(feature,sig);
+    return sig;
+  }
+
+  function structuralSignatureDistance(a,b){
+    const oneScale=(sa,sb)=>{
+      const gray=pooledRms(sa.gray,sb.gray),edge=pooledRms(sa.edge,sb.edge);
+      const color=Math.sqrt((pooledRms(sa.red,sb.red)**2+pooledRms(sa.green,sb.green)**2)/2);
       return edge*.44+gray*.40+color*.16;
     };
-    const fine=oneScale(6,9),coarse=oneScale(3,5);
-    if(!Number.isFinite(fine)||!Number.isFinite(coarse))return featureDistance(a,b);
-    const rowA=pooledChannel(a,'gray',1,9),rowB=pooledChannel(b,'gray',1,9);
-    const colA=pooledChannel(a,'gray',6,1),colB=pooledChannel(b,'gray',6,1);
-    const proj=(pooledRms(rowA,rowB)+pooledRms(colA,colB))/2;
+    const fine=oneScale(a.fine,b.fine),coarse=oneScale(a.coarse,b.coarse);
+    const proj=(pooledRms(a.rowGray,b.rowGray)+pooledRms(a.colGray,b.colGray))/2;
     return fine*.45+coarse*.38+proj*.17;
+  }
+
+  function structuralDistance(a,b){
+    if(!a||!b||a.kind!==b.kind)return featureDistance(a,b);
+    if(Number(a.width)!==Number(b.width)||Number(a.height)!==Number(b.height))return Infinity;
+    const sa=structuralSignature(a),sb=structuralSignature(b);
+    if(!sa||!sb)return featureDistance(a,b);
+    return structuralSignatureDistance(sa,sb);
   }
 
   function templateStructuralConsensusDistance(feature,templates){
@@ -232,9 +264,10 @@
 
   function medoidFeature(templates){
     if(!Array.isArray(templates)||!templates.length)return null;
+    const cached=MEDOID_CACHE.get(templates);if(cached)return cached;
     const valid=templates.filter(Boolean);
     if(!valid.length)return null;
-    if(valid.length===1)return valid[0];
+    if(valid.length===1){MEDOID_CACHE.set(templates,valid[0]);return valid[0];}
     let best=valid[0],bestScore=Infinity;
     for(let i=0;i<valid.length;i++){
       let total=0,n=0;
@@ -246,6 +279,7 @@
       const score=n?total/n:Infinity;
       if(score<bestScore){bestScore=score;best=valid[i];}
     }
+    MEDOID_CACHE.set(templates,best);
     return best;
   }
 
@@ -331,6 +365,9 @@
 
 
   function familyDiscriminativeWeights(library){
+    if(library&&typeof library==='object'){
+      const cached=FAMILY_WEIGHT_CACHE.get(library);if(cached)return cached;
+    }
     const byFamily={};
     if(!library||typeof library!=='object')return byFamily;
     for(const [label,templates] of Object.entries(library)){
@@ -365,6 +402,7 @@
         return .35+2.65*Math.sqrt(x);
       });
     }
+    if(library&&typeof library==='object')FAMILY_WEIGHT_CACHE.set(library,out);
     return out;
   }
 
@@ -372,6 +410,9 @@
   // For close labels such as 5/6/7/8-pin we also need the regions that make
   // each individual label unlike its same-family competitors.
   function labelDiscriminativeWeights(library){
+    if(library&&typeof library==='object'){
+      const cached=LABEL_WEIGHT_CACHE.get(library);if(cached)return cached;
+    }
     const prototypes={};
     for(const [label,templates] of Object.entries(library||{})){
       if(!Array.isArray(templates)||!templates.length)continue;
@@ -405,6 +446,7 @@
         return .28+3.72*Math.sqrt(x);
       });
     }
+    if(library&&typeof library==='object')LABEL_WEIGHT_CACHE.set(library,out);
     return out;
   }
 
@@ -708,7 +750,7 @@
     }
     return shift/current.length<=maxShift;
   }
-  const api=Object.freeze({rmsDistance,shiftedRmsDistance,shiftedGroupedRmsDistance,structuredFeatureDistance,directImageDistance,featureDistance,prototypeFeature,pooledChannel,structuralDistance,templateStructuralConsensusDistance,medoidFeature,templateConsensusDistance,medianFinite,combineViewRankings,rankCandidateLabelsStructural,applyViewVoteConsensus,rankLabels,rankLabelsRobust,rankLabelsBalanced,tileFamily,buildFamilyLibrary,rankFamiliesBalanced,rankLabelsHierarchical,rankLabelsSoftHierarchical,familyDiscriminativeWeights,labelDiscriminativeWeights,templateSpread,weightedDirectImageDistance,rankLabelsFamilyDiscriminative,classify,stableEnough});
+  const api=Object.freeze({rmsDistance,shiftedRmsDistance,shiftedGroupedRmsDistance,structuredFeatureDistance,directImageDistance,featureDistance,prototypeFeature,pooledChannel,structuralSignature,structuralSignatureDistance,structuralDistance,templateStructuralConsensusDistance,medoidFeature,templateConsensusDistance,medianFinite,combineViewRankings,rankCandidateLabelsStructural,applyViewVoteConsensus,rankLabels,rankLabelsRobust,rankLabelsBalanced,tileFamily,buildFamilyLibrary,rankFamiliesBalanced,rankLabelsHierarchical,rankLabelsSoftHierarchical,familyDiscriminativeWeights,labelDiscriminativeWeights,templateSpread,weightedDirectImageDistance,rankLabelsFamilyDiscriminative,classify,stableEnough});
   root.M7RecognitionCoreV33=api;
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })(typeof window!=='undefined'?window:globalThis);
