@@ -583,6 +583,67 @@
     return combined;
   }
 
+  function rankCandidateLabelsStructural(feature,library,candidateLabels){
+    const out=[];
+    const labels=(candidateLabels||[]).filter(Boolean);
+    for(const label of labels){
+      const templates=library?.[label];
+      if(!Array.isArray(templates)||!templates.length)continue;
+      const representative=medoidFeature(templates);
+      if(!representative)continue;
+      const representativeDistance=structuralDistance(feature,representative);
+      const consensusDistance=templateStructuralConsensusDistance(feature,templates);
+      if(!Number.isFinite(representativeDistance)&&!Number.isFinite(consensusDistance))continue;
+      const distance=Number.isFinite(consensusDistance)
+        ?representativeDistance*.56+consensusDistance*.44
+        :representativeDistance;
+      out.push({
+        label,
+        distance,
+        family:tileFamily(label),
+        structuralRepresentativeDistance:representativeDistance,
+        structuralConsensusDistance:consensusDistance
+      });
+    }
+    return out.sort((a,b)=>a.distance-b.distance);
+  }
+
+  function applyViewVoteConsensus(baseRanking,auxRankings,options={}){
+    const base=Array.isArray(baseRanking)?baseRanking.map(x=>({...x})):[];
+    if(!base.length)return [];
+    const aux=(auxRankings||[]).filter(v=>Array.isArray(v)&&v.length);
+    const viewCount=1+aux.length;
+    const votes={};
+    const all=[base,...aux];
+    for(const v of all){
+      const label=v[0]?.label;
+      if(label)votes[label]=(votes[label]||0)+1;
+    }
+    const maxVotes=Math.max(0,...Object.values(votes));
+    const votePenalty=Number.isFinite(options.votePenalty)?Math.max(0,options.votePenalty):.006;
+    const topCandidates=new Set(base.slice(0,Math.max(3,options.candidateLimit||6)).map(x=>x.label));
+    for(const x of base){
+      const v=votes[x.label]||0;
+      x.viewTopVotes=v;
+      x.viewCount=viewCount;
+      x.baseDistance=x.distance;
+      // Keep the calibrated base score, adding only a small disagreement cost.
+      // This lets repeated nearby crops break close races without replacing the
+      // expensive full score or changing its threshold scale.
+      if(topCandidates.has(x.label)){
+        x.distance=x.distance+Math.max(0,maxVotes-v)*votePenalty;
+      }
+    }
+    base.sort((a,b)=>a.distance-b.distance);
+    for(const x of base){
+      const sameRunner=base.find(y=>y.label!==x.label&&y.family===x.family);
+      x.sameFamilyRunnerDistance=sameRunner?.distance??Infinity;
+      x.sameFamilyGap=sameRunner&&Number.isFinite(sameRunner.distance)?sameRunner.distance-x.distance:Infinity;
+      x.sameFamilyRatio=sameRunner&&sameRunner.distance>0?x.distance/sameRunner.distance:0;
+    }
+    return base;
+  }
+
   function rankLabelsSoftHierarchical(feature,library,options={}){
     if(!feature||!library||typeof library!=='object')return [];
     const labels=rankLabelsBalanced(feature,library);
@@ -647,7 +708,7 @@
     }
     return shift/current.length<=maxShift;
   }
-  const api=Object.freeze({rmsDistance,shiftedRmsDistance,shiftedGroupedRmsDistance,structuredFeatureDistance,directImageDistance,featureDistance,prototypeFeature,pooledChannel,structuralDistance,templateStructuralConsensusDistance,medoidFeature,templateConsensusDistance,medianFinite,combineViewRankings,rankLabels,rankLabelsRobust,rankLabelsBalanced,tileFamily,buildFamilyLibrary,rankFamiliesBalanced,rankLabelsHierarchical,rankLabelsSoftHierarchical,familyDiscriminativeWeights,labelDiscriminativeWeights,templateSpread,weightedDirectImageDistance,rankLabelsFamilyDiscriminative,classify,stableEnough});
+  const api=Object.freeze({rmsDistance,shiftedRmsDistance,shiftedGroupedRmsDistance,structuredFeatureDistance,directImageDistance,featureDistance,prototypeFeature,pooledChannel,structuralDistance,templateStructuralConsensusDistance,medoidFeature,templateConsensusDistance,medianFinite,combineViewRankings,rankCandidateLabelsStructural,applyViewVoteConsensus,rankLabels,rankLabelsRobust,rankLabelsBalanced,tileFamily,buildFamilyLibrary,rankFamiliesBalanced,rankLabelsHierarchical,rankLabelsSoftHierarchical,familyDiscriminativeWeights,labelDiscriminativeWeights,templateSpread,weightedDirectImageDistance,rankLabelsFamilyDiscriminative,classify,stableEnough});
   root.M7RecognitionCoreV33=api;
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })(typeof window!=='undefined'?window:globalThis);
