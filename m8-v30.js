@@ -1,7 +1,7 @@
 // M8 v31: compact, stable score table + last 3 real-table comparisons. No subtree observer.
 (()=>{
  const overlay=document.getElementById('agari-overlay');if(!overlay)return;
- const badge=document.getElementById('app-build-badge');if(badge)badge.textContent='M7 v56';
+ const badge=document.getElementById('app-build-badge');if(badge)badge.textContent='M7 v57';
  const KEY='MahjongScoreApp_last_comparison_v30';
  const HISTORY_KEY='MahjongScoreApp_comparison_history_v31';
  const css=document.createElement('style');
