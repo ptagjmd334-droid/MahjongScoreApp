@@ -740,6 +740,17 @@
 **回帰テスト:** fast full-label scorerが同family syntheticを正しく区別すること、5view schemaを維持すること、標準viewだけ従来full matcherを使い補助viewはaligned fast scorerを使うことをunit/Chromiumで確認する。  
 **確度:** v66認識179242msと精度悪化は実機スクリーンショット・ユーザー確認で確定。v65 Top1 14/14も実機確認済み。
 
+
+## M089: v68はbaseの重いmatcherだけで約20秒かかり補助viewが1枚しか走らなかった
+**時期:** M7 v68→v69  
+**症状:** v68実機で認識20001ms、補助view 1、時間上限fallback。高信頼2枚。v65のTop1 14/14に近づけるため5視点情報を戻したが、補助4viewへ入る前の標準view full matcherがほぼ時間予算を使い切っていた。  
+**根本原因:** `rankLabelsFamilyDiscriminative`は各ラベルで回転・拡大縮小・平行移動探索付きの直接比較を複数回行う。v68ではこのfull matcherを標準viewに残したため、2500msの補助予算はbase処理を制限できず、結果として20秒かかった後に補助viewが1つしか走らなかった。  
+**修正:** v69では標準viewを含む5viewすべてを`rankLabelsFastDiscriminative`へ統一し、回転・拡大・平行移動探索を完全に外す。代わりに「標準・広め・狭め・左寄せ・右寄せ」という5crop自体で位置/サイズ揺れを吸収し、各viewの全ラベル順位を`combineViewRankings`の中央値で統合する。全体5000ms上限を持ち、超過時はその時点までのviewだけで結果を返す。  
+**保存互換:** stable/raw保存、24×36 feature schema、学習済み11種類は変更しない。  
+**再発防止:** 時間budgetの外側に重い同期処理を置かない。端末でbudgetを超える処理は、探索自由度をcrop variantへ置換してbudget内部の軽量処理へ統一する。  
+**回帰テスト:** camera sourceでfull matcherがpredict経路に存在しないこと、5view fast scorer→median consensus、5000ms上限、既存保存/UIが維持されることをunit/Chromiumで確認する。  
+**確度:** v68の20001ms・補助view1・fallbackは実機画面で確定。full matcherがbaseでbudget前に走る構造もコード上確定。
+
 # 変更前に特に見る高頻度項目
 1. **古いパッチとの競合**（M001/M003/M004/M006/M007）
 2. **実DOMとCSS前提**（M011/M015/M017）
