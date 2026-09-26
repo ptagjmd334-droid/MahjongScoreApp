@@ -816,6 +816,75 @@
 
 
 
+  function estimateBleedSafeShift(source,trimX=.12){
+    const w=source?.width|0,h=source?.height|0;
+    if(w<24||h<36)return {shiftX:0,side:'none',confidence:0};
+    const ctx=source.getContext('2d',{willReadFrequently:true});
+    const data=ctx.getImageData(0,0,w,h).data;
+    const score=new Float64Array(w);
+    const bands=[
+      [Math.max(1,Math.floor(h*.06)),Math.min(h-1,Math.ceil(h*.26))],
+      [Math.max(1,Math.floor(h*.74)),Math.min(h-1,Math.ceil(h*.94))]
+    ];
+    for(let x=1;x<w-1;x++){
+      let sum=0,n=0;
+      for(const [ya,yb] of bands){
+        for(let y=ya;y<yb;y++){
+          const il=(y*w+x-1)*4,ir=(y*w+x+1)*4;
+          const ll=(data[il]*3+data[il+1]*6+data[il+2])/10;
+          const lr=(data[ir]*3+data[ir+1]*6+data[ir+2])/10;
+          sum+=Math.abs(lr-ll);n++;
+        }
+      }
+      score[x]=n?sum/n:0;
+    }
+    const vals=Array.from(score.slice(1,w-1)).sort((a,b)=>a-b);
+    const q=p=>vals[Math.max(0,Math.min(vals.length-1,Math.floor((vals.length-1)*p)))]||0;
+    const median=q(.50),p90=q(.90),p97=q(.97);
+    const threshold=median+Math.max(3.5,(p90-median)*.72);
+    const search=(lo,hi)=>{
+      let bx=-1,bv=-Infinity;
+      for(let x=Math.max(2,Math.floor(lo));x<=Math.min(w-3,Math.ceil(hi));x++){
+        if(score[x]>bv){bv=score[x];bx=x;}
+      }
+      return {x:bx,score:bv,strong:bx>=0&&bv>=threshold&&bv>=p97*.72};
+    };
+    const left=search(w*.06,w*.36),right=search(w*.64,w*.94);
+    const base=w*trimX,cropW=w-2*base,maxStart=w-cropW;
+    let targetStart=base,side='none',confidence=0;
+    if(left.strong&&right.strong){
+      const span=right.x-left.x;
+      if(span>=w*.56&&span<=w*.90){
+        const centered=(left.x+right.x-cropW)/2;
+        targetStart=Math.max(0,Math.min(maxStart,centered));
+        side='both';
+        confidence=Math.min(1,Math.min(left.score,right.score)/Math.max(1,p97));
+      }else if(left.score>right.score*1.12){
+        targetStart=Math.max(0,Math.min(maxStart,left.x+w*.018));
+        side='left';confidence=Math.min(1,left.score/Math.max(1,p97));
+      }else if(right.score>left.score*1.12){
+        targetStart=Math.max(0,Math.min(maxStart,right.x-w*.018-cropW));
+        side='right';confidence=Math.min(1,right.score/Math.max(1,p97));
+      }
+    }else if(left.strong){
+      targetStart=Math.max(0,Math.min(maxStart,left.x+w*.018));
+      side='left';confidence=Math.min(1,left.score/Math.max(1,p97));
+    }else if(right.strong){
+      targetStart=Math.max(0,Math.min(maxStart,right.x-w*.018-cropW));
+      side='right';confidence=Math.min(1,right.score/Math.max(1,p97));
+    }
+    let shiftX=(targetStart-base)/w;
+    shiftX=Math.max(-.075,Math.min(.075,shiftX));
+    if(Math.abs(shiftX)<.012){shiftX=0;side='none';}
+    return {
+      shiftX,
+      side,
+      confidence:Number.isFinite(confidence)?confidence:0,
+      leftSeam:left.strong?left.x:null,
+      rightSeam:right.strong?right.x:null
+    };
+  }
+
   function innerRecognitionCanvas(source,width=96,height=144,trimX=.12,trimY=.08,shiftX=0,shiftY=0){
     const out=document.createElement('canvas');out.width=width;out.height=height;
     const o=out.getContext('2d',{willReadFrequently:true});
@@ -834,29 +903,35 @@
     return descriptorFromCanvas(innerRecognitionCanvas(source,96,144));
   }
 
-  function inferenceFeatureViews(source){
-    // v65: classify the same captured tile through several nearby crops.
-    // Median consensus absorbs the small left/right/zoom differences still
-    // visible between repeated iPhone captures without changing saved features.
+  function inferenceFeatureViews(source,bleedInfo=null){
+    const safe=bleedInfo||estimateBleedSafeShift(source,.12);
+    const center=Number.isFinite(safe.shiftX)?safe.shiftX:0;
+    // v71: keep the same five-view idea, but center all views on a seam-safe
+    // horizontal window first. This removes neighboring-tile bleed without
+    // changing the saved 24x36 feature schema.
     const configs=[
-      [.12,.08,0,0],
-      [.10,.06,0,0],
-      [.14,.10,0,0],
-      [.12,.08,-.035,0],
-      [.12,.08,.035,0]
+      [.12,.08,center,0],
+      [.10,.06,center,0],
+      [.14,.10,center,0],
+      [.12,.08,center-.025,0],
+      [.12,.08,center+.025,0]
     ];
     return configs.map(([tx,ty,sx,sy])=>descriptorFromCanvas(innerRecognitionCanvas(source,96,144,tx,ty,sx,sy)));
   }
 
   function analyzeTileBox(ctx,b){
     const canonical=perspectiveFaceCanvas(ctx,b,96,144);
-    const recognition=innerRecognitionCanvas(canonical,96,144);
+    const bleedInfo=estimateBleedSafeShift(canonical,.12);
+    const recognition=innerRecognitionCanvas(canonical,96,144,.12,.08,bleedInfo.shiftX||0,0);
     const trainingImage=canonical.toDataURL('image/jpeg',.92);
     return {
       feature:descriptorFromCanvas(recognition),
-      inferenceFeatures:inferenceFeatureViews(canonical),
+      inferenceFeatures:inferenceFeatureViews(canonical,bleedInfo),
       crop:recognition.toDataURL('image/jpeg',.92),
       trainingImage,
+      bleedShift:Number(bleedInfo.shiftX)||0,
+      bleedSide:bleedInfo.side||'none',
+      bleedConfidence:Number(bleedInfo.confidence)||0,
       perspectiveUsed:canonical.__m7v46Perspective===true
     };
   }
@@ -1447,6 +1522,8 @@
       crops:tileData.map(x=>x.crop),
       trainingImages:tileData.map(x=>x.trainingImage),
       perspectiveCount:tileData.filter(x=>x.perspectiveUsed).length,
+      bleedSafeCount:tileData.filter(x=>Math.abs(x.bleedShift||0)>=.012).length,
+      bleedShifts:tileData.map(x=>Number((x.bleedShift||0).toFixed(4))),
       gridUsed:false,
       gridCandidate:gridFit.used===true,
       gridFit:{
@@ -1507,7 +1584,7 @@
       if(note)note.textContent=features.length===14
         ?(firstCalibration
           ?'この保存領域には学習データがありません。今回だけ14枚を正しく指定してください。「この手牌で進む」を押した時に保存完了を確認してから次へ進みます。'
-          :`精度優先版です。高速5視点中央値合意の後、Top4だけを±1pxの軽量再整列で再判定します。高信頼候補 ${auto}枚。保留理由: ${confidenceReasonSummary()}。認識 ${Math.max(0,state.lastRecognitionMs||0)}ms / 補助view ${state.lastAuxViewsUsed||0} / 微調整 ${state.lastMicroRefined||0}${state.lastAuxFallbackCount?' / 時間上限fallback':''}。`)
+          :`精度優先版です。隣牌が混ざる側を上下端の縦シームから検出してcropを安全側へ退避し、その後に高速5視点中央値合意＋Top4微調整を行います。高信頼候補 ${auto}枚。保留理由: ${confidenceReasonSummary()}。認識 ${Math.max(0,state.lastRecognitionMs||0)}ms / 境界退避 ${analysis.bleedSafeCount||0}/14 / 補助view ${state.lastAuxViewsUsed||0} / 微調整 ${state.lastMicroRefined||0}${state.lastAuxFallbackCount?' / 時間上限fallback':''}。`)
         :'白枠内から牌列を特定できませんでした。撮影画像を確認し、14枠を手動入力するか「読み取り直す」で再撮影してください。';
       const status=root.querySelector('.hand-result-status-m7v5');
       if(status&&auto<14)status.textContent=features.length===14
@@ -1680,6 +1757,6 @@
   },true);
 
   window.M7CameraV36=Object.freeze({
-    sourceRectForCover,locateTileRow,splitRow,fitGlobalRowGrid,splitRowBySeams,analyzeGuideCanvas,featureFromBox,tileFaceRect,descriptorFromCanvas,detectFaceGeometry,detectFaceQuad,canonicalizeCanvas,orientedFaceCanvas,perspectiveFaceCanvas,warpQuadToCanvas,trainingImageDataUrl,innerRecognitionCanvas,innerFeatureFromCanonical,inferenceFeatureViews,analyzeTileBox,loadTrainingSamples,rebuildLibraryFromTrainingImages,loadLibrary,activeLibrary,saveLibrary,saveLibraryDetailed,persistVerifiedHand,persistFailureText,loadLegacyLibrary,legacyLibraryKeys,convertLegacyDirectFeature,cropResampleFeatureMap,confidenceAssessment,confidentCandidate,confidenceReasonSummary,renderPickerPhoto,renderPickerSuggestions,pickerCurrentIndex,schedulePickerSuggestionSync,attachPickerSuggestionObserver
+    sourceRectForCover,locateTileRow,splitRow,fitGlobalRowGrid,splitRowBySeams,analyzeGuideCanvas,featureFromBox,tileFaceRect,descriptorFromCanvas,detectFaceGeometry,detectFaceQuad,canonicalizeCanvas,orientedFaceCanvas,perspectiveFaceCanvas,warpQuadToCanvas,trainingImageDataUrl,estimateBleedSafeShift,innerRecognitionCanvas,innerFeatureFromCanonical,inferenceFeatureViews,analyzeTileBox,loadTrainingSamples,rebuildLibraryFromTrainingImages,loadLibrary,activeLibrary,saveLibrary,saveLibraryDetailed,persistVerifiedHand,persistFailureText,loadLegacyLibrary,legacyLibraryKeys,convertLegacyDirectFeature,cropResampleFeatureMap,confidenceAssessment,confidentCandidate,confidenceReasonSummary,renderPickerPhoto,renderPickerSuggestions,pickerCurrentIndex,schedulePickerSuggestionSync,attachPickerSuggestionObserver
   });
 })();
