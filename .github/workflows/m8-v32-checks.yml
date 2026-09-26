@@ -33,6 +33,7 @@ on:
       - work/m7-v53-inner-crop-production
       - work/m7-v54-inner-library-migration
       - work/m7-v55-precision-geometry-guard
+      - work/m7-v56-stable-learning-storage
   workflow_dispatch:
 
 jobs:
