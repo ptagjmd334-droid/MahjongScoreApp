@@ -816,13 +816,16 @@
 
 
 
-  function innerRecognitionCanvas(source,width=96,height=144,trimX=.12,trimY=.08){
+  function innerRecognitionCanvas(source,width=96,height=144,trimX=.12,trimY=.08,shiftX=0,shiftY=0){
     const out=document.createElement('canvas');out.width=width;out.height=height;
     const o=out.getContext('2d',{willReadFrequently:true});
     o.fillStyle='#f4f1e8';o.fillRect(0,0,width,height);
-    const sx=Math.max(0,Math.round(source.width*trimX));
-    const sy=Math.max(0,Math.round(source.height*trimY));
-    const sw=Math.max(1,source.width-sx*2),sh=Math.max(1,source.height-sy*2);
+    const baseX=Math.max(0,Math.round(source.width*trimX));
+    const baseY=Math.max(0,Math.round(source.height*trimY));
+    const sw=Math.max(1,source.width-baseX*2),sh=Math.max(1,source.height-baseY*2);
+    const maxX=Math.max(0,source.width-sw),maxY=Math.max(0,source.height-sh);
+    const sx=Math.max(0,Math.min(maxX,Math.round(baseX+source.width*shiftX)));
+    const sy=Math.max(0,Math.min(maxY,Math.round(baseY+source.height*shiftY)));
     o.drawImage(source,sx,sy,sw,sh,0,0,width,height);
     return out;
   }
@@ -831,12 +834,27 @@
     return descriptorFromCanvas(innerRecognitionCanvas(source,96,144));
   }
 
+  function inferenceFeatureViews(source){
+    // v65: classify the same captured tile through several nearby crops.
+    // Median consensus absorbs the small left/right/zoom differences still
+    // visible between repeated iPhone captures without changing saved features.
+    const configs=[
+      [.12,.08,0,0],
+      [.10,.06,0,0],
+      [.14,.10,0,0],
+      [.12,.08,-.035,0],
+      [.12,.08,.035,0]
+    ];
+    return configs.map(([tx,ty,sx,sy])=>descriptorFromCanvas(innerRecognitionCanvas(source,96,144,tx,ty,sx,sy)));
+  }
+
   function analyzeTileBox(ctx,b){
     const canonical=perspectiveFaceCanvas(ctx,b,96,144);
     const recognition=innerRecognitionCanvas(canonical,96,144);
     const trainingImage=canonical.toDataURL('image/jpeg',.92);
     return {
       feature:descriptorFromCanvas(recognition),
+      inferenceFeatures:inferenceFeatureViews(canonical),
       crop:recognition.toDataURL('image/jpeg',.92),
       trainingImage,
       perspectiveUsed:canonical.__m7v46Perspective===true
@@ -914,6 +932,9 @@
       return {candidate:null,reason:'family-conflict'};
     }
 
+    const viewCount=Number(best.viewCount)||1;
+    const viewTopVotes=Number(best.viewTopVotes)||viewCount;
+    if(viewCount>=3&&viewTopVotes<Math.ceil(viewCount/2))return {candidate:null,reason:'view-disagreement'};
     const bestRaw=Number.isFinite(best.bestDistance)?best.bestDistance:best.distance;
     const representativeDistance=Number.isFinite(best.representativeDistance)?best.representativeDistance:
       (Number.isFinite(best.globalDistance)?best.globalDistance:best.distance);
@@ -968,6 +989,7 @@
       counts[reason]=(counts[reason]||0)+1;
     }
     const labels={
+      'view-disagreement':'視点不一致',
       'representative-distance':'代表距離',
       'template-consensus':'実例合意',
       'template-distance':'実例距離',
@@ -983,11 +1005,13 @@
     return parts.length?parts.join('・'):'なし';
   }
 
-  function predict(features){
+  function predict(features,inferenceViews=[]){
     const lib=activeLibrary(),used={},debug=[],reasons=[];
     state.learnedLabelCount=Object.keys(lib).filter(label=>Array.isArray(lib[label])&&lib[label].length).length;
     const labels=features.map((feature,index)=>{
-      const ranked=core.rankLabelsFamilyDiscriminative(feature,lib,{blend:.84,labelBlend:.72,templateBlend:.38,shapeBlend:.60,priorWeight:.26,maxPenalty:.016});
+      const views=Array.isArray(inferenceViews[index])&&inferenceViews[index].length?inferenceViews[index]:[feature];
+      const viewRankings=views.map(view=>core.rankLabelsFamilyDiscriminative(view,lib,{blend:.84,labelBlend:.72,templateBlend:.38,shapeBlend:.60,priorWeight:.26,maxPenalty:.016}));
+      const ranked=core.combineViewRankings(viewRankings);
       debug[index]=ranked.slice(0,3).map(x=>({
         label:x.label,
         family:x.family||core.tileFamily(x.label),
@@ -1009,7 +1033,10 @@
         familyDistance:Number.isFinite(x.familyDistance)?Number(x.familyDistance.toFixed(4)):null,
         familyPenalty:Number.isFinite(x.familyPenalty)?Number(x.familyPenalty.toFixed(4)):null,
         bestFamily:x.bestFamily||'',
-        familyGap:Number.isFinite(x.familyGap)?Number(x.familyGap.toFixed(4)):null
+        familyGap:Number.isFinite(x.familyGap)?Number(x.familyGap.toFixed(4)):null,
+        viewTopVotes:Number(x.viewTopVotes)||0,
+        viewCount:Number(x.viewCount)||views.length,
+        viewDistanceRange:Number.isFinite(x.viewDistanceRange)?Number(x.viewDistanceRange.toFixed(4)):null
       }));
       const available=ranked.filter(x=>(used[x.label]||0)<4);
       if(!available.length){reasons[index]='label-limit';return '';}
@@ -1390,6 +1417,7 @@
     return {
       row,boxes,
       features:tileData.map(x=>x.feature),
+      inferenceViews:tileData.map(x=>x.inferenceFeatures),
       crops:tileData.map(x=>x.crop),
       trainingImages:tileData.map(x=>x.trainingImage),
       perspectiveCount:tileData.filter(x=>x.perspectiveUsed).length,
@@ -1430,7 +1458,7 @@
     state.pendingCrops=crops.slice(0,14);
     state.pendingTrainingImages=trainingImages.slice(0,14);
     window.M7V36PendingFeatures=state.pendingFeatures;
-    const predicted=features.length===14?predict(features):[];
+    const predicted=features.length===14?predict(features,analysis.inferenceViews||[]):[];
     while(predicted.length<14)predicted.push('');
     if(window.M7V36LastDiagnostics)window.M7V36LastDiagnostics.predictions=(state.predictionDebug||[]).map(x=>x.slice());
     setTimeout(()=>{
@@ -1453,7 +1481,7 @@
       if(note)note.textContent=features.length===14
         ?(firstCalibration
           ?'この保存領域には学習データがありません。今回だけ14枚を正しく指定してください。「この手牌で進む」を押した時に保存完了を確認してから次へ進みます。'
-          :`精度優先版です。牌列14等分と内側cropは維持し、実在する代表画像＋複数実例に加えて、細かいピクセルずれに強い多段階の形状比較を使います。高信頼候補 ${auto}枚。保留理由: ${confidenceReasonSummary()}。`)
+          :`精度優先版です。牌列14等分と保存形式は維持し、同じ1枚を5通りの近接cropで再評価して中央値で合意を取ります。高信頼候補 ${auto}枚。保留理由: ${confidenceReasonSummary()}。`)
         :'白枠内から牌列を特定できませんでした。撮影画像を確認し、14枠を手動入力するか「読み取り直す」で再撮影してください。';
       const status=root.querySelector('.hand-result-status-m7v5');
       if(status&&auto<14)status.textContent=features.length===14
@@ -1626,6 +1654,6 @@
   },true);
 
   window.M7CameraV36=Object.freeze({
-    sourceRectForCover,locateTileRow,splitRow,fitGlobalRowGrid,splitRowBySeams,analyzeGuideCanvas,featureFromBox,tileFaceRect,descriptorFromCanvas,detectFaceGeometry,detectFaceQuad,canonicalizeCanvas,orientedFaceCanvas,perspectiveFaceCanvas,warpQuadToCanvas,trainingImageDataUrl,innerRecognitionCanvas,innerFeatureFromCanonical,analyzeTileBox,loadTrainingSamples,rebuildLibraryFromTrainingImages,loadLibrary,activeLibrary,saveLibrary,saveLibraryDetailed,persistVerifiedHand,persistFailureText,loadLegacyLibrary,legacyLibraryKeys,convertLegacyDirectFeature,cropResampleFeatureMap,confidenceAssessment,confidentCandidate,confidenceReasonSummary,renderPickerPhoto,renderPickerSuggestions,pickerCurrentIndex,schedulePickerSuggestionSync,attachPickerSuggestionObserver
+    sourceRectForCover,locateTileRow,splitRow,fitGlobalRowGrid,splitRowBySeams,analyzeGuideCanvas,featureFromBox,tileFaceRect,descriptorFromCanvas,detectFaceGeometry,detectFaceQuad,canonicalizeCanvas,orientedFaceCanvas,perspectiveFaceCanvas,warpQuadToCanvas,trainingImageDataUrl,innerRecognitionCanvas,innerFeatureFromCanonical,inferenceFeatureViews,analyzeTileBox,loadTrainingSamples,rebuildLibraryFromTrainingImages,loadLibrary,activeLibrary,saveLibrary,saveLibraryDetailed,persistVerifiedHand,persistFailureText,loadLegacyLibrary,legacyLibraryKeys,convertLegacyDirectFeature,cropResampleFeatureMap,confidenceAssessment,confidentCandidate,confidenceReasonSummary,renderPickerPhoto,renderPickerSuggestions,pickerCurrentIndex,schedulePickerSuggestionSync,attachPickerSuggestionObserver
   });
 })();
