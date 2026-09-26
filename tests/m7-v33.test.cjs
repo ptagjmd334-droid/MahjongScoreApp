@@ -134,6 +134,33 @@ test('family discriminative map emphasizes pixels that separate labels',()=>{
   assert(Number.isFinite(ranked[0].discriminativeDistance));
 });
 
+test('v60 label-specific map and template spread expose same-family evidence',()=>{
+  const w=6,h=6,n=w*h;
+  const feat=(left,right,jitter=0)=>{
+    const gray=Array(n).fill(.10),edge=Array(n).fill(.03),red=Array(n).fill(0),green=Array(n).fill(0);
+    for(let y=1;y<5;y++){
+      gray[y*w+1]=left+jitter;edge[y*w+1]=left+jitter;
+      gray[y*w+4]=right+jitter;edge[y*w+4]=right+jitter;
+    }
+    return {kind:'perspective-direct-v1',width:w,height:h,gray,edge,red,green};
+  };
+  const lib={
+    '5筒':[feat(.85,.15),feat(.82,.16)],
+    '6筒':[feat(.15,.85),feat(.17,.82)],
+    '7筒':[feat(.55,.55),feat(.53,.57)]
+  };
+  const maps=core.labelDiscriminativeWeights(lib);
+  assert.equal(maps['5筒'].length,n);
+  assert(maps['5筒'][2*w+1]>maps['5筒'][2*w+2],
+    'label map should emphasize pixels that distinguish 5筒 from same-family rivals');
+  assert(core.templateSpread(lib['5筒'])>0,'multi-template class should expose non-zero spread');
+  assert.equal(core.templateSpread([lib['5筒'][0]]),0,'single-template class spread should be zero');
+  const ranked=core.rankLabelsFamilyDiscriminative(feat(.80,.18),lib,{blend:.84,labelBlend:.72,priorWeight:.26,maxPenalty:.016});
+  assert.equal(ranked[0].label,'5筒');
+  assert(Number.isFinite(ranked[0].templateSpread));
+  assert(Number.isFinite(ranked[0].sameFamilyGap));
+});
+
 test('tile family mapping covers suits, honors and red fives',()=>{
   assert.equal(core.tileFamily('3萬'),'萬');
   assert.equal(core.tileFamily('赤5筒'),'筒');
@@ -161,7 +188,7 @@ test('camera v36 is loaded before ui-fixes so verified clicks train the active c
   assert(index.indexOf('script.js')<index.indexOf('m7-recognition-core.js'));
   assert(index.indexOf('m7-recognition-core.js')<index.indexOf('m7-camera-v36.js'));
   assert(index.indexOf('m7-camera-v36.js')<index.indexOf('ui-fixes.js'));
-  assert(index.includes('M7 v59'));
+  assert(index.includes('M7 v60'));
 });
 
 test('legacy live detector and demo fill yield to the active camera owner',()=>{
@@ -178,7 +205,7 @@ test('v36 camera avoids fixed bright-white threshold and closes camera when hidd
   assert(camera.includes(".realtime-hand-cancel-m7v3')?.click()"));
 });
 
-test('v59 keeps verified learning durable across localStorage cache failures',()=>{
+test('v60 preserves v59 durable learning and adds precision diagnostics',()=>{
   const camera=fs.readFileSync(path.join(root,'m7-camera-v36.js'),'utf8');
   assert(camera.includes("MahjongScoreApp_tile_templates_stable1"));
   assert(camera.includes("MahjongScoreApp_tile_templates_stable1_backup"));
@@ -188,6 +215,15 @@ test('v59 keeps verified learning durable across localStorage cache failures',()
   assert(camera.includes('cropResampleFeatureMap'));
   assert(camera.includes('tb>1.22||lr>1.22'));
   assert(camera.includes('horizontalDelta>.16||verticalDelta>.16||worstCorner>.30'));
+  assert(camera.includes('fitResidual>.055'));
+  assert(camera.includes('perspectiveNeed<.045'));
+  assert(camera.includes('templateSpread'));
+  assert(camera.includes('sameFamilyGap'));
+  assert(camera.includes('requiredLocalGap'));
+  const picker=fs.readFileSync(path.join(root,'m8-v3.js'),'utf8');
+  assert(picker.includes('100dvh'));
+  assert(picker.includes('grid-template-columns:repeat(12,minmax(0,1fr))'));
+  assert(picker.includes('grid-template-rows:repeat(3,minmax(0,1fr))'));
   assert(camera.includes('crop:recognition.toDataURL'));
   assert(camera.includes('feature:descriptorFromCanvas(recognition)'));
   assert(camera.includes("applyInnerCrop=!key.includes('m7v53innercrop')"));
