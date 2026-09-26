@@ -579,9 +579,11 @@
     let sx=0,sy=0,sxx=0,sxy=0;
     for(const p of points){sx+=p.x;sy+=p.y;sxx+=p.x*p.x;sxy+=p.x*p.y;}
     const n=points.length,den=n*sxx-sx*sx;
-    if(Math.abs(den)<1e-6)return {a:0,b:sy/n};
-    const a=(n*sxy-sx*sy)/den;
-    return {a,b:(sy-a*sx)/n};
+    const a=Math.abs(den)<1e-6?0:(n*sxy-sx*sy)/den;
+    const b=(sy-a*sx)/n;
+    let sq=0;
+    for(const p of points){const d=p.y-(a*p.x+b);sq+=d*d;}
+    return {a,b,rmse:Math.sqrt(sq/n),count:n};
   }
 
   function detectFaceQuad(source){
@@ -619,6 +621,15 @@
     }
     const l=linearFit(leftPts),r=linearFit(rightPts),t=linearFit(topPts),bt=linearFit(bottomPts);
     if(!l||!r||!t||!bt)return null;
+    // v60: a projective warp is accepted only when all four fitted face edges are
+    // supported by enough low-res evidence. Noisy glyph/background edges can jump
+    // across the old hard threshold from one capture to the next.
+    if(Math.min(l.count,r.count,t.count,bt.count)<4)return null;
+    const fitResidual=Math.max(
+      l.rmse/Math.max(1,uSpan),r.rmse/Math.max(1,uSpan),
+      t.rmse/Math.max(1,vSpan),bt.rmse/Math.max(1,vSpan)
+    );
+    if(!Number.isFinite(fitResidual)||fitResidual>.055)return null;
 
     // left/right: u=a*v+b. top/bottom: v=a*u+b.
     function intersect(side,edge){
@@ -667,6 +678,11 @@
     // canonicalization instead of forcing a bad projective warp.
     if(area<w*h*.30||avgW<w*.32||avgH<h*.38||aspect<1.00||aspect>1.95)return null;
     if(tb>1.22||lr>1.22||horizontalDelta>.16||verticalDelta>.16||worstCorner>.30)return null;
+    // Near-top-down captures often need only rotation normalization. Avoid turning
+    // tiny, noisy corner differences into an unnecessary perspective warp.
+    const perspectiveNeed=Math.max(tb-1,lr-1,horizontalDelta,verticalDelta,worstCorner);
+    if(perspectiveNeed<.045)return null;
+    Object.defineProperty(quad,'__m7v60Quality',{value:{fitResidual,perspectiveNeed},enumerable:false});
     return quad;
   }
 
@@ -894,20 +910,38 @@
     if(!Array.isArray(ranked)||!ranked.length)return null;
     const best=ranked[0],second=ranked.find(x=>x.label!==best.label);
     if(!best||!Number.isFinite(best.distance))return null;
-    // v51 keeps every label recoverable. Family remains soft, while ranking
-    // emphasizes pixels that distinguish labels inside the same family.
-    // For auto-fill only, stay conservative when a strong family signal disagrees
-    // with the winning label; the Top1 suggestion itself is still shown.
+    // Family evidence may remain soft for Top1, but auto-confirm must not fight a
+    // clearly stronger family signal.
     if(best.bestFamily&&best.family&&best.bestFamily!==best.family&&Number(best.familyGap)>.020)return null;
-    // False positives are worse than leaving a tile as "?".
+
     const bestRaw=Number.isFinite(best.bestDistance)?best.bestDistance:best.distance;
-    if(best.distance>.145||bestRaw>.12)return null;
-    if(!second||!Number.isFinite(second.distance)){
-      return best.distance<=.105&&bestRaw<=.09?best:null;
+    // Keep an absolute quality guard. v60 does not create "high confidence" by
+    // merely relaxing the old thresholds.
+    if(best.distance>.150||bestRaw>.125)return null;
+
+    const spread=Math.max(0,Number.isFinite(best.templateSpread)?best.templateSpread:0);
+    const sameFamily=ranked.find(x=>x.label!==best.label&&x.family===best.family&&Number.isFinite(x.distance));
+    const localRunner=sameFamily||second;
+    if(!localRunner||!Number.isFinite(localRunner.distance)){
+      return best.distance<=.105&&bestRaw<=.09&&spread<=.055?best:null;
     }
-    const gap=second.distance-best.distance;
-    const ratio=second.distance>0?best.distance/second.distance:1;
-    if(gap<.018||ratio>.74)return null;
+
+    // A compact learned class can justify a smaller margin; a noisy class needs a
+    // wider lead over its closest same-family rival. This ties confidence to the
+    // actual learned-data spread rather than a display-only threshold.
+    const runnerSpread=Math.max(0,Number.isFinite(localRunner.templateSpread)?localRunner.templateSpread:0);
+    const localGap=localRunner.distance-best.distance;
+    const localRatio=localRunner.distance>0?best.distance/localRunner.distance:1;
+    const requiredLocalGap=Math.max(.010,Math.min(.026,.008+spread*.55+runnerSpread*.25));
+    if(localGap<requiredLocalGap||localRatio>.84)return null;
+
+    if(second&&Number.isFinite(second.distance)){
+      const globalGap=second.distance-best.distance;
+      const globalRatio=second.distance>0?best.distance/second.distance:1;
+      if(globalGap<.010||globalRatio>.86)return null;
+    }
+    if(Number.isFinite(best.sameFamilyGap)&&best.sameFamilyGap<requiredLocalGap)return null;
+    if(Number.isFinite(best.sameFamilyRatio)&&best.sameFamilyRatio>.84)return null;
     return best;
   }
 
@@ -915,13 +949,18 @@
     const lib=activeLibrary(),used={},debug=[];
     state.learnedLabelCount=Object.keys(lib).filter(label=>Array.isArray(lib[label])&&lib[label].length).length;
     const labels=features.map((feature,index)=>{
-      const ranked=core.rankLabelsFamilyDiscriminative(feature,lib,{blend:.84,priorWeight:.26,maxPenalty:.016});
+      const ranked=core.rankLabelsFamilyDiscriminative(feature,lib,{blend:.84,labelBlend:.72,priorWeight:.26,maxPenalty:.016});
       debug[index]=ranked.slice(0,3).map(x=>({
         label:x.label,
         family:x.family||core.tileFamily(x.label),
         distance:Number(x.distance.toFixed(4)),
         globalDistance:Number.isFinite(x.globalDistance)?Number(x.globalDistance.toFixed(4)):null,
         discriminativeDistance:Number.isFinite(x.discriminativeDistance)?Number(x.discriminativeDistance.toFixed(4)):null,
+        labelWeightedDistance:Number.isFinite(x.labelWeightedDistance)?Number(x.labelWeightedDistance.toFixed(4)):null,
+        familyWeightedDistance:Number.isFinite(x.familyWeightedDistance)?Number(x.familyWeightedDistance.toFixed(4)):null,
+        templateSpread:Number.isFinite(x.templateSpread)?Number(x.templateSpread.toFixed(4)):null,
+        sameFamilyGap:Number.isFinite(x.sameFamilyGap)?Number(x.sameFamilyGap.toFixed(4)):null,
+        sameFamilyRatio:Number.isFinite(x.sameFamilyRatio)?Number(x.sameFamilyRatio.toFixed(4)):null,
         familyDistance:Number.isFinite(x.familyDistance)?Number(x.familyDistance.toFixed(4)):null,
         familyPenalty:Number.isFinite(x.familyPenalty)?Number(x.familyPenalty.toFixed(4)):null,
         bestFamily:x.bestFamily||'',
