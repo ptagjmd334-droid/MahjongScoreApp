@@ -34,7 +34,7 @@ const server=http.createServer((req,res)=>{
     const errors=[];page.on('pageerror',e=>errors.push(String(e)));
     await page.goto('http://127.0.0.1:'+port+'/',{waitUntil:'domcontentloaded',timeout:30000});
     await page.waitForSelector('#go-confirm-button',{timeout:12000});
-    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'M7 v57');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'M7 v58');
     // v36 analyzes one long row after the shutter instead of requiring 14 live connected components.
     const synthetic=await page.evaluate(()=>{
       const canvas=document.createElement('canvas');canvas.width=840;canvas.height=260;
@@ -295,10 +295,10 @@ const server=http.createServer((req,res)=>{
     assert.equal(shutter.overlap,false,'v36 shutter and cancel overlap '+JSON.stringify(shutter));
     assert.equal(shutter.tiles,14,'v36 shutter did not open 14 editable slots '+JSON.stringify(shutter));
     assert.equal(shutter.crops,14,'v36 did not use 14 high-resolution row crops '+JSON.stringify(shutter));
-    assert(shutter.note.includes('今回だけ14枚'),'v56 one-time calibration explanation missing '+JSON.stringify(shutter));
+    assert(shutter.note.includes('保存完了を確認'),'v58 blocking calibration explanation missing '+JSON.stringify(shutter));
     assert.equal(shutter.preview.backgroundSize,'contain','tile preview must show the full crop '+JSON.stringify(shutter));
     assert(shutter.preview.height<190,'tile preview should not stretch through the whole result card '+JSON.stringify(shutter));
-    assert.equal(shutter.learned,14,'verified v56 calibration was not persisted before result close '+JSON.stringify(shutter));
+    assert.equal(shutter.learned,14,'verified v58 calibration was not persisted before result transition '+JSON.stringify(shutter));
     assert(shutter.rawSaved>=14,'verified tile images were not persisted to IndexedDB '+JSON.stringify(shutter));
     assert(shutter.firstPreviewSrc.startsWith('data:image/'),'v57 photographed tile preview missing '+JSON.stringify(shutter));
     assert(shutter.secondPreviewSrc.startsWith('data:image/'),'v57 photographed tile preview did not follow picker '+JSON.stringify(shutter));
