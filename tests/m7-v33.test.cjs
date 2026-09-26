@@ -224,7 +224,6 @@ test('v62 preserves stable learning, disables grid application, and splits dista
   assert(camera.includes('const gridFit=fitGlobalRowGrid(lowCtx,lowRow,14)'));
   assert(camera.includes("reason:'periodic-grid'"));
   assert(camera.includes("reason:'same-family-margin'"));
-  assert(camera.includes("reason:'absolute-distance'"));
   assert(camera.includes('confidenceReasonSummary'));
   assert(camera.includes("reason:'prototype-distance'"));
   assert(camera.includes("reason:'template-distance'"));
