@@ -29,6 +29,7 @@ on:
       - work/m7-v49-family-first-ranking
       - work/m7-v50-soft-family-prior
       - work/m7-v51-family-discriminative
+      - work/m7-v52-crop-diagnostic
   workflow_dispatch:
 
 jobs:
