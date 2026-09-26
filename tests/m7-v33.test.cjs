@@ -178,24 +178,24 @@ test('v36 camera avoids fixed bright-white threshold and closes camera when hidd
   assert(camera.includes(".realtime-hand-cancel-m7v3')?.click()"));
 });
 
-test('v52 compares production crop with inner crop using the same recognizer',()=>{
+test('v53 promotes inner crop to production and removes the duplicate diagnostic pass',()=>{
   const camera=fs.readFileSync(path.join(root,'m7-camera-v36.js'),'utf8');
-  assert(camera.includes("badge.className='m7v52-compare'"));
-  assert(camera.includes('innerDiagnosticCanvas'));
-  assert(camera.includes('diagnosticFeatureFromCanonical'));
-  assert(camera.includes('buildInnerDiagnosticLibrary'));
-  assert(camera.includes('rankDiagnosticFeature'));
-  assert(camera.includes("diagnosticFeatures.map(feature=>rankDiagnosticFeature"));
-  assert(camera.includes("内側cropは学習には保存しません"));
+  assert(camera.includes("MahjongScoreApp_tile_templates_m7v53innercrop1"));
+  assert(camera.includes("badge.className='m7v53-top1'"));
+  assert(camera.includes('innerRecognitionCanvas'));
+  assert(camera.includes('innerFeatureFromCanonical'));
+  assert(camera.includes('feature:innerFeatureFromCanonical(canonical)'));
+  assert(camera.includes('resolve(innerFeatureFromCanonical(canonical))'));
+  assert(camera.includes('Promise.all(selected.map'));
+  assert(camera.includes('/ 内側crop / 射影'));
+  assert(!camera.includes('diagnosticReadyPromise'));
+  assert(!camera.includes('buildInnerDiagnosticLibrary'));
   assert(camera.includes('canonicalizeCanvas'));
   assert(camera.includes('detectFaceQuad'));
   assert(camera.includes('warpQuadToCanvas'));
   assert(camera.includes('perspectiveFaceCanvas'));
-  assert(camera.includes("MahjongScoreApp_tile_templates_m7v48balanced24x36"));
   assert(camera.includes('const width=24,height=36'));
   assert(camera.includes('core.rankLabelsFamilyDiscriminative(feature,lib'));
-  assert(camera.includes("MahjongScoreApp_tile_templates_m7v45oriented1"));
-  assert(camera.includes('loadLegacyLibrary'));
   assert(camera.includes("if(raw.length)saveTrainingBatch(raw).catch(()=>{})"));
   assert(camera.includes("},true);"));
 });
