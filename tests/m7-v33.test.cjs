@@ -161,7 +161,7 @@ test('camera v36 is loaded before ui-fixes so verified clicks train the active c
   assert(index.indexOf('script.js')<index.indexOf('m7-recognition-core.js'));
   assert(index.indexOf('m7-recognition-core.js')<index.indexOf('m7-camera-v36.js'));
   assert(index.indexOf('m7-camera-v36.js')<index.indexOf('ui-fixes.js'));
-  assert(index.includes('M7 v58'));
+  assert(index.includes('M7 v59'));
 });
 
 test('legacy live detector and demo fill yield to the active camera owner',()=>{
@@ -178,7 +178,7 @@ test('v36 camera avoids fixed bright-white threshold and closes camera when hidd
   assert(camera.includes(".realtime-hand-cancel-m7v3')?.click()"));
 });
 
-test('v58 blocks result transition until verified learning is saved',()=>{
+test('v59 keeps verified learning durable across localStorage cache failures',()=>{
   const camera=fs.readFileSync(path.join(root,'m7-camera-v36.js'),'utf8');
   assert(camera.includes("MahjongScoreApp_tile_templates_stable1"));
   assert(camera.includes("MahjongScoreApp_tile_templates_stable1_backup"));
@@ -210,9 +210,15 @@ test('v58 blocks result transition until verified learning is saved',()=>{
   assert(camera.includes('renderPickerPhoto(index)'));
   assert(camera.includes('保存完了を確認してから次へ進みます'));
   assert(camera.includes('async function persistVerifiedHand'));
-  assert(camera.includes("reason:'stable-store-write-failed'"));
+  assert(camera.includes("reason:raw.length?'durable-store-failed':'raw-images-missing'"));
   assert(camera.includes("status.textContent='学習データを保存中…'"));
   assert(camera.includes("localStorage.setItem(LIB_BACKUP_KEY,json)"));
+  assert(camera.includes('saveLibraryDetailed'));
+  assert(camera.includes('activeLibrary'));
+  assert(camera.includes('rawVerified'));
+  assert(camera.includes('allowBackupEviction'));
+  assert(camera.includes("storageMode:stable.primaryVerified?'stable'+(rawVerified?'+raw':''):'raw'"));
+  assert(camera.includes('保存失敗コード:'));
   assert(camera.includes("},true);"));
   const ui=fs.readFileSync(path.join(root,'ui-fixes.js'),'utf8');
   assert(ui.includes("await window.M7CameraV36.persistVerifiedHand(root)"));

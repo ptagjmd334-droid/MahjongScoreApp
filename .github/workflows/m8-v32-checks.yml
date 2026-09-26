@@ -36,6 +36,7 @@ on:
       - work/m7-v56-stable-learning-storage
       - work/m7-v57-calibration-photo-preview
       - work/m7-v58-blocking-learning-save
+      - work/m7-v59-idb-learning-fallback
   workflow_dispatch:
 
 jobs:

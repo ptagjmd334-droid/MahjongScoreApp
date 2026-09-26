@@ -34,7 +34,7 @@ const server=http.createServer((req,res)=>{
     const errors=[];page.on('pageerror',e=>errors.push(String(e)));
     await page.goto('http://127.0.0.1:'+port+'/',{waitUntil:'domcontentloaded',timeout:30000});
     await page.waitForSelector('#go-confirm-button',{timeout:12000});
-    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'M7 v58');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'M7 v59');
     // v36 analyzes one long row after the shutter instead of requiring 14 live connected components.
     const synthetic=await page.evaluate(()=>{
       const canvas=document.createElement('canvas');canvas.width=840;canvas.height=260;
@@ -287,10 +287,12 @@ const server=http.createServer((req,res)=>{
       result?.remove();fake.remove();
       localStorage.removeItem('MahjongScoreApp_tile_templates_stable1');
       localStorage.removeItem('MahjongScoreApp_tile_templates_stable1_backup');
+      const rebuiltFromRaw=await window.M7CameraV36.rebuildLibraryFromTrainingImages();
+      const rawRecovered=Object.keys(rebuiltFromRaw||{}).filter(label=>Array.isArray(rebuiltFromRaw[label])&&rebuiltFromRaw[label].length).length;
       const suggestionCount=window.__m7v39SuggestionCount||0;delete window.__m7v39SuggestionCount;
       const secondSuggestions=window.__m7v42SecondSuggestions||[];delete window.__m7v42SecondSuggestions;
       const ownerIndex=window.__m7v42OwnerIndex;delete window.__m7v42OwnerIndex;
-      return {overlap,tiles,crops,note,diag,preview,learned,rawSaved,firstPreviewSrc,secondPreviewSrc,suggestionCount,secondSuggestions,ownerIndex};
+      return {overlap,tiles,crops,note,diag,preview,learned,rawSaved,rawRecovered,firstPreviewSrc,secondPreviewSrc,suggestionCount,secondSuggestions,ownerIndex};
     });
     assert.equal(shutter.overlap,false,'v36 shutter and cancel overlap '+JSON.stringify(shutter));
     assert.equal(shutter.tiles,14,'v36 shutter did not open 14 editable slots '+JSON.stringify(shutter));
@@ -300,6 +302,7 @@ const server=http.createServer((req,res)=>{
     assert(shutter.preview.height<190,'tile preview should not stretch through the whole result card '+JSON.stringify(shutter));
     assert.equal(shutter.learned,14,'verified v58 calibration was not persisted before result transition '+JSON.stringify(shutter));
     assert(shutter.rawSaved>=14,'verified tile images were not persisted to IndexedDB '+JSON.stringify(shutter));
+    assert.equal(shutter.rawRecovered,14,'v59 could not rebuild all learned labels from IndexedDB after localStorage cache removal '+JSON.stringify(shutter));
     assert(shutter.firstPreviewSrc.startsWith('data:image/'),'v57 photographed tile preview missing '+JSON.stringify(shutter));
     assert(shutter.secondPreviewSrc.startsWith('data:image/'),'v57 photographed tile preview did not follow picker '+JSON.stringify(shutter));
     assert.notEqual(shutter.firstPreviewSrc,shutter.secondPreviewSrc,'v57 photographed tile preview stayed on tile 1 '+JSON.stringify(shutter));
@@ -360,6 +363,25 @@ const server=http.createServer((req,res)=>{
     assert.equal(stableStorage.saved,1,'v56 stable library save did not report one learned class '+JSON.stringify(stableStorage));
     assert(stableStorage.hasPrimary&&stableStorage.hasBackup,'v56 did not write primary and backup learning stores '+JSON.stringify(stableStorage));
     assert.deepEqual(stableStorage.restored,['東'],'v56 did not restore the learning library from backup '+JSON.stringify(stableStorage));
+    const backupFailure=await page.evaluate(()=>{
+      const n=24*36;
+      const feat={kind:'perspective-direct-v1',width:24,height:36,
+        gray:Array(n).fill(.3),edge:Array(n).fill(.1),red:Array(n).fill(0),green:Array(n).fill(0)};
+      const original=Storage.prototype.setItem;
+      Storage.prototype.setItem=function(key,value){
+        if(key==='MahjongScoreApp_tile_templates_stable1_backup')throw new DOMException('simulated backup quota','QuotaExceededError');
+        return original.call(this,key,value);
+      };
+      let result;
+      try{result=window.M7CameraV36.saveLibraryDetailed({'南':[feat]},{allowCleanup:false});}
+      finally{Storage.prototype.setItem=original;}
+      const primary=JSON.parse(localStorage.getItem('MahjongScoreApp_tile_templates_stable1')||'{}');
+      return {ok:result.ok,primaryVerified:result.primaryVerified,backupSaved:result.backupSaved,labels:Object.keys(primary)};
+    });
+    assert.equal(backupFailure.ok,true,'v59 incorrectly blocks on backup-only failure '+JSON.stringify(backupFailure));
+    assert.equal(backupFailure.primaryVerified,true,'v59 primary read-back failed in backup-only fixture '+JSON.stringify(backupFailure));
+    assert.equal(backupFailure.backupSaved,false,'v59 backup failure fixture did not trigger '+JSON.stringify(backupFailure));
+    assert.deepEqual(backupFailure.labels,['南'],'v59 primary cache was not retained when backup failed '+JSON.stringify(backupFailure));
     // Reload after the isolated camera/calibration probe so the remaining game-flow smoke test
     // starts from a pristine setup screen.
     await page.reload({waitUntil:'domcontentloaded',timeout:30000});
