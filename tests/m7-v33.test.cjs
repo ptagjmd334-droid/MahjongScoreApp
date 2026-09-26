@@ -199,10 +199,11 @@ test('v65 multi-view rank consensus ignores one bad crop and tracks view votes',
     {label:'5筒',distance:a,family:'筒',representativeDistance:a,templateConsensusDistance:a,bestDistance:a,sampleCount:3},
     {label:'8筒',distance:b,family:'筒',representativeDistance:b,templateConsensusDistance:b,bestDistance:b,sampleCount:3}
   ];
+  const noisy=mk(.15,.07).sort((a,b)=>a.distance-b.distance);
   const combined=core.combineViewRankings([
     mk(.08,.13),
     mk(.09,.12),
-    mk(.15,.07),
+    noisy,
     mk(.085,.125),
     mk(.095,.115)
   ]);
@@ -312,7 +313,7 @@ test('v65 preserves stable learning and adds five-view crop consensus',()=>{
   assert(camera.includes('warpQuadToCanvas'));
   assert(camera.includes('perspectiveFaceCanvas'));
   assert(camera.includes('const width=24,height=36'));
-  assert(camera.includes('core.rankLabelsFamilyDiscriminative(feature,lib'));
+  assert(camera.includes('core.rankLabelsFamilyDiscriminative(view,lib'));
   assert(camera.includes("rawSaved=await saveTrainingBatch(raw)"));
   assert(camera.includes("MahjongScoreApp_tile_learning_meta1"));
   assert(camera.includes('m7v57-photo-preview'));
