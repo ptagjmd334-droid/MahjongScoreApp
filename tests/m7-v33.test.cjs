@@ -161,6 +161,20 @@ test('v60 label-specific map and template spread expose same-family evidence',()
   assert(Number.isFinite(ranked[0].sameFamilyGap));
 });
 
+test('v63 medoid keeps a real class exemplar and template consensus needs multiple support',()=>{
+  const w=4,h=4,n=w*h;
+  const feat=v=>({kind:'perspective-direct-v1',width:w,height:h,gray:Array(n).fill(v),edge:Array(n).fill(0),red:Array(n).fill(0),green:Array(n).fill(0)});
+  const templates=[feat(.10),feat(.11),feat(.90)];
+  const medoid=core.medoidFeature(templates);
+  assert.equal(medoid,templates[1],'medoid should select the central real capture, not synthesize an average');
+  const q=feat(.105);
+  const consensus=core.templateConsensusDistance(q,templates);
+  assert(Number.isFinite(consensus));
+  assert(consensus<core.featureDistance(q,templates[2]),'consensus must favor repeated nearby captures over an outlier');
+  const single=core.templateConsensusDistance(q,[feat(.10)]);
+  assert(single>core.featureDistance(q,feat(.10)),'single-template classes must keep a small support penalty');
+});
+
 test('tile family mapping covers suits, honors and red fives',()=>{
   assert.equal(core.tileFamily('3萬'),'萬');
   assert.equal(core.tileFamily('赤5筒'),'筒');
@@ -188,7 +202,7 @@ test('camera v36 is loaded before ui-fixes so verified clicks train the active c
   assert(index.indexOf('script.js')<index.indexOf('m7-recognition-core.js'));
   assert(index.indexOf('m7-recognition-core.js')<index.indexOf('m7-camera-v36.js'));
   assert(index.indexOf('m7-camera-v36.js')<index.indexOf('ui-fixes.js'));
-  assert(index.includes('M7 v62'));
+  assert(index.includes('M7 v63'));
 });
 
 test('legacy live detector and demo fill yield to the active camera owner',()=>{
@@ -205,7 +219,7 @@ test('v36 camera avoids fixed bright-white threshold and closes camera when hidd
   assert(camera.includes(".realtime-hand-cancel-m7v3')?.click()"));
 });
 
-test('v62 preserves stable learning, disables grid application, and splits distance diagnostics',()=>{
+test('v63 preserves stable learning and uses medoid/template-consensus recognition',()=>{
   const camera=fs.readFileSync(path.join(root,'m7-camera-v36.js'),'utf8');
   assert(camera.includes("MahjongScoreApp_tile_templates_stable1"));
   assert(camera.includes("MahjongScoreApp_tile_templates_stable1_backup"));
@@ -220,12 +234,17 @@ test('v62 preserves stable learning, disables grid application, and splits dista
   assert(camera.includes('templateSpread'));
   assert(camera.includes('sameFamilyGap'));
   assert(camera.includes('requiredLocalGap'));
+  const coreSource=fs.readFileSync(path.join(root,'m7-recognition-core.js'),'utf8');
+  assert(coreSource.includes('function medoidFeature'));
+  assert(coreSource.includes('function templateConsensusDistance'));
+  assert(coreSource.includes('representativeScore*(1-templateBlend)+consensusDistance*templateBlend'));
   assert(camera.includes('function fitGlobalRowGrid'));
   assert(camera.includes('const gridFit=fitGlobalRowGrid(lowCtx,lowRow,14)'));
   assert(camera.includes("reason:'periodic-grid'"));
   assert(camera.includes("reason:'same-family-margin'"));
   assert(camera.includes('confidenceReasonSummary'));
-  assert(camera.includes("reason:'prototype-distance'"));
+  assert(camera.includes("reason:'representative-distance'"));
+  assert(camera.includes("reason:'template-consensus'"));
   assert(camera.includes("reason:'template-distance'"));
   assert(camera.includes('gridCandidate:gridFit.used===true'));
   assert(camera.includes('gridUsed:false'));

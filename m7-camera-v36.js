@@ -915,10 +915,16 @@
     }
 
     const bestRaw=Number.isFinite(best.bestDistance)?best.bestDistance:best.distance;
-    // v62 keeps thresholds unchanged but separates which evidence failed.
-    // This tells us whether class/prototype alignment or even the nearest learned
-    // example is the current bottleneck before changing recognition thresholds.
-    if(best.distance>.150)return {candidate:null,reason:'prototype-distance'};
+    const representativeDistance=Number.isFinite(best.representativeDistance)?best.representativeDistance:
+      (Number.isFinite(best.globalDistance)?best.globalDistance:best.distance);
+    const consensusDistance=Number.isFinite(best.templateConsensusDistance)?best.templateConsensusDistance:bestRaw;
+    const multiSampleSupport=(Number(best.sampleCount)||0)>=2&&consensusDistance<=.115&&bestRaw<=.100;
+    // v63 no longer treats a blurred arithmetic class average as ground truth.
+    // A real medoid capture is the representative, and multiple nearby learned
+    // examples may support it. This is stricter than simply loosening a threshold:
+    // one accidental nearest template cannot bypass the representative check.
+    if(representativeDistance>.150&&!multiSampleSupport)return {candidate:null,reason:'representative-distance'};
+    if(consensusDistance>.135)return {candidate:null,reason:'template-consensus'};
     if(bestRaw>.125)return {candidate:null,reason:'template-distance'};
 
     const spread=Math.max(0,Number.isFinite(best.templateSpread)?best.templateSpread:0);
@@ -960,7 +966,8 @@
       counts[reason]=(counts[reason]||0)+1;
     }
     const labels={
-      'prototype-distance':'原型距離',
+      'representative-distance':'代表距離',
+      'template-consensus':'実例合意',
       'template-distance':'実例距離',
       'same-family-margin':'同系差',
       'global-margin':'全体差',
@@ -978,11 +985,15 @@
     const lib=activeLibrary(),used={},debug=[],reasons=[];
     state.learnedLabelCount=Object.keys(lib).filter(label=>Array.isArray(lib[label])&&lib[label].length).length;
     const labels=features.map((feature,index)=>{
-      const ranked=core.rankLabelsFamilyDiscriminative(feature,lib,{blend:.84,labelBlend:.72,priorWeight:.26,maxPenalty:.016});
+      const ranked=core.rankLabelsFamilyDiscriminative(feature,lib,{blend:.84,labelBlend:.72,templateBlend:.38,priorWeight:.26,maxPenalty:.016});
       debug[index]=ranked.slice(0,3).map(x=>({
         label:x.label,
         family:x.family||core.tileFamily(x.label),
         distance:Number(x.distance.toFixed(4)),
+        representativeDistance:Number.isFinite(x.representativeDistance)?Number(x.representativeDistance.toFixed(4)):null,
+        templateConsensusDistance:Number.isFinite(x.templateConsensusDistance)?Number(x.templateConsensusDistance.toFixed(4)):null,
+        bestDistance:Number.isFinite(x.bestDistance)?Number(x.bestDistance.toFixed(4)):null,
+        sampleCount:Number(x.sampleCount)||0,
         globalDistance:Number.isFinite(x.globalDistance)?Number(x.globalDistance.toFixed(4)):null,
         discriminativeDistance:Number.isFinite(x.discriminativeDistance)?Number(x.discriminativeDistance.toFixed(4)):null,
         labelWeightedDistance:Number.isFinite(x.labelWeightedDistance)?Number(x.labelWeightedDistance.toFixed(4)):null,
@@ -1437,7 +1448,7 @@
       if(note)note.textContent=features.length===14
         ?(firstCalibration
           ?'この保存領域には学習データがありません。今回だけ14枚を正しく指定してください。「この手牌で進む」を押した時に保存完了を確認してから次へ進みます。'
-          :`精度優先版です。v61の全体格子補正は実機で悪化したため認識には使わず、安定していた牌列14等分へ戻しています。内側cropと強い台形拒否は維持します。高信頼候補 ${auto}枚。保留理由: ${confidenceReasonSummary()}。`)
+          :`精度優先版です。牌列14等分と内側cropは維持し、学習画像の算術平均ではなく実在する代表画像＋複数実例の合意で比較します。高信頼候補 ${auto}枚。保留理由: ${confidenceReasonSummary()}。`)
         :'白枠内から牌列を特定できませんでした。撮影画像を確認し、14枠を手動入力するか「読み取り直す」で再撮影してください。';
       const status=root.querySelector('.hand-result-status-m7v5');
       if(status&&auto<14)status.textContent=features.length===14

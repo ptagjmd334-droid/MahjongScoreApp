@@ -179,6 +179,34 @@
     return first;
   }
 
+  function medoidFeature(templates){
+    if(!Array.isArray(templates)||!templates.length)return null;
+    const valid=templates.filter(Boolean);
+    if(!valid.length)return null;
+    if(valid.length===1)return valid[0];
+    let best=valid[0],bestScore=Infinity;
+    for(let i=0;i<valid.length;i++){
+      let total=0,n=0;
+      for(let j=0;j<valid.length;j++){
+        if(i===j)continue;
+        const d=featureDistance(valid[i],valid[j]);
+        if(Number.isFinite(d)){total+=d;n++;}
+      }
+      const score=n?total/n:Infinity;
+      if(score<bestScore){bestScore=score;best=valid[i];}
+    }
+    return best;
+  }
+
+  function templateConsensusDistance(feature,templates){
+    if(!feature||!Array.isArray(templates)||!templates.length)return Infinity;
+    const ds=templates.map(t=>featureDistance(feature,t)).filter(Number.isFinite).sort((a,b)=>a-b);
+    if(!ds.length)return Infinity;
+    if(ds.length===1)return ds[0]+.012;
+    if(ds.length===2)return ds[0]*.65+ds[1]*.35;
+    return ds[0]*.55+ds[1]*.30+ds[2]*.15;
+  }
+
   function rankLabelsBalanced(feature,library){
     const out=[];
     if(!feature||!library||typeof library!=='object')return out;
@@ -215,7 +243,7 @@
     for(const [label,templates] of Object.entries(library)){
       const family=tileFamily(label);
       if(!family||!Array.isArray(templates)||!templates.length)continue;
-      const labelPrototype=prototypeFeature(templates);
+      const labelPrototype=medoidFeature(templates);
       if(!labelPrototype)continue;
       (out[family]||(out[family]=[])).push(labelPrototype);
     }
@@ -257,7 +285,7 @@
     for(const [label,templates] of Object.entries(library)){
       const family=tileFamily(label);
       if(!family||!Array.isArray(templates)||!templates.length)continue;
-      const p=prototypeFeature(templates);
+      const p=medoidFeature(templates);
       if(!p||!['direct-edge-v1','oriented-direct-v1','perspective-direct-v1'].includes(p.kind))continue;
       (byFamily[family]||(byFamily[family]=[])).push(p);
     }
@@ -296,7 +324,7 @@
     const prototypes={};
     for(const [label,templates] of Object.entries(library||{})){
       if(!Array.isArray(templates)||!templates.length)continue;
-      const p=prototypeFeature(templates);
+      const p=medoidFeature(templates);
       if(p&&['direct-edge-v1','oriented-direct-v1','perspective-direct-v1'].includes(p.kind))prototypes[label]=p;
     }
     const out={};
@@ -392,29 +420,38 @@
     const labelMaps=labelDiscriminativeWeights(library);
     const blend=Number.isFinite(options.blend)?Math.max(0,Math.min(1,options.blend)):.84;
     const labelBlend=Number.isFinite(options.labelBlend)?Math.max(0,Math.min(1,options.labelBlend)):.72;
+    const templateBlend=Number.isFinite(options.templateBlend)?Math.max(0,Math.min(1,options.templateBlend)):.38;
     const priorWeight=Number.isFinite(options.priorWeight)?Math.max(0,options.priorWeight):.26;
     const maxPenalty=Number.isFinite(options.maxPenalty)?Math.max(0,options.maxPenalty):.016;
     const out=[];
     for(const [label,templates] of Object.entries(library)){
       if(!Array.isArray(templates)||!templates.length)continue;
-      const prototype=prototypeFeature(templates);if(!prototype)continue;
+      // v63: arithmetic pixel averages blur slightly shifted glyphs. Use the
+      // class medoid (a real captured template) as the representative, then
+      // require support from the nearest 2-3 templates as a separate signal.
+      const representative=medoidFeature(templates);if(!representative)continue;
       const family=tileFamily(label);
-      const globalDistance=featureDistance(feature,prototype);
+      const globalDistance=featureDistance(feature,representative);
       if(!Number.isFinite(globalDistance))continue;
-      const familyWeightedDistance=weightedDirectImageDistance(feature,prototype,familyMaps[family]||[]);
-      const labelWeightedDistance=weightedDirectImageDistance(feature,prototype,labelMaps[label]||familyMaps[family]||[]);
+      const familyWeightedDistance=weightedDirectImageDistance(feature,representative,familyMaps[family]||[]);
+      const labelWeightedDistance=weightedDirectImageDistance(feature,representative,labelMaps[label]||familyMaps[family]||[]);
       if(!Number.isFinite(familyWeightedDistance)||!Number.isFinite(labelWeightedDistance))continue;
       const discriminativeDistance=labelWeightedDistance*labelBlend+familyWeightedDistance*(1-labelBlend);
       const f=familyMap.get(family);
       const familyDistance=Number.isFinite(f?.distance)?f.distance:minFamily;
       const rawPenalty=Number.isFinite(minFamily)&&Number.isFinite(familyDistance)?Math.max(0,familyDistance-minFamily)*priorWeight:0;
       const familyPenalty=Math.min(maxPenalty,rawPenalty);
-      const distance=discriminativeDistance*blend+globalDistance*(1-blend)+familyPenalty;
+      const representativeScore=discriminativeDistance*blend+globalDistance*(1-blend)+familyPenalty;
+      const consensusDistance=templateConsensusDistance(feature,templates);
+      const distance=Number.isFinite(consensusDistance)
+        ?representativeScore*(1-templateBlend)+consensusDistance*templateBlend
+        :representativeScore;
       const raw=templates.map(t=>featureDistance(feature,t)).filter(Number.isFinite).sort((a,b)=>a-b);
       out.push({
-        label,distance,bestDistance:raw[0]??globalDistance,sampleCount:templates.length,prototype:true,
+        label,distance,bestDistance:raw[0]??globalDistance,sampleCount:templates.length,prototype:false,representative:'medoid',
+        representativeDistance:globalDistance,templateConsensusDistance:consensusDistance,representativeScore,
         globalDistance,discriminativeDistance,labelWeightedDistance,familyWeightedDistance,
-        templateSpread:templateSpread(templates,prototype),
+        templateSpread:templateSpread(templates,representative),
         family,familyDistance,familyPenalty,
         bestFamily:families[0]?.label||'',familyRunnerUpDistance:runner?.distance??Infinity,
         familyGap,familyRatio,
@@ -495,7 +532,7 @@
     }
     return shift/current.length<=maxShift;
   }
-  const api=Object.freeze({rmsDistance,shiftedRmsDistance,shiftedGroupedRmsDistance,structuredFeatureDistance,directImageDistance,featureDistance,prototypeFeature,rankLabels,rankLabelsRobust,rankLabelsBalanced,tileFamily,buildFamilyLibrary,rankFamiliesBalanced,rankLabelsHierarchical,rankLabelsSoftHierarchical,familyDiscriminativeWeights,labelDiscriminativeWeights,templateSpread,weightedDirectImageDistance,rankLabelsFamilyDiscriminative,classify,stableEnough});
+  const api=Object.freeze({rmsDistance,shiftedRmsDistance,shiftedGroupedRmsDistance,structuredFeatureDistance,directImageDistance,featureDistance,prototypeFeature,medoidFeature,templateConsensusDistance,rankLabels,rankLabelsRobust,rankLabelsBalanced,tileFamily,buildFamilyLibrary,rankFamiliesBalanced,rankLabelsHierarchical,rankLabelsSoftHierarchical,familyDiscriminativeWeights,labelDiscriminativeWeights,templateSpread,weightedDirectImageDistance,rankLabelsFamilyDiscriminative,classify,stableEnough});
   root.M7RecognitionCoreV33=api;
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })(typeof window!=='undefined'?window:globalThis);
