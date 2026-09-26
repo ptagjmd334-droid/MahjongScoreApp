@@ -679,7 +679,7 @@
     const lib=loadLibrary(),used={},debug=[];
     state.learnedLabelCount=Object.keys(lib).filter(label=>Array.isArray(lib[label])&&lib[label].length).length;
     const labels=features.map((feature,index)=>{
-      const ranked=core.rankLabelsSoftHierarchical(feature,lib,{priorWeight:.35,maxPenalty:.030});
+      const ranked=core.rankLabelsSoftHierarchical(feature,lib,{priorWeight:.18,maxPenalty:.012});
       debug[index]=ranked.slice(0,3).map(x=>({
         label:x.label,
         family:x.family||core.tileFamily(x.label),
