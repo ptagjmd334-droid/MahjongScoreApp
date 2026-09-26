@@ -318,9 +318,28 @@ const server=http.createServer((req,res)=>{
       const p=out.getContext('2d').getImageData(0,0,1,1).data;
       return {width:out.width,height:out.height,pixel:[p[0],p[1],p[2]]};
     });
-    assert.equal(innerApi.width,96,'v53 inner crop width changed '+JSON.stringify(innerApi));
-    assert.equal(innerApi.height,144,'v53 inner crop height changed '+JSON.stringify(innerApi));
-    assert(innerApi.pixel[0]<160&&innerApi.pixel[1]<40,'v53 inner crop did not substantially remove the synthetic red outer edge '+JSON.stringify(innerApi));
+    assert.equal(innerApi.width,96,'v54 inner crop width changed '+JSON.stringify(innerApi));
+    assert.equal(innerApi.height,144,'v54 inner crop height changed '+JSON.stringify(innerApi));
+    assert(innerApi.pixel[0]<160&&innerApi.pixel[1]<40,'v54 inner crop did not substantially remove the synthetic red outer edge '+JSON.stringify(innerApi));
+    const legacyRecovery=await page.evaluate(()=>{
+      const n=24*36;
+      const mk=(fn)=>Array.from({length:n},(_,i)=>fn(i%24,Math.floor(i/24)));
+      const old={'5筒':[{
+        kind:'perspective-direct-v1',width:24,height:36,
+        gray:mk((x,y)=>(x+y)/60),edge:mk((x,y)=>x/24),
+        red:mk((x,y)=>y/36),green:Array(n).fill(0)
+      }]};
+      const key='MahjongScoreApp_tile_templates_m7v48balanced24x36';
+      localStorage.setItem(key,JSON.stringify(old));
+      const lib=window.M7CameraV36.loadLegacyLibrary();
+      localStorage.removeItem(key);
+      const f=lib['5筒']?.[0];
+      return {labels:Object.keys(lib),kind:f?.kind||'',width:f?.width||0,height:f?.height||0};
+    });
+    assert.deepEqual(legacyRecovery.labels,['5筒'],'v54 did not recover the v48/v52 library '+JSON.stringify(legacyRecovery));
+    assert.equal(legacyRecovery.kind,'perspective-direct-v1','v54 recovered wrong feature kind '+JSON.stringify(legacyRecovery));
+    assert.equal(legacyRecovery.width,24,'v54 recovered wrong feature width '+JSON.stringify(legacyRecovery));
+    assert.equal(legacyRecovery.height,36,'v54 recovered wrong feature height '+JSON.stringify(legacyRecovery));
     // Reload after the isolated camera/calibration probe so the remaining game-flow smoke test
     // starts from a pristine setup screen.
     await page.reload({waitUntil:'domcontentloaded',timeout:30000});
