@@ -730,6 +730,16 @@
 **回帰テスト:** medoid/signatureが同一objectで再利用されること、source上でTop4・接戦限定・2500ms budgetが存在すること、既存保存schema・picker・5view生成・confidence条件が維持されることをunit/Chromiumで確認する。  
 **確度:** v66の30秒以上停止は実機報告で確定。medoidとstructural poolingの重複再計算はコード上確定。
 
+
+## M088: v66は速度だけでなく精度もv65から悪化した
+**時期:** M7 v66→v68  
+**症状:** v66実機で認識時間179242ms（約179秒）。さらにv65では同じ固定手牌がTop1 14/14だったのに、v66ではTop1が複数牌で外れ、高信頼も5→4枚へ低下した。  
+**根本原因:** v66は速度対策として補助4cropを「Top6候補の粗いstructural比較」に置き換えたため、v65で効いていた色・細線・同family差を含む直接画像比較の情報を補助viewから落とした。つまり速度改善の代わりに、5視点合意の判別力そのものを弱めた。  
+**修正:** v68ではv65の「5視点が全学習ラベルを評価して投票する」構造を戻す。ただし補助4viewは回転・拡大・平行移動探索を行わないaligned比較とcache済みmedoid/shape/weightを使う高速判定にする。標準viewだけは従来の重い高精度rankingを維持し、補助処理には2500ms上限を残す。  
+**再発防止:** 高速化で特徴そのものをstructural-onlyへ削らない。まず探索自由度を削る・派生量をcacheする・時間上限を付ける順で最適化し、固定手牌のTop1精度を基準にA/Bする。  
+**回帰テスト:** fast full-label scorerが同family syntheticを正しく区別すること、5view schemaを維持すること、標準viewだけ従来full matcherを使い補助viewはaligned fast scorerを使うことをunit/Chromiumで確認する。  
+**確度:** v66認識179242msと精度悪化は実機スクリーンショット・ユーザー確認で確定。v65 Top1 14/14も実機確認済み。
+
 # 変更前に特に見る高頻度項目
 1. **古いパッチとの競合**（M001/M003/M004/M006/M007）
 2. **実DOMとCSS前提**（M011/M015/M017）

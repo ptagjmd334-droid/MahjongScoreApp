@@ -459,6 +459,89 @@
     return ds.length%2?ds[mid]:(ds[mid-1]+ds[mid])/2;
   }
 
+  function alignedDirectImageDistance(a,b,weights=null){
+    const directKinds=new Set(['direct-edge-v1','oriented-direct-v1','perspective-direct-v1']);
+    if(!a||!b||!directKinds.has(a.kind)||a.kind!==b.kind)return featureDistance(a,b);
+    const width=Number(a.width)||0,height=Number(a.height)||0,n=width*height;
+    if(width!==Number(b.width)||height!==Number(b.height)||n<1)return Infinity;
+    for(const k of ['gray','edge','red','green']){
+      if(!Array.isArray(a[k])||!Array.isArray(b[k])||a[k].length!==n||b[k].length!==n)return Infinity;
+    }
+    const useWeights=Array.isArray(weights)&&weights.length===n;
+    let sg=0,se=0,sr=0,weightSum=0;
+    for(let i=0;i<n;i++){
+      const ag=Number(a.gray[i])||0,ae=Number(a.edge[i])||0,ar=Number(a.red[i])||0,an=Number(a.green[i])||0;
+      const bg=Number(b.gray[i])||0,be=Number(b.edge[i])||0,br=Number(b.red[i])||0,bn=Number(b.green[i])||0;
+      const ink=.28+Math.max(ag,bg,ae,be,ar,br,an,bn);
+      const w=ink*(useWeights?(Number(weights[i])||1):1);
+      sg+=(ag-bg)*(ag-bg)*w;
+      se+=(ae-be)*(ae-be)*w;
+      sr+=((ar-br)*(ar-br)+(an-bn)*(an-bn))*.5*w;
+      weightSum+=w;
+    }
+    if(!weightSum)return Infinity;
+    const gray=Math.sqrt(sg/weightSum),edge=Math.sqrt(se/weightSum),color=Math.sqrt(sr/weightSum);
+    return edge*.50+gray*.36+color*.14;
+  }
+
+  function alignedTemplateConsensusDistance(feature,templates){
+    if(!feature||!Array.isArray(templates)||!templates.length)return Infinity;
+    const ds=templates.map(t=>alignedDirectImageDistance(feature,t)).filter(Number.isFinite).sort((a,b)=>a-b);
+    if(!ds.length)return Infinity;
+    if(ds.length===1)return ds[0]+.010;
+    if(ds.length===2)return ds[0]*.65+ds[1]*.35;
+    return ds[0]*.55+ds[1]*.30+ds[2]*.15;
+  }
+
+  function rankLabelsFastDiscriminative(feature,library,options={}){
+    if(!feature||!library||typeof library!=='object')return [];
+    const familyMaps=familyDiscriminativeWeights(library);
+    const labelMaps=labelDiscriminativeWeights(library);
+    const labelBlend=Number.isFinite(options.labelBlend)?Math.max(0,Math.min(1,options.labelBlend)):.72;
+    const templateBlend=Number.isFinite(options.templateBlend)?Math.max(0,Math.min(1,options.templateBlend)):.38;
+    const shapeBlend=Number.isFinite(options.shapeBlend)?Math.max(0,Math.min(1,options.shapeBlend)):.60;
+    const out=[];
+    for(const [label,templates] of Object.entries(library)){
+      if(!Array.isArray(templates)||!templates.length)continue;
+      const representative=medoidFeature(templates);if(!representative)continue;
+      const family=tileFamily(label);
+      const globalDistance=alignedDirectImageDistance(feature,representative);
+      const familyWeightedDistance=alignedDirectImageDistance(feature,representative,familyMaps[family]||[]);
+      const labelWeightedDistance=alignedDirectImageDistance(feature,representative,labelMaps[label]||familyMaps[family]||[]);
+      if(!Number.isFinite(globalDistance)||!Number.isFinite(familyWeightedDistance)||!Number.isFinite(labelWeightedDistance))continue;
+      const discriminativeDistance=labelWeightedDistance*labelBlend+familyWeightedDistance*(1-labelBlend);
+      const representativeScore=discriminativeDistance*.84+globalDistance*.16;
+      const consensusDistance=alignedTemplateConsensusDistance(feature,templates);
+      const directScore=Number.isFinite(consensusDistance)
+        ?representativeScore*(1-templateBlend)+consensusDistance*templateBlend
+        :representativeScore;
+      const structuralRepresentativeDistance=structuralDistance(feature,representative);
+      const structuralConsensusDistance=templateStructuralConsensusDistance(feature,templates);
+      const structuralScore=Number.isFinite(structuralConsensusDistance)
+        ?structuralRepresentativeDistance*.56+structuralConsensusDistance*.44
+        :structuralRepresentativeDistance;
+      const distance=Number.isFinite(structuralScore)
+        ?directScore*(1-shapeBlend)+structuralScore*shapeBlend
+        :directScore;
+      out.push({
+        label,distance,family,
+        representativeDistance:globalDistance,
+        templateConsensusDistance:consensusDistance,
+        structuralRepresentativeDistance,structuralConsensusDistance,structuralScore,
+        discriminativeDistance,labelWeightedDistance,familyWeightedDistance,
+        sampleCount:templates.length
+      });
+    }
+    const sorted=out.sort((a,b)=>a.distance-b.distance);
+    for(const x of sorted){
+      const sameRunner=sorted.find(y=>y.label!==x.label&&y.family===x.family);
+      x.sameFamilyRunnerDistance=sameRunner?.distance??Infinity;
+      x.sameFamilyGap=sameRunner&&Number.isFinite(sameRunner.distance)?sameRunner.distance-x.distance:Infinity;
+      x.sameFamilyRatio=sameRunner&&sameRunner.distance>0?x.distance/sameRunner.distance:0;
+    }
+    return sorted;
+  }
+
   function weightedDirectImageDistance(a,b,weights){
     const directKinds=new Set(['direct-edge-v1','oriented-direct-v1','perspective-direct-v1']);
     if(!a||!b||!directKinds.has(a.kind)||a.kind!==b.kind)return featureDistance(a,b);
@@ -750,7 +833,7 @@
     }
     return shift/current.length<=maxShift;
   }
-  const api=Object.freeze({rmsDistance,shiftedRmsDistance,shiftedGroupedRmsDistance,structuredFeatureDistance,directImageDistance,featureDistance,prototypeFeature,pooledChannel,structuralSignature,structuralSignatureDistance,structuralDistance,templateStructuralConsensusDistance,medoidFeature,templateConsensusDistance,medianFinite,combineViewRankings,rankCandidateLabelsStructural,applyViewVoteConsensus,rankLabels,rankLabelsRobust,rankLabelsBalanced,tileFamily,buildFamilyLibrary,rankFamiliesBalanced,rankLabelsHierarchical,rankLabelsSoftHierarchical,familyDiscriminativeWeights,labelDiscriminativeWeights,templateSpread,weightedDirectImageDistance,rankLabelsFamilyDiscriminative,classify,stableEnough});
+  const api=Object.freeze({rmsDistance,shiftedRmsDistance,shiftedGroupedRmsDistance,structuredFeatureDistance,directImageDistance,alignedDirectImageDistance,alignedTemplateConsensusDistance,featureDistance,prototypeFeature,pooledChannel,structuralSignature,structuralSignatureDistance,structuralDistance,templateStructuralConsensusDistance,medoidFeature,templateConsensusDistance,medianFinite,combineViewRankings,rankCandidateLabelsStructural,rankLabelsFastDiscriminative,applyViewVoteConsensus,rankLabels,rankLabelsRobust,rankLabelsBalanced,tileFamily,buildFamilyLibrary,rankFamiliesBalanced,rankLabelsHierarchical,rankLabelsSoftHierarchical,familyDiscriminativeWeights,labelDiscriminativeWeights,templateSpread,weightedDirectImageDistance,rankLabelsFamilyDiscriminative,classify,stableEnough});
   root.M7RecognitionCoreV33=api;
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })(typeof window!=='undefined'?window:globalThis);

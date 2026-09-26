@@ -1014,26 +1014,19 @@
     state.learnedLabelCount=Object.keys(lib).filter(label=>Array.isArray(lib[label])&&lib[label].length).length;
     const labels=features.map((feature,index)=>{
       const views=Array.isArray(inferenceViews[index])&&inferenceViews[index].length?inferenceViews[index]:[feature];
-      // v67: preserve the v64 base classifier as the guaranteed path. Extra
-      // views are only a close-race tie breaker, only for Top4, and only while a
-      // short global time budget remains. If the phone is slow we automatically
-      // fall back to base-only rather than blocking the UI for tens of seconds.
+      // v68 keeps the v65 idea that every nearby crop may vote across every
+      // learned label, but the four auxiliary views use an aligned, cached
+      // scorer with no rotate/scale search. This restores the useful full-view
+      // consensus without multiplying the expensive matcher by five.
       const baseRanked=core.rankLabelsFamilyDiscriminative(views[0]||feature,lib,{blend:.84,labelBlend:.72,templateBlend:.38,shapeBlend:.60,priorWeight:.26,maxPenalty:.016});
-      const first=baseRanked[0],second=baseRanked.find(x=>x.label!==first?.label);
-      const baseGap=first&&second&&Number.isFinite(first.distance)&&Number.isFinite(second.distance)?second.distance-first.distance:Infinity;
-      const baseRatio=first&&second&&second.distance>0?first.distance/second.distance:0;
-      const ambiguous=baseGap<.030||baseRatio>.80;
-      const candidateLabels=baseRanked.slice(0,4).map(x=>x.label);
       const auxRankings=[];
-      if(ambiguous&&views.length>1){
-        for(const view of views.slice(1)){
-          if(now()-started>AUX_BUDGET_MS){auxFallbackCount++;break;}
-          auxRankings.push(core.rankCandidateLabelsStructural(view,lib,candidateLabels));
-          auxViewsUsed++;
-        }
+      for(const view of views.slice(1)){
+        if(now()-started>AUX_BUDGET_MS){auxFallbackCount++;break;}
+        auxRankings.push(core.rankLabelsFastDiscriminative(view,lib,{labelBlend:.72,templateBlend:.38,shapeBlend:.60}));
+        auxViewsUsed++;
       }
       const ranked=auxRankings.length
-        ?core.applyViewVoteConsensus(baseRanked,auxRankings,{candidateLimit:4,votePenalty:.006})
+        ?core.applyViewVoteConsensus(baseRanked,auxRankings,{candidateLimit:state.learnedLabelCount||6,votePenalty:.010})
         :baseRanked.map(x=>({...x,viewTopVotes:1,viewCount:1,baseDistance:x.distance}));
       debug[index]=ranked.slice(0,3).map(x=>({
         label:x.label,
@@ -1508,7 +1501,7 @@
       if(note)note.textContent=features.length===14
         ?(firstCalibration
           ?'この保存領域には学習データがありません。今回だけ14枚を正しく指定してください。「この手牌で進む」を押した時に保存完了を確認してから次へ進みます。'
-          :`精度優先版です。標準cropを主判定にし、近接cropは接戦牌のTop4だけを時間上限つきで再確認します。高信頼候補 ${auto}枚。保留理由: ${confidenceReasonSummary()}。認識 ${Math.max(0,state.lastRecognitionMs||0)}ms / 補助view ${state.lastAuxViewsUsed||0}${state.lastAuxFallbackCount?' / 時間上限fallback':''}。`)
+          :`精度優先版です。v65で効いた5視点合意を戻しつつ、補助4視点は回転・拡大探索なしの高速比較にしています。高信頼候補 ${auto}枚。保留理由: ${confidenceReasonSummary()}。認識 ${Math.max(0,state.lastRecognitionMs||0)}ms / 補助view ${state.lastAuxViewsUsed||0}${state.lastAuxFallbackCount?' / 時間上限fallback':''}。`)
         :'白枠内から牌列を特定できませんでした。撮影画像を確認し、14枠を手動入力するか「読み取り直す」で再撮影してください。';
       const status=root.querySelector('.hand-result-status-m7v5');
       if(status&&auto<14)status.textContent=features.length===14
