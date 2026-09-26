@@ -34,7 +34,7 @@ const server=http.createServer((req,res)=>{
     const errors=[];page.on('pageerror',e=>errors.push(String(e)));
     await page.goto('http://127.0.0.1:'+port+'/',{waitUntil:'domcontentloaded',timeout:30000});
     await page.waitForSelector('#go-confirm-button',{timeout:12000});
-    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'M7 v54');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'M7 v55');
     // v36 analyzes one long row after the shutter instead of requiring 14 live connected components.
     const synthetic=await page.evaluate(()=>{
       const canvas=document.createElement('canvas');canvas.width=840;canvas.height=260;
@@ -54,6 +54,14 @@ const server=http.createServer((req,res)=>{
     assert(synthetic.row.w>560&&synthetic.row.h>80,'unexpected row geometry '+JSON.stringify(synthetic));
     assert(synthetic.mapping&&synthetic.mapping.w>1500&&synthetic.mapping.h>300,
       'object-fit cover mapping lost high-resolution source area '+JSON.stringify(synthetic));
+    const quadGuard=await page.evaluate(()=>{
+      const api=window.M7CameraV36;
+      const straight=[{x:10,y:10},{x:50,y:11},{x:49,y:90},{x:11,y:89}];
+      const tilted=[{x:10,y:10},{x:50,y:22},{x:49,y:90},{x:11,y:78}];
+      return {straight:api.stablePerspectiveQuad(straight),tilted:api.stablePerspectiveQuad(tilted)};
+    });
+    assert.equal(quadGuard.straight,true,'v55 rejected stable tile geometry '+JSON.stringify(quadGuard));
+    assert.equal(quadGuard.tilted,false,'v55 accepted unstable per-tile warp '+JSON.stringify(quadGuard));
     const faceNorm=await page.evaluate(()=>{
       const canvas=document.createElement('canvas');canvas.width=140;canvas.height=180;
       const ctx=canvas.getContext('2d');ctx.fillStyle='#80542f';ctx.fillRect(0,0,140,180);
