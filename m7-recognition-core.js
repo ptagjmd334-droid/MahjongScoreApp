@@ -289,6 +289,55 @@
     return out;
   }
 
+  // v60: family-wide variance says "where labels in this suit differ at all".
+  // For close labels such as 5/6/7/8-pin we also need the regions that make
+  // each individual label unlike its same-family competitors.
+  function labelDiscriminativeWeights(library){
+    const prototypes={};
+    for(const [label,templates] of Object.entries(library||{})){
+      if(!Array.isArray(templates)||!templates.length)continue;
+      const p=prototypeFeature(templates);
+      if(p&&['direct-edge-v1','oriented-direct-v1','perspective-direct-v1'].includes(p.kind))prototypes[label]=p;
+    }
+    const out={};
+    for(const [label,target] of Object.entries(prototypes)){
+      const family=tileFamily(label);
+      const rivals=Object.entries(prototypes).filter(([other,p])=>
+        other!==label&&tileFamily(other)===family&&p.kind===target.kind&&p.width===target.width&&p.height===target.height
+      ).map(([,p])=>p);
+      const n=(Number(target.width)||0)*(Number(target.height)||0);
+      if(!n||!rivals.length){out[label]=Array(n).fill(1);continue;}
+      const score=Array(n).fill(0);
+      for(let i=0;i<n;i++){
+        let total=0;
+        for(const p of rivals){
+          const dg=(Number(target.gray[i])||0)-(Number(p.gray[i])||0);
+          const de=(Number(target.edge[i])||0)-(Number(p.edge[i])||0);
+          const dr=(Number(target.red[i])||0)-(Number(p.red[i])||0);
+          const dn=(Number(target.green[i])||0)-(Number(p.green[i])||0);
+          total+=de*de*.54+dg*dg*.30+(dr*dr+dn*dn)*.08;
+        }
+        score[i]=total/rivals.length;
+      }
+      const sorted=score.slice().sort((a,b)=>a-b);
+      const ref=sorted[Math.max(0,Math.min(sorted.length-1,Math.floor(sorted.length*.90)))]||Math.max(...score,1e-7);
+      out[label]=score.map(v=>{
+        const x=Math.max(0,Math.min(1,v/Math.max(ref,1e-8)));
+        return .28+3.72*Math.sqrt(x);
+      });
+    }
+    return out;
+  }
+
+  function templateSpread(templates,prototype=null){
+    if(!Array.isArray(templates)||templates.length<2)return 0;
+    const p=prototype||prototypeFeature(templates);if(!p)return Infinity;
+    const ds=templates.map(t=>featureDistance(t,p)).filter(Number.isFinite).sort((a,b)=>a-b);
+    if(!ds.length)return Infinity;
+    const mid=Math.floor(ds.length/2);
+    return ds.length%2?ds[mid]:(ds[mid-1]+ds[mid])/2;
+  }
+
   function weightedDirectImageDistance(a,b,weights){
     const directKinds=new Set(['direct-edge-v1','oriented-direct-v1','perspective-direct-v1']);
     if(!a||!b||!directKinds.has(a.kind)||a.kind!==b.kind)return featureDistance(a,b);
@@ -339,8 +388,10 @@
     const runner=families[1];
     const familyGap=runner&&Number.isFinite(runner.distance)&&Number.isFinite(minFamily)?runner.distance-minFamily:Infinity;
     const familyRatio=runner&&runner.distance>0&&Number.isFinite(minFamily)?minFamily/runner.distance:0;
-    const maps=familyDiscriminativeWeights(library);
+    const familyMaps=familyDiscriminativeWeights(library);
+    const labelMaps=labelDiscriminativeWeights(library);
     const blend=Number.isFinite(options.blend)?Math.max(0,Math.min(1,options.blend)):.84;
+    const labelBlend=Number.isFinite(options.labelBlend)?Math.max(0,Math.min(1,options.labelBlend)):.72;
     const priorWeight=Number.isFinite(options.priorWeight)?Math.max(0,options.priorWeight):.26;
     const maxPenalty=Number.isFinite(options.maxPenalty)?Math.max(0,options.maxPenalty):.016;
     const out=[];
@@ -350,8 +401,10 @@
       const family=tileFamily(label);
       const globalDistance=featureDistance(feature,prototype);
       if(!Number.isFinite(globalDistance))continue;
-      const discriminativeDistance=weightedDirectImageDistance(feature,prototype,maps[family]||[]);
-      if(!Number.isFinite(discriminativeDistance))continue;
+      const familyWeightedDistance=weightedDirectImageDistance(feature,prototype,familyMaps[family]||[]);
+      const labelWeightedDistance=weightedDirectImageDistance(feature,prototype,labelMaps[label]||familyMaps[family]||[]);
+      if(!Number.isFinite(familyWeightedDistance)||!Number.isFinite(labelWeightedDistance))continue;
+      const discriminativeDistance=labelWeightedDistance*labelBlend+familyWeightedDistance*(1-labelBlend);
       const f=familyMap.get(family);
       const familyDistance=Number.isFinite(f?.distance)?f.distance:minFamily;
       const rawPenalty=Number.isFinite(minFamily)&&Number.isFinite(familyDistance)?Math.max(0,familyDistance-minFamily)*priorWeight:0;
@@ -360,13 +413,22 @@
       const raw=templates.map(t=>featureDistance(feature,t)).filter(Number.isFinite).sort((a,b)=>a-b);
       out.push({
         label,distance,bestDistance:raw[0]??globalDistance,sampleCount:templates.length,prototype:true,
-        globalDistance,discriminativeDistance,family,familyDistance,familyPenalty,
+        globalDistance,discriminativeDistance,labelWeightedDistance,familyWeightedDistance,
+        templateSpread:templateSpread(templates,prototype),
+        family,familyDistance,familyPenalty,
         bestFamily:families[0]?.label||'',familyRunnerUpDistance:runner?.distance??Infinity,
         familyGap,familyRatio,
         familyRanked:families.slice(0,4).map(v=>({family:v.label,distance:v.distance}))
       });
     }
-    return out.sort((a,b)=>a.distance-b.distance);
+    const sorted=out.sort((a,b)=>a.distance-b.distance);
+    for(const x of sorted){
+      const sameRunner=sorted.find(y=>y.label!==x.label&&y.family===x.family);
+      x.sameFamilyRunnerDistance=sameRunner?.distance??Infinity;
+      x.sameFamilyGap=sameRunner&&Number.isFinite(sameRunner.distance)?sameRunner.distance-x.distance:Infinity;
+      x.sameFamilyRatio=sameRunner&&sameRunner.distance>0?x.distance/sameRunner.distance:0;
+    }
+    return sorted;
   }
 
   function rankLabelsSoftHierarchical(feature,library,options={}){
@@ -433,7 +495,7 @@
     }
     return shift/current.length<=maxShift;
   }
-  const api=Object.freeze({rmsDistance,shiftedRmsDistance,shiftedGroupedRmsDistance,structuredFeatureDistance,directImageDistance,featureDistance,prototypeFeature,rankLabels,rankLabelsRobust,rankLabelsBalanced,tileFamily,buildFamilyLibrary,rankFamiliesBalanced,rankLabelsHierarchical,rankLabelsSoftHierarchical,familyDiscriminativeWeights,weightedDirectImageDistance,rankLabelsFamilyDiscriminative,classify,stableEnough});
+  const api=Object.freeze({rmsDistance,shiftedRmsDistance,shiftedGroupedRmsDistance,structuredFeatureDistance,directImageDistance,featureDistance,prototypeFeature,rankLabels,rankLabelsRobust,rankLabelsBalanced,tileFamily,buildFamilyLibrary,rankFamiliesBalanced,rankLabelsHierarchical,rankLabelsSoftHierarchical,familyDiscriminativeWeights,labelDiscriminativeWeights,templateSpread,weightedDirectImageDistance,rankLabelsFamilyDiscriminative,classify,stableEnough});
   root.M7RecognitionCoreV33=api;
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })(typeof window!=='undefined'?window:globalThis);
