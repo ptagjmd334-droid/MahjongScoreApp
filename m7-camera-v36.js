@@ -9,10 +9,10 @@
   const core=window.M7RecognitionCoreV33;
   if(!core)return;
 
-  const LIB_KEY='MahjongScoreApp_tile_templates_m7v45oriented1';
+  const LIB_KEY='MahjongScoreApp_tile_templates_m7v46perspective1';
   const TRAINING_DB='MahjongScoreAppM7Training';
   const TRAINING_STORE='samples';
-  const FEATURE_KIND='oriented-direct-v1';
+  const FEATURE_KIND='perspective-direct-v1';
   const MAX_TEMPLATES=5;
   const MAX_IMAGES_PER_LABEL=10;
   const state={overlay:null,captured:false,pendingFeatures:[],pendingCrops:[],pendingTrainingImages:[],diagnostics:null,predictionDebug:[],learnedLabelCount:0};
@@ -267,7 +267,9 @@
       if(!(faceW>w*.25&&faceH>h*.25))return null;
       const aspect=faceH/faceW,fill=bestPixels.length/Math.max(1,faceW*faceH);
       if(!(aspect>.82&&aspect<2.7&&fill>.18))return null;
-      return {cx,cy,theta,faceW,faceH,fill,area:bestPixels.length};
+      const result={cx,cy,theta,faceW,faceH,fill,area:bestPixels.length};
+      Object.defineProperty(result,'pixels',{value:bestPixels,enumerable:false});
+      return result;
     }
 
     // First try foreground-vs-border contrast. This also works on v43/v44 images,
@@ -318,6 +320,162 @@
     return out;
   }
 
+  function quantileSorted(values,q){
+    if(!values.length)return NaN;
+    const p=Math.max(0,Math.min(values.length-1,(values.length-1)*q));
+    const i=Math.floor(p),f=p-i;
+    return values[i]*(1-f)+(values[Math.min(values.length-1,i+1)]||values[i])*f;
+  }
+
+  function linearFit(points){
+    if(!Array.isArray(points)||points.length<3)return null;
+    let sx=0,sy=0,sxx=0,sxy=0;
+    for(const p of points){sx+=p.x;sy+=p.y;sxx+=p.x*p.x;sxy+=p.x*p.y;}
+    const n=points.length,den=n*sxx-sx*sx;
+    if(Math.abs(den)<1e-6)return {a:0,b:sy/n};
+    const a=(n*sxy-sx*sy)/den;
+    return {a,b:(sy-a*sx)/n};
+  }
+
+  function detectFaceQuad(source){
+    const geom=detectFaceGeometry(source);
+    const pixels=geom?.pixels;
+    const w=source.width|0,h=source.height|0;
+    if(!geom||!pixels?.length||w<8||h<8)return null;
+    const sin=Math.sin(geom.theta),cos=Math.cos(geom.theta),pts=[];
+    for(const p of pixels){
+      const dx=(p%w)-geom.cx,dy=((p/w)|0)-geom.cy;
+      pts.push({u:sin*dx-cos*dy,v:cos*dx+sin*dy});
+    }
+    const us=pts.map(p=>p.u).sort((a,b)=>a-b),vs=pts.map(p=>p.v).sort((a,b)=>a-b);
+    const uMin=quantileSorted(us,.02),uMax=quantileSorted(us,.98);
+    const vMin=quantileSorted(vs,.02),vMax=quantileSorted(vs,.98);
+    if(!Number.isFinite(uMin+uMax+vMin+vMax))return null;
+    const uSpan=uMax-uMin,vSpan=vMax-vMin;
+    if(uSpan<4||vSpan<6)return null;
+
+    const leftPts=[],rightPts=[],binsV=8;
+    for(let bi=0;bi<binsV;bi++){
+      const a=vMin+vSpan*(.10+.80*bi/binsV),b=vMin+vSpan*(.10+.80*(bi+1)/binsV);
+      const band=pts.filter(p=>p.v>=a&&p.v<b).map(p=>p.u).sort((x,y)=>x-y);
+      if(band.length<6)continue;
+      leftPts.push({x:(a+b)/2,y:quantileSorted(band,.035)});
+      rightPts.push({x:(a+b)/2,y:quantileSorted(band,.965)});
+    }
+    const topPts=[],bottomPts=[],binsU=6;
+    for(let bi=0;bi<binsU;bi++){
+      const a=uMin+uSpan*(.12+.76*bi/binsU),b=uMin+uSpan*(.12+.76*(bi+1)/binsU);
+      const band=pts.filter(p=>p.u>=a&&p.u<b).map(p=>p.v).sort((x,y)=>x-y);
+      if(band.length<6)continue;
+      topPts.push({x:(a+b)/2,y:quantileSorted(band,.035)});
+      bottomPts.push({x:(a+b)/2,y:quantileSorted(band,.965)});
+    }
+    const l=linearFit(leftPts),r=linearFit(rightPts),t=linearFit(topPts),bt=linearFit(bottomPts);
+    if(!l||!r||!t||!bt)return null;
+
+    // left/right: u=a*v+b. top/bottom: v=a*u+b.
+    function intersect(side,edge){
+      const den=1-edge.a*side.a;
+      if(Math.abs(den)<.25)return null;
+      const v=(edge.a*side.b+edge.b)/den;
+      return {u:side.a*v+side.b,v};
+    }
+    const uv=[intersect(l,t),intersect(r,t),intersect(r,bt),intersect(l,bt)];
+    if(uv.some(p=>!p||!Number.isFinite(p.u)||!Number.isFinite(p.v)))return null;
+    function toXY(p){
+      return {x:geom.cx+sin*p.u+cos*p.v,y:geom.cy-cos*p.u+sin*p.v};
+    }
+    let quad=uv.map(toXY);
+    const center=quad.reduce((s,p)=>({x:s.x+p.x/4,y:s.y+p.y/4}),{x:0,y:0});
+    quad=quad.map(p=>({
+      x:Math.max(0,Math.min(w-1,center.x+(p.x-center.x)*1.015)),
+      y:Math.max(0,Math.min(h-1,center.y+(p.y-center.y)*1.015))
+    }));
+    function dist(a,b){return Math.hypot(a.x-b.x,a.y-b.y);}
+    const top=dist(quad[0],quad[1]),right=dist(quad[1],quad[2]),bottom=dist(quad[2],quad[3]),left=dist(quad[3],quad[0]);
+    const avgW=(top+bottom)/2,avgH=(left+right)/2,aspect=avgH/Math.max(1,avgW);
+    let area=0;for(let i=0;i<4;i++){const a=quad[i],b=quad[(i+1)%4];area+=a.x*b.y-b.x*a.y;}area=Math.abs(area)/2;
+    if(area<w*h*.10||avgW<w*.22||avgH<h*.25||aspect<.80||aspect>2.85)return null;
+    return quad;
+  }
+
+  function solveLinearSystem(A,b){
+    const n=b.length,M=A.map((row,i)=>row.slice().concat(b[i]));
+    for(let col=0;col<n;col++){
+      let pivot=col;
+      for(let r=col+1;r<n;r++)if(Math.abs(M[r][col])>Math.abs(M[pivot][col]))pivot=r;
+      if(Math.abs(M[pivot][col])<1e-9)return null;
+      if(pivot!==col){const tmp=M[col];M[col]=M[pivot];M[pivot]=tmp;}
+      const d=M[col][col];for(let j=col;j<=n;j++)M[col][j]/=d;
+      for(let r=0;r<n;r++){
+        if(r===col)continue;
+        const f=M[r][col];if(Math.abs(f)<1e-12)continue;
+        for(let j=col;j<=n;j++)M[r][j]-=f*M[col][j];
+      }
+    }
+    return M.map(row=>row[n]);
+  }
+
+  function homographyFromQuad(dst,src){
+    const A=[],b=[];
+    for(let i=0;i<4;i++){
+      const u=dst[i].x,v=dst[i].y,x=src[i].x,y=src[i].y;
+      A.push([u,v,1,0,0,0,-x*u,-x*v]);b.push(x);
+      A.push([0,0,0,u,v,1,-y*u,-y*v]);b.push(y);
+    }
+    return solveLinearSystem(A,b);
+  }
+
+  function warpQuadToCanvas(source,quad,width=64,height=96){
+    if(!Array.isArray(quad)||quad.length!==4)return null;
+    const mx=Math.max(1,width*.035),my=Math.max(1,height*.035);
+    const dst=[
+      {x:mx,y:my},{x:width-1-mx,y:my},
+      {x:width-1-mx,y:height-1-my},{x:mx,y:height-1-my}
+    ];
+    const H=homographyFromQuad(dst,quad);if(!H)return null;
+    const sw=source.width|0,sh=source.height|0;
+    const sctx=source.getContext('2d',{willReadFrequently:true});
+    const srcData=sctx.getImageData(0,0,sw,sh).data;
+    const out=document.createElement('canvas');out.width=width;out.height=height;
+    const o=out.getContext('2d',{willReadFrequently:true});
+    const img=o.createImageData(width,height),d=img.data;
+    function sample(x,y,ch){
+      if(x<0||y<0||x>sw-1||y>sh-1)return ch===3?255:244;
+      const x0=Math.floor(x),y0=Math.floor(y),x1=Math.min(sw-1,x0+1),y1=Math.min(sh-1,y0+1);
+      const fx=x-x0,fy=y-y0;
+      const i00=(y0*sw+x0)*4+ch,i10=(y0*sw+x1)*4+ch,i01=(y1*sw+x0)*4+ch,i11=(y1*sw+x1)*4+ch;
+      return (srcData[i00]*(1-fx)+srcData[i10]*fx)*(1-fy)+(srcData[i01]*(1-fx)+srcData[i11]*fx)*fy;
+    }
+    for(let y=0;y<height;y++)for(let x=0;x<width;x++){
+      const di=(y*width+x)*4;
+      if(x<mx||x>width-1-mx||y<my||y>height-1-my){
+        d[di]=244;d[di+1]=241;d[di+2]=232;d[di+3]=255;continue;
+      }
+      const den=H[6]*x+H[7]*y+1;
+      if(Math.abs(den)<1e-9){d[di]=244;d[di+1]=241;d[di+2]=232;d[di+3]=255;continue;}
+      const sx=(H[0]*x+H[1]*y+H[2])/den,sy=(H[3]*x+H[4]*y+H[5])/den;
+      d[di]=sample(sx,sy,0);d[di+1]=sample(sx,sy,1);d[di+2]=sample(sx,sy,2);d[di+3]=255;
+    }
+    o.putImageData(img,0,0);
+    out.__m7v46Perspective=true;
+    return out;
+  }
+
+  function perspectiveFaceCanvas(ctx,b,width=64,height=96){
+    const x0=Math.max(0,Math.floor(b.x)),y0=Math.max(0,Math.floor(b.y));
+    const x1=Math.min(ctx.canvas.width,Math.ceil(b.x+b.w)),y1=Math.min(ctx.canvas.height,Math.ceil(b.y+b.h));
+    const sw=Math.max(1,x1-x0),sh=Math.max(1,y1-y0);
+    const src=document.createElement('canvas');src.width=sw;src.height=sh;
+    src.getContext('2d',{willReadFrequently:true}).drawImage(ctx.canvas,x0,y0,sw,sh,0,0,sw,sh);
+    const quad=detectFaceQuad(src);
+    const warped=quad?warpQuadToCanvas(src,quad,width,height):null;
+    if(warped)return warped;
+    const oriented=canonicalizeCanvas(src,width,height);
+    if(oriented){oriented.__m7v46Perspective=false;return oriented;}
+    const fallback=normalizedFaceCanvas(ctx,b,width,height);fallback.__m7v46Perspective=false;return fallback;
+  }
+
   function orientedFaceCanvas(ctx,b,width=64,height=96){
     const x0=Math.max(0,Math.floor(b.x)),y0=Math.max(0,Math.floor(b.y));
     const x1=Math.min(ctx.canvas.width,Math.ceil(b.x+b.w)),y1=Math.min(ctx.canvas.height,Math.ceil(b.y+b.h));
@@ -362,21 +520,22 @@
   }
 
   function featureFromBox(ctx,b){
-    return descriptorFromCanvas(orientedFaceCanvas(ctx,b,64,96));
+    return descriptorFromCanvas(perspectiveFaceCanvas(ctx,b,64,96));
   }
 
   function trainingImageDataUrl(ctx,b){
-    return orientedFaceCanvas(ctx,b,96,144).toDataURL('image/jpeg',.90);
+    return perspectiveFaceCanvas(ctx,b,96,144).toDataURL('image/jpeg',.90);
   }
 
 
   function analyzeTileBox(ctx,b){
-    const canonical=orientedFaceCanvas(ctx,b,96,144);
+    const canonical=perspectiveFaceCanvas(ctx,b,96,144);
     const imageDataUrl=canonical.toDataURL('image/jpeg',.90);
     return {
       feature:descriptorFromCanvas(canonical),
       crop:imageDataUrl,
-      trainingImage:imageDataUrl
+      trainingImage:imageDataUrl,
+      perspectiveUsed:canonical.__m7v46Perspective===true
     };
   }
 
@@ -387,7 +546,8 @@
         const c=document.createElement('canvas');c.width=96;c.height=144;
         const x=c.getContext('2d',{willReadFrequently:true});x.fillStyle='#f4f1e8';x.fillRect(0,0,c.width,c.height);
         x.drawImage(img,0,0,c.width,c.height);
-        const canonical=canonicalizeCanvas(c,64,96)||c;
+        const tempCtx=c.getContext('2d',{willReadFrequently:true});
+        const canonical=perspectiveFaceCanvas(tempCtx,{x:0,y:0,w:c.width,h:c.height},64,96);
         resolve(descriptorFromCanvas(canonical));
       };
       img.onerror=()=>resolve(null);
@@ -417,7 +577,7 @@
   const trainingReadyPromise=rebuildLibraryFromTrainingImages().catch(()=>loadLibrary());
 
   function cropDataUrl(ctx,b){
-    return orientedFaceCanvas(ctx,b,96,144).toDataURL('image/jpeg',.90);
+    return perspectiveFaceCanvas(ctx,b,96,144).toDataURL('image/jpeg',.90);
   }
 
   function confidentCandidate(ranked){
@@ -701,7 +861,7 @@
     const lowCtx=low.getContext('2d',{willReadFrequently:true});
     lowCtx.drawImage(highCanvas,0,0,low.width,low.height);
     const lowRow=locateTileRow(lowCtx);
-    if(!lowRow)return {row:null,boxes:[],features:[],crops:[],trainingImages:[],photo:highCanvas.toDataURL('image/jpeg',.80)};
+    if(!lowRow)return {row:null,boxes:[],features:[],crops:[],trainingImages:[],perspectiveCount:0,photo:highCanvas.toDataURL('image/jpeg',.80)};
     const sx=highCanvas.width/low.width,sy=highCanvas.height/low.height;
     const row={x:lowRow.x*sx,y:lowRow.y*sy,w:lowRow.w*sx,h:lowRow.h*sy};
     const boxes=splitRow(row,14);
@@ -711,6 +871,7 @@
       features:tileData.map(x=>x.feature),
       crops:tileData.map(x=>x.crop),
       trainingImages:tileData.map(x=>x.trainingImage),
+      perspectiveCount:tileData.filter(x=>x.perspectiveUsed).length,
       photo:highCanvas.toDataURL('image/jpeg',.80)
     };
   }
@@ -761,12 +922,12 @@
       const note=root.querySelector('.hand-result-note-m7v5');
       if(note)note.textContent=features.length===14
         ?(firstCalibration
-          ?'保存済みの牌画像がないため、M7 v45の初回学習が必要です。14枚を正しく指定してください。確定後は牌画像も端末内に保存します。'
+          ?'保存済みの牌画像がないため、M7 v46の初回学習が必要です。14枚を正しく指定してください。確定後は牌画像も端末内に保存します。'
           :`白枠内の手牌列を14枚に分割しました。高信頼候補 ${auto}枚。各枠の下に1位候補を表示しています。精度評価はこの1位候補を基準にします。`)
         :'白枠内から牌列を特定できませんでした。撮影画像を確認し、14枠を手動入力するか「読み取り直す」で再撮影してください。';
       const status=root.querySelector('.hand-result-status-m7v5');
       if(status&&auto<14)status.textContent=features.length===14
-        ?(firstCalibration?'初回学習：14枚を指定してください':`学習済み ${learnedLabels}種類 / 高信頼 ${auto}枚`)
+        ?(firstCalibration?'初回学習：14枚を指定してください':`学習済み ${learnedLabels}種類 / 射影 ${analysis.perspectiveCount||0}/14 / 高信頼 ${auto}枚`)
         :'手動入力：0 / 14枚';
       if(features.length!==14&&analysis.photo){
         const img=document.createElement('img');img.className='m7v36-photo';img.alt='白枠内を撮影した画像';img.src=analysis.photo;
@@ -866,6 +1027,6 @@
   },true);
 
   window.M7CameraV36=Object.freeze({
-    sourceRectForCover,locateTileRow,splitRow,splitRowBySeams,analyzeGuideCanvas,featureFromBox,tileFaceRect,descriptorFromCanvas,detectFaceGeometry,canonicalizeCanvas,orientedFaceCanvas,trainingImageDataUrl,analyzeTileBox,loadTrainingSamples,rebuildLibraryFromTrainingImages,loadLibrary,confidentCandidate,renderPickerSuggestions,pickerCurrentIndex,schedulePickerSuggestionSync,attachPickerSuggestionObserver
+    sourceRectForCover,locateTileRow,splitRow,splitRowBySeams,analyzeGuideCanvas,featureFromBox,tileFaceRect,descriptorFromCanvas,detectFaceGeometry,detectFaceQuad,canonicalizeCanvas,orientedFaceCanvas,perspectiveFaceCanvas,warpQuadToCanvas,trainingImageDataUrl,analyzeTileBox,loadTrainingSamples,rebuildLibraryFromTrainingImages,loadLibrary,confidentCandidate,renderPickerSuggestions,pickerCurrentIndex,schedulePickerSuggestionSync,attachPickerSuggestionObserver
   });
 })();
