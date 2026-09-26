@@ -751,6 +751,17 @@
 **回帰テスト:** camera sourceでfull matcherがpredict経路に存在しないこと、5view fast scorer→median consensus、5000ms上限、既存保存/UIが維持されることをunit/Chromiumで確認する。  
 **確度:** v68の20001ms・補助view1・fallbackは実機画面で確定。full matcherがbaseでbudget前に走る構造もコード上確定。
 
+
+## M090: v69で速度は2.3秒まで戻ったがTop1はv65より3枚悪化した
+**時期:** M7 v69→v70  
+**症状:** v69実機で認識2266ms、補助view56（14枚×4補助viewが全て完走）、fallbackなしまで高速化できた。一方で固定手牌ではTop1が11/14程度で、v65の14/14から約3枚悪化。高信頼も1枚。誤りは主に5索/6索、6索/3索など同family近似牌と、1枚のcross-family誤り。  
+**根本原因候補:** v69は位置・サイズ揺れを5cropで吸収したが、各view内の比較自体は完全alignedで、v65にあった±1px平行移動探索まで外した。crop variantだけでは牌面内の1px程度の残留ずれを吸収しきれず、同familyの細線差で順位が入れ替わる。  
+**修正:** v70ではv69の高速5view中央値合意を維持し、そのTop4候補だけを標準crop上で±1pxの整数平行移動9通りで再評価する。回転・拡大縮小・bilinear補間は使わず、各候補はmedoid＋alignedで近い実例2枚だけ再確認する。最終順位は高速5view距離28%＋micro-shift距離72%で統合。全体7500ms上限を維持する。  
+**保存互換:** stable/raw保存、24×36 schema、学習済み11種類は変更しない。  
+**再発防止:** v65の精度要因を戻すときは、全ラベル×全viewへ重いtransform探索を戻さず、候補絞り込み後に最小限の自由度だけ戻す。  
+**回帰テスト:** 1pxずれsyntheticでaligned距離よりinteger-shift距離が改善し、Top4 candidate refinementで正しい同familyラベルを選べることをunit/Chromiumで確認。  
+**確度:** v69の2266ms・補助view56・高信頼1枚は実機画面で確定。固定手牌の正解系列との比較ではTop1は約11/14。
+
 # 変更前に特に見る高頻度項目
 1. **古いパッチとの競合**（M001/M003/M004/M006/M007）
 2. **実DOMとCSS前提**（M011/M015/M017）
