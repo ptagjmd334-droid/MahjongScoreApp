@@ -34,7 +34,7 @@ const server=http.createServer((req,res)=>{
     const errors=[];page.on('pageerror',e=>errors.push(String(e)));
     await page.goto('http://127.0.0.1:'+port+'/',{waitUntil:'domcontentloaded',timeout:30000});
     await page.waitForSelector('#go-confirm-button',{timeout:12000});
-    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'M7 v56');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'M7 v57');
     // v36 analyzes one long row after the shutter instead of requiring 14 live connected components.
     const synthetic=await page.evaluate(()=>{
       const canvas=document.createElement('canvas');canvas.width=840;canvas.height=260;
@@ -249,7 +249,7 @@ const server=http.createServer((req,res)=>{
       const cropStyle=firstCrop?getComputedStyle(firstCrop):null;
       const preview={backgroundSize:cropStyle?.backgroundSize||'',height:firstCrop?.getBoundingClientRect().height||0};
       const diag=window.M7V36LastDiagnostics||null;
-      let learned=0,rawSaved=0;
+      let learned=0,rawSaved=0,firstPreviewSrc='',secondPreviewSrc='';
       if(result){
         const resultTiles=[...result.querySelectorAll('.hand-result-tile-m7v5')];
         if(resultTiles[0]){
@@ -257,6 +257,7 @@ const server=http.createServer((req,res)=>{
           if(resultTiles[1])resultTiles[1].dataset.m7v39Suggestions=JSON.stringify(['4筒','5筒','6筒']);
           resultTiles[0].click();
           await new Promise(resolve=>setTimeout(resolve,70));
+          firstPreviewSrc=document.querySelector('#tile-picker-m7v5 .m7v57-photo-preview img')?.src||'';
           const suggestionButtons=[...document.querySelectorAll('#tile-picker-m7v5 .m7v39-suggestions button')];
           window.__m7v39SuggestionCount=suggestionButtons.length;
           const picker=document.getElementById('tile-picker-m7v5');
@@ -264,6 +265,7 @@ const server=http.createServer((req,res)=>{
           normalChoice?.click();
           await new Promise(resolve=>setTimeout(resolve,110));
           window.__m7v42OwnerIndex=Number(picker?.dataset.m8v31Current);
+          secondPreviewSrc=document.querySelector('#tile-picker-m7v5 .m7v57-photo-preview img')?.src||'';
           const secondTexts=[...document.querySelectorAll('#tile-picker-m7v5 .m7v39-suggestions button')].map(b=>b.textContent.trim());
           window.__m7v42SecondSuggestions=secondTexts;
           document.querySelector('#tile-picker-m7v5 .tile-picker-cancel-m7v5')?.click();
@@ -288,7 +290,7 @@ const server=http.createServer((req,res)=>{
       const suggestionCount=window.__m7v39SuggestionCount||0;delete window.__m7v39SuggestionCount;
       const secondSuggestions=window.__m7v42SecondSuggestions||[];delete window.__m7v42SecondSuggestions;
       const ownerIndex=window.__m7v42OwnerIndex;delete window.__m7v42OwnerIndex;
-      return {overlap,tiles,crops,note,diag,preview,learned,rawSaved,suggestionCount,secondSuggestions,ownerIndex};
+      return {overlap,tiles,crops,note,diag,preview,learned,rawSaved,firstPreviewSrc,secondPreviewSrc,suggestionCount,secondSuggestions,ownerIndex};
     });
     assert.equal(shutter.overlap,false,'v36 shutter and cancel overlap '+JSON.stringify(shutter));
     assert.equal(shutter.tiles,14,'v36 shutter did not open 14 editable slots '+JSON.stringify(shutter));
@@ -298,6 +300,9 @@ const server=http.createServer((req,res)=>{
     assert(shutter.preview.height<190,'tile preview should not stretch through the whole result card '+JSON.stringify(shutter));
     assert.equal(shutter.learned,14,'verified v56 calibration was not persisted before result close '+JSON.stringify(shutter));
     assert(shutter.rawSaved>=14,'verified tile images were not persisted to IndexedDB '+JSON.stringify(shutter));
+    assert(shutter.firstPreviewSrc.startsWith('data:image/'),'v57 photographed tile preview missing '+JSON.stringify(shutter));
+    assert(shutter.secondPreviewSrc.startsWith('data:image/'),'v57 photographed tile preview did not follow picker '+JSON.stringify(shutter));
+    assert.notEqual(shutter.firstPreviewSrc,shutter.secondPreviewSrc,'v57 photographed tile preview stayed on tile 1 '+JSON.stringify(shutter));
     assert.equal(shutter.suggestionCount,3,'top-3 quick suggestions missing '+JSON.stringify(shutter));
     assert.equal(shutter.ownerIndex,1,'continuous picker owner did not advance to tile 2 '+JSON.stringify(shutter));
     assert.deepEqual(shutter.secondSuggestions,['4筒','5筒','6筒'],'normal-grid advance kept stale suggestions '+JSON.stringify(shutter));
