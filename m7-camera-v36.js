@@ -24,7 +24,7 @@
   const FEATURE_KIND='perspective-direct-v1';
   const MAX_TEMPLATES=5;
   const MAX_IMAGES_PER_LABEL=10;
-  const state={overlay:null,captured:false,pendingFeatures:[],pendingCrops:[],pendingTrainingImages:[],diagnostics:null,predictionDebug:[],learnedLabelCount:0,librarySource:''};
+  const state={overlay:null,captured:false,pendingFeatures:[],pendingCrops:[],pendingTrainingImages:[],diagnostics:null,predictionDebug:[],learnedLabelCount:0,librarySource:'',runtimeLibrary:null,storageDiagnostics:null};
   const persistPromises=new WeakMap();
 
   const style=document.createElement('style');
@@ -122,10 +122,21 @@
     return !!(x&&typeof x==='object'&&Object.values(x).some(list=>Array.isArray(list)&&list.length));
   }
 
-  function loadLibrary(){
+  function libraryLabels(lib){
+    return Object.keys(lib||{}).filter(label=>Array.isArray(lib[label])&&lib[label].length);
+  }
+
+  function loadPrimaryLibrary(){
     try{
       const primary=JSON.parse(localStorage.getItem(LIB_KEY)||'{}');
-      if(primary&&typeof primary==='object'&&nonEmptyLibrary(primary))return primary;
+      return primary&&typeof primary==='object'?primary:{};
+    }catch(_){return {};}
+  }
+
+  function loadLibrary(){
+    try{
+      const primary=loadPrimaryLibrary();
+      if(nonEmptyLibrary(primary))return primary;
       const backup=JSON.parse(localStorage.getItem(LIB_BACKUP_KEY)||'{}');
       if(backup&&typeof backup==='object'&&nonEmptyLibrary(backup)){
         try{localStorage.setItem(LIB_KEY,JSON.stringify(backup));}catch(_){}
@@ -134,19 +145,113 @@
       return primary&&typeof primary==='object'?primary:{};
     }catch(_){return {};}
   }
-  function saveLibrary(lib){
-    try{
-      const json=JSON.stringify(lib||{});
-      localStorage.setItem(LIB_KEY,json);
-      localStorage.setItem(LIB_BACKUP_KEY,json);
-      const labels=Object.keys(lib||{}).filter(label=>Array.isArray(lib[label])&&lib[label].length);
-      localStorage.setItem('MahjongScoreApp_tile_learning_meta1',JSON.stringify({
-        schema:'stable1',labels:labels.length,updatedAt:Date.now()
-      }));
-      return labels.length;
-    }catch(_){return 0;}
+
+  function activeLibrary(){
+    const stored=loadLibrary();
+    if(nonEmptyLibrary(stored))return stored;
+    return nonEmptyLibrary(state.runtimeLibrary)?state.runtimeLibrary:stored;
   }
 
+  function storageErrorCode(error){
+    if(!error)return 'unknown';
+    const name=String(error.name||'Error');
+    const message=String(error.message||'').slice(0,120);
+    return message?`${name}: ${message}`:name;
+  }
+
+  function obsoleteTemplateKeys(){
+    const keys=[];
+    try{
+      for(let i=0;i<localStorage.length;i++){
+        const key=localStorage.key(i);
+        if(!key||key===LIB_KEY||key===LIB_BACKUP_KEY)continue;
+        if(key.startsWith('MahjongScoreApp_tile_templates_'))keys.push(key);
+      }
+    }catch(_){}
+    return keys;
+  }
+
+  function removeObsoleteTemplateKeys(){
+    const removed=[];
+    for(const key of obsoleteTemplateKeys()){
+      try{localStorage.removeItem(key);removed.push(key);}catch(_){}
+    }
+    return removed;
+  }
+
+  function saveLibraryDetailed(lib,{allowCleanup=true,allowBackupEviction=false}={}){
+    const labels=libraryLabels(lib);
+    const diag={
+      ok:false,labels:labels.length,primaryVerified:false,backupSaved:false,metaSaved:false,
+      cleanup:[],error:'',firstError:'',backupError:'',metaError:'',jsonChars:0,recovered:false
+    };
+    let json='';
+    try{
+      json=JSON.stringify(lib||{});
+      diag.jsonChars=json.length;
+    }catch(error){
+      diag.error='serialize / '+storageErrorCode(error);
+      state.storageDiagnostics=diag;
+      return diag;
+    }
+
+    const tryPrimary=()=>{
+      try{
+        localStorage.setItem(LIB_KEY,json);
+        const verify=loadPrimaryLibrary();
+        const present=labels.every(label=>Array.isArray(verify[label])&&verify[label].length);
+        if(!labels.length||!present)throw new Error('primary read-back mismatch');
+        diag.primaryVerified=true;
+        diag.error='';
+        return true;
+      }catch(error){
+        if(!diag.firstError)diag.firstError=storageErrorCode(error);
+        diag.error='primary / '+storageErrorCode(error);
+        return false;
+      }
+    };
+
+    if(!tryPrimary()&&allowCleanup){
+      diag.cleanup.push(...removeObsoleteTemplateKeys());
+      if(diag.cleanup.length&&tryPrimary())diag.recovered=true;
+    }
+    if(!diag.primaryVerified&&allowBackupEviction){
+      try{
+        if(localStorage.getItem(LIB_BACKUP_KEY)!=null){
+          localStorage.removeItem(LIB_BACKUP_KEY);
+          diag.cleanup.push(LIB_BACKUP_KEY);
+        }
+      }catch(_){}
+      if(tryPrimary())diag.recovered=true;
+    }
+    if(!diag.primaryVerified){
+      state.storageDiagnostics=diag;
+      return diag;
+    }
+
+    try{
+      localStorage.setItem(LIB_BACKUP_KEY,json);
+      diag.backupSaved=localStorage.getItem(LIB_BACKUP_KEY)===json;
+      if(!diag.backupSaved)diag.backupError='backup read-back mismatch';
+    }catch(error){diag.backupError=storageErrorCode(error);}
+
+    try{
+      localStorage.setItem('MahjongScoreApp_tile_learning_meta1',JSON.stringify({
+        schema:'stable1',labels:labels.length,updatedAt:Date.now(),primaryVerified:true,
+        backupSaved:diag.backupSaved
+      }));
+      diag.metaSaved=true;
+    }catch(error){diag.metaError=storageErrorCode(error);}
+
+    diag.ok=true;
+    state.storageDiagnostics=diag;
+    return diag;
+  }
+
+  function saveLibrary(lib){
+    const result=saveLibraryDetailed(lib);
+    return result.ok?result.labels:0;
+  }
 
   function resampleFeatureMap(src,srcW,srcH,dstW,dstH){
     if(!Array.isArray(src)||src.length!==srcW*srcH)return null;
@@ -740,6 +845,7 @@
   async function rebuildLibraryFromTrainingImages(){
     const existing=loadLibrary();
     if(Object.values(existing).some(list=>Array.isArray(list)&&list.length)){
+      state.runtimeLibrary=existing;
       state.librarySource='stable';
       return existing;
     }
@@ -762,6 +868,7 @@
         }
       }
       if(Object.keys(lib).length){
+        state.runtimeLibrary=lib;
         state.librarySource='raw';
         saveLibrary(lib);
         return lib;
@@ -769,6 +876,7 @@
     }
     const legacy=loadLegacyLibrary();
     if(Object.keys(legacy).length){
+      state.runtimeLibrary=legacy;
       saveLibrary(legacy);
       return legacy;
     }
@@ -804,7 +912,7 @@
   }
 
   function predict(features){
-    const lib=loadLibrary(),used={},debug=[];
+    const lib=activeLibrary(),used={},debug=[];
     state.learnedLabelCount=Object.keys(lib).filter(label=>Array.isArray(lib[label])&&lib[label].length).length;
     const labels=features.map((feature,index)=>{
       const ranked=core.rankLabelsFamilyDiscriminative(feature,lib,{blend:.84,priorWeight:.26,maxPenalty:.016});
@@ -1238,19 +1346,28 @@
     }
   });
 
+  function persistFailureText(result){
+    const storage=result?.storage||state.storageDiagnostics||{};
+    const parts=[result?.reason||'unknown'];
+    if(storage?.error)parts.push(storage.error);
+    if(storage?.firstError&&storage.firstError!==storage.error)parts.push('first='+storage.firstError);
+    if(storage?.cleanup?.length)parts.push('cleanup='+storage.cleanup.length);
+    return '保存失敗コード: '+parts.join(' / ');
+  }
+
   async function persistVerifiedHand(root=document.getElementById('hand-result-overlay-m7v5')){
-    if(!root)return {ok:false,reason:'result-missing',learned:0,rawSaved:false};
+    if(!root)return {ok:false,reason:'result-missing',learned:0,rawSaved:false,rawVerified:false};
     if(persistPromises.has(root))return persistPromises.get(root);
     const promise=(async()=>{
       const buttons=[...root.querySelectorAll('.hand-result-tile-m7v5')];
       const labels=buttons.map(b=>b.dataset.tile||'');
-      if(buttons.length!==14||labels.some(x=>!x))return {ok:false,reason:'labels-incomplete',learned:0,rawSaved:false};
-      if(state.pendingFeatures.length!==14)return {ok:false,reason:'features-missing',learned:0,rawSaved:false};
+      if(buttons.length!==14||labels.some(x=>!x))return {ok:false,reason:'labels-incomplete',learned:0,rawSaved:false,rawVerified:false};
+      if(state.pendingFeatures.length!==14)return {ok:false,reason:'features-missing',learned:0,rawSaved:false,rawVerified:false};
 
-      const lib=loadLibrary(),raw=[];
+      const lib=activeLibrary(),raw=[];
       for(let i=0;i<14;i++){
         const label=labels[i],feature=state.pendingFeatures[i],imageDataUrl=state.pendingTrainingImages[i];
-        if(!feature||feature.kind!==FEATURE_KIND)return {ok:false,reason:'feature-invalid',learned:0,rawSaved:false};
+        if(!feature||feature.kind!==FEATURE_KIND)return {ok:false,reason:'feature-invalid-'+(i+1),learned:0,rawSaved:false,rawVerified:false};
         const list=Array.isArray(lib[label])?lib[label]:[];
         if(!list.some(t=>core.featureDistance(feature,t)<.012)){
           list.unshift(feature);lib[label]=list.slice(0,MAX_TEMPLATES);
@@ -1258,22 +1375,44 @@
         if(imageDataUrl)raw.push({label,imageDataUrl});
       }
 
-      const written=saveLibrary(lib);
-      const verify=loadLibrary();
-      const learned=Object.keys(verify).filter(label=>Array.isArray(verify[label])&&verify[label].length).length;
-      const allLabelsPresent=[...new Set(labels)].every(label=>Array.isArray(verify[label])&&verify[label].length);
-      if(!written||!learned||!allLabelsPresent){
-        return {ok:false,reason:'stable-store-write-failed',learned,rawSaved:false};
+      // IndexedDB raw images are the durable fallback. Save them first so a
+      // localStorage quota/cache failure can never destroy this calibration.
+      let rawSaved=false,rawVerified=false;
+      if(raw.length){
+        try{
+          rawSaved=await saveTrainingBatch(raw);
+          if(rawSaved){
+            const rows=await loadTrainingSamples();
+            const wanted=[...new Set(labels)];
+            rawVerified=wanted.every(label=>rows.some(row=>row?.label===label&&row?.imageDataUrl));
+          }
+        }catch(_){rawSaved=false;rawVerified=false;}
       }
 
-      let rawSaved=false;
-      if(raw.length){
-        try{rawSaved=await saveTrainingBatch(raw);}catch(_){rawSaved=false;}
+      // localStorage is now a fast cache, not a single point of failure.
+      // Primary is verified directly; backup/meta failures do not invalidate
+      // a verified primary. If raw IndexedDB is safe, stale backup may be
+      // evicted to recover quota for the primary cache.
+      const stable=saveLibraryDetailed(lib,{allowCleanup:true,allowBackupEviction:rawVerified});
+      const verify=stable.primaryVerified?loadPrimaryLibrary():{};
+      const learned=stable.primaryVerified?libraryLabels(verify).length:libraryLabels(lib).length;
+      const allLabelsPresent=stable.primaryVerified&&[...new Set(labels)].every(label=>Array.isArray(verify[label])&&verify[label].length);
+
+      if(stable.primaryVerified&&!allLabelsPresent){
+        return {ok:false,reason:'primary-readback-label-mismatch',learned,rawSaved,rawVerified,storage:stable};
       }
-      root.dataset.m7v58Persisted='1';
-      state.librarySource='stable';
+      if(!stable.primaryVerified&&!rawVerified){
+        return {ok:false,reason:raw.length?'durable-store-failed':'raw-images-missing',learned,rawSaved,rawVerified,storage:stable};
+      }
+
+      state.runtimeLibrary=lib;
+      root.dataset.m7v59Persisted='1';
+      state.librarySource=stable.primaryVerified?'stable':'raw';
       state.learnedLabelCount=learned;
-      return {ok:true,reason:'',learned,rawSaved};
+      return {
+        ok:true,reason:'',learned,rawSaved,rawVerified,storage:stable,
+        storageMode:stable.primaryVerified?'stable'+(rawVerified?'+raw':''):'raw'
+      };
     })();
     persistPromises.set(root,promise);
     return promise;
@@ -1290,12 +1429,12 @@
       if(!result.ok&&root.isConnected){
         if(status)status.textContent='学習データの保存に失敗しました';
         const note=root.querySelector('.hand-result-note-m7v5');
-        if(note)note.textContent='保存に失敗したため、この画面を閉じません。もう一度入力する必要はありません。この画面をそのまま送ってください。';
+        if(note)note.textContent='保存に失敗したため、この画面を閉じません。14枚の入力は残っています。 '+persistFailureText(result);
       }
     });
   },true);
 
   window.M7CameraV36=Object.freeze({
-    sourceRectForCover,locateTileRow,splitRow,splitRowBySeams,analyzeGuideCanvas,featureFromBox,tileFaceRect,descriptorFromCanvas,detectFaceGeometry,detectFaceQuad,canonicalizeCanvas,orientedFaceCanvas,perspectiveFaceCanvas,warpQuadToCanvas,trainingImageDataUrl,innerRecognitionCanvas,innerFeatureFromCanonical,analyzeTileBox,loadTrainingSamples,rebuildLibraryFromTrainingImages,loadLibrary,saveLibrary,persistVerifiedHand,loadLegacyLibrary,legacyLibraryKeys,convertLegacyDirectFeature,cropResampleFeatureMap,confidentCandidate,renderPickerPhoto,renderPickerSuggestions,pickerCurrentIndex,schedulePickerSuggestionSync,attachPickerSuggestionObserver
+    sourceRectForCover,locateTileRow,splitRow,splitRowBySeams,analyzeGuideCanvas,featureFromBox,tileFaceRect,descriptorFromCanvas,detectFaceGeometry,detectFaceQuad,canonicalizeCanvas,orientedFaceCanvas,perspectiveFaceCanvas,warpQuadToCanvas,trainingImageDataUrl,innerRecognitionCanvas,innerFeatureFromCanonical,analyzeTileBox,loadTrainingSamples,rebuildLibraryFromTrainingImages,loadLibrary,activeLibrary,saveLibrary,saveLibraryDetailed,persistVerifiedHand,persistFailureText,loadLegacyLibrary,legacyLibraryKeys,convertLegacyDirectFeature,cropResampleFeatureMap,confidentCandidate,renderPickerPhoto,renderPickerSuggestions,pickerCurrentIndex,schedulePickerSuggestionSync,attachPickerSuggestionObserver
   });
 })();
