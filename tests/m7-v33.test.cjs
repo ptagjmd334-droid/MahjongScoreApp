@@ -336,7 +336,7 @@ test('v66 preserves stable learning and replaces five full rankings with fast to
   assert(camera.includes('warpQuadToCanvas'));
   assert(camera.includes('perspectiveFaceCanvas'));
   assert(camera.includes('const width=24,height=36'));
-  assert(camera.includes('core.rankLabelsFamilyDiscriminative(view,lib'));
+  assert(camera.includes('core.rankLabelsFamilyDiscriminative(views[0]||feature,lib'));
   assert(camera.includes("rawSaved=await saveTrainingBatch(raw)"));
   assert(camera.includes("MahjongScoreApp_tile_learning_meta1"));
   assert(camera.includes('m7v57-photo-preview'));
