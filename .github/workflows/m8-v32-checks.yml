@@ -41,6 +41,7 @@ on:
       - work/m7-v61-global-grid-alignment
       - work/m7-v62-picker-layout-distance-diagnostics
       - work/m7-v63-medoid-template-consensus
+      - work/m7-v64-structural-shape-ranking
   workflow_dispatch:
 
 jobs:
