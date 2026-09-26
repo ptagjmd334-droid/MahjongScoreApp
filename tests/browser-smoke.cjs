@@ -170,8 +170,11 @@ const server=http.createServer((req,res)=>{
       const a=button.getBoundingClientRect(),b=cancel.getBoundingClientRect();
       const overlap=!(a.right<=b.left||b.right<=a.left||a.bottom<=b.top||b.bottom<=a.top);
       button.click();
-      await new Promise(resolve=>setTimeout(resolve,220));
-      const result=document.getElementById('hand-result-overlay-m7v5');
+      let result=null;
+      for(let i=0;i<30&&!result;i++){
+        await new Promise(resolve=>setTimeout(resolve,100));
+        result=document.getElementById('hand-result-overlay-m7v5');
+      }
       const tiles=result?.querySelectorAll('.hand-result-tile-m7v5').length||0;
       const crops=result?.querySelectorAll('.hand-result-tile-m7v5.m7v36-crop').length||0;
       const note=result?.querySelector('.hand-result-note-m7v5')?.textContent||'';
