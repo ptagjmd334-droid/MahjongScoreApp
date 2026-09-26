@@ -178,10 +178,15 @@ test('v36 camera avoids fixed bright-white threshold and closes camera when hidd
   assert(camera.includes(".realtime-hand-cancel-m7v3')?.click()"));
 });
 
-test('v51 uses within-family discriminative weighting with perspective matching',()=>{
+test('v52 compares production crop with inner crop using the same recognizer',()=>{
   const camera=fs.readFileSync(path.join(root,'m7-camera-v36.js'),'utf8');
-  assert(camera.includes("badge.className='m7v45-top1'"));
-  assert(camera.includes("position:absolute;right:3px;top:3px"));
+  assert(camera.includes("badge.className='m7v52-compare'"));
+  assert(camera.includes('innerDiagnosticCanvas'));
+  assert(camera.includes('diagnosticFeatureFromCanonical'));
+  assert(camera.includes('buildInnerDiagnosticLibrary'));
+  assert(camera.includes('rankDiagnosticFeature'));
+  assert(camera.includes("diagnosticFeatures.map(feature=>rankDiagnosticFeature"));
+  assert(camera.includes("内側cropは学習には保存しません"));
   assert(camera.includes('canonicalizeCanvas'));
   assert(camera.includes('detectFaceQuad'));
   assert(camera.includes('warpQuadToCanvas'));
@@ -189,7 +194,6 @@ test('v51 uses within-family discriminative weighting with perspective matching'
   assert(camera.includes("MahjongScoreApp_tile_templates_m7v48balanced24x36"));
   assert(camera.includes('const width=24,height=36'));
   assert(camera.includes('core.rankLabelsFamilyDiscriminative(feature,lib'));
-  assert(camera.includes('/ 差分強調 / 射影'));
   assert(camera.includes("MahjongScoreApp_tile_templates_m7v45oriented1"));
   assert(camera.includes('loadLegacyLibrary'));
   assert(camera.includes("if(raw.length)saveTrainingBatch(raw).catch(()=>{})"));
