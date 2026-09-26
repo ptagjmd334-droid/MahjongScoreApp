@@ -1009,25 +1009,26 @@
     const lib=activeLibrary(),used={},debug=[],reasons=[];
     const now=()=>((typeof performance!=='undefined'&&performance.now)?performance.now():Date.now());
     const started=now();
-    const AUX_BUDGET_MS=2500;
+    const TOTAL_BUDGET_MS=5000;
     let auxViewsUsed=0,auxFallbackCount=0;
     state.learnedLabelCount=Object.keys(lib).filter(label=>Array.isArray(lib[label])&&lib[label].length).length;
     const labels=features.map((feature,index)=>{
       const views=Array.isArray(inferenceViews[index])&&inferenceViews[index].length?inferenceViews[index]:[feature];
-      // v68 keeps the v65 idea that every nearby crop may vote across every
-      // learned label, but the four auxiliary views use an aligned, cached
-      // scorer with no rotate/scale search. This restores the useful full-view
-      // consensus without multiplying the expensive matcher by five.
-      const baseRanked=core.rankLabelsFamilyDiscriminative(views[0]||feature,lib,{blend:.84,labelBlend:.72,templateBlend:.38,shapeBlend:.60,priorWeight:.26,maxPenalty:.016});
-      const auxRankings=[];
-      for(const view of views.slice(1)){
-        if(now()-started>AUX_BUDGET_MS){auxFallbackCount++;break;}
-        auxRankings.push(core.rankLabelsFastDiscriminative(view,lib,{labelBlend:.72,templateBlend:.38,shapeBlend:.60}));
-        auxViewsUsed++;
+      // v69: v68 showed the original full matcher itself costs ~20 s on iPhone,
+      // before auxiliary views even run. Use the cached aligned scorer for ALL
+      // five nearby crops, then restore the v65-style median consensus. The
+      // crop variants already provide shift/scale tolerance, so explicit
+      // rotate/scale/translation search is no longer repeated per label.
+      const rankings=[];
+      for(const view of views){
+        if(rankings.length>0&&now()-started>TOTAL_BUDGET_MS){auxFallbackCount++;break;}
+        rankings.push(core.rankLabelsFastDiscriminative(view,lib,{labelBlend:.72,templateBlend:.38,shapeBlend:.60}));
+        if(rankings.length>1)auxViewsUsed++;
       }
-      const ranked=auxRankings.length
-        ?core.applyViewVoteConsensus(baseRanked,auxRankings,{candidateLimit:state.learnedLabelCount||6,votePenalty:.010})
-        :baseRanked.map(x=>({...x,viewTopVotes:1,viewCount:1,baseDistance:x.distance}));
+      if(!rankings.length){
+        rankings.push(core.rankLabelsFastDiscriminative(feature,lib,{labelBlend:.72,templateBlend:.38,shapeBlend:.60}));
+      }
+      const ranked=core.combineViewRankings(rankings);
       debug[index]=ranked.slice(0,3).map(x=>({
         label:x.label,
         family:x.family||core.tileFamily(x.label),
@@ -1039,20 +1040,14 @@
         structuralScore:Number.isFinite(x.structuralScore)?Number(x.structuralScore.toFixed(4)):null,
         bestDistance:Number.isFinite(x.bestDistance)?Number(x.bestDistance.toFixed(4)):null,
         sampleCount:Number(x.sampleCount)||0,
-        globalDistance:Number.isFinite(x.globalDistance)?Number(x.globalDistance.toFixed(4)):null,
         discriminativeDistance:Number.isFinite(x.discriminativeDistance)?Number(x.discriminativeDistance.toFixed(4)):null,
         labelWeightedDistance:Number.isFinite(x.labelWeightedDistance)?Number(x.labelWeightedDistance.toFixed(4)):null,
         familyWeightedDistance:Number.isFinite(x.familyWeightedDistance)?Number(x.familyWeightedDistance.toFixed(4)):null,
-        templateSpread:Number.isFinite(x.templateSpread)?Number(x.templateSpread.toFixed(4)):null,
         sameFamilyGap:Number.isFinite(x.sameFamilyGap)?Number(x.sameFamilyGap.toFixed(4)):null,
         sameFamilyRatio:Number.isFinite(x.sameFamilyRatio)?Number(x.sameFamilyRatio.toFixed(4)):null,
-        familyDistance:Number.isFinite(x.familyDistance)?Number(x.familyDistance.toFixed(4)):null,
-        familyPenalty:Number.isFinite(x.familyPenalty)?Number(x.familyPenalty.toFixed(4)):null,
-        bestFamily:x.bestFamily||'',
-        familyGap:Number.isFinite(x.familyGap)?Number(x.familyGap.toFixed(4)):null,
         viewTopVotes:Number(x.viewTopVotes)||0,
-        viewCount:Number(x.viewCount)||views.length,
-        baseDistance:Number.isFinite(x.baseDistance)?Number(x.baseDistance.toFixed(4)):null
+        viewCount:Number(x.viewCount)||rankings.length,
+        viewDistanceRange:Number.isFinite(x.viewDistanceRange)?Number(x.viewDistanceRange.toFixed(4)):null
       }));
       const available=ranked.filter(x=>(used[x.label]||0)<4);
       if(!available.length){reasons[index]='label-limit';return '';}
@@ -1501,7 +1496,7 @@
       if(note)note.textContent=features.length===14
         ?(firstCalibration
           ?'この保存領域には学習データがありません。今回だけ14枚を正しく指定してください。「この手牌で進む」を押した時に保存完了を確認してから次へ進みます。'
-          :`精度優先版です。v65で効いた5視点合意を戻しつつ、補助4視点は回転・拡大探索なしの高速比較にしています。高信頼候補 ${auto}枚。保留理由: ${confidenceReasonSummary()}。認識 ${Math.max(0,state.lastRecognitionMs||0)}ms / 補助view ${state.lastAuxViewsUsed||0}${state.lastAuxFallbackCount?' / 時間上限fallback':''}。`)
+          :`精度優先版です。v65で効いた5視点中央値合意は維持し、5視点すべてを回転・拡大探索なしの高速比較へ統一しました。高信頼候補 ${auto}枚。保留理由: ${confidenceReasonSummary()}。認識 ${Math.max(0,state.lastRecognitionMs||0)}ms / 補助view ${state.lastAuxViewsUsed||0}${state.lastAuxFallbackCount?' / 時間上限fallback':''}。`)
         :'白枠内から牌列を特定できませんでした。撮影画像を確認し、14枠を手動入力するか「読み取り直す」で再撮影してください。';
       const status=root.querySelector('.hand-result-status-m7v5');
       if(status&&auto<14)status.textContent=features.length===14
