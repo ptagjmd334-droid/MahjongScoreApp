@@ -34,7 +34,7 @@ const server=http.createServer((req,res)=>{
     const errors=[];page.on('pageerror',e=>errors.push(String(e)));
     await page.goto('http://127.0.0.1:'+port+'/',{waitUntil:'domcontentloaded',timeout:30000});
     await page.waitForSelector('#go-confirm-button',{timeout:12000});
-    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'M7 v45');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'M7 v46');
     // v36 analyzes one long row after the shutter instead of requiring 14 live connected components.
     const synthetic=await page.evaluate(()=>{
       const canvas=document.createElement('canvas');canvas.width=840;canvas.height=260;
@@ -65,7 +65,7 @@ const server=http.createServer((req,res)=>{
     });
     assert(faceNorm.rect.w<120&&faceNorm.rect.h<140&&faceNorm.rect.y>20,
       'tile face normalization did not remove row background '+JSON.stringify(faceNorm));
-    assert.equal(faceNorm.kind,'oriented-direct-v1','v45 descriptor kind missing '+JSON.stringify(faceNorm));
+    assert.equal(faceNorm.kind,'perspective-direct-v1','v46 descriptor kind missing '+JSON.stringify(faceNorm));
     assert.equal(faceNorm.width,16,'v44 descriptor width changed unexpectedly '+JSON.stringify(faceNorm));
     assert.equal(faceNorm.height,24,'v44 descriptor height changed unexpectedly '+JSON.stringify(faceNorm));
     assert.equal(faceNorm.gray,384,'v44 gray map size changed unexpectedly '+JSON.stringify(faceNorm));
@@ -95,9 +95,9 @@ const server=http.createServer((req,res)=>{
       };
     });
     assert(descriptorRobustness.same<descriptorRobustness.different,
-      'v45 oriented matcher is not more stable to lighting than to a different symbol '+JSON.stringify(descriptorRobustness));
+      'v46 perspective matcher is not more stable to lighting than to a different symbol '+JSON.stringify(descriptorRobustness));
     assert(descriptorRobustness.redGreen>0,
-      'v45 color maps failed to distinguish red and green ink '+JSON.stringify(descriptorRobustness));
+      'v46 color maps failed to distinguish red and green ink '+JSON.stringify(descriptorRobustness));
     const orientationRobustness=await page.evaluate(()=>{
       function make(rot=0,variant='same'){
         const source=document.createElement('canvas');source.width=100;source.height=140;
@@ -118,7 +118,28 @@ const server=http.createServer((req,res)=>{
       return {same:core.featureDistance(a,tilted),different:core.featureDistance(a,different)};
     });
     assert(orientationRobustness.same<orientationRobustness.different,
-      'v45 orientation normalization did not stabilize the same tile '+JSON.stringify(orientationRobustness));
+      'v46 orientation normalization did not stabilize the same tile '+JSON.stringify(orientationRobustness));
+
+    const perspectiveRectification=await page.evaluate(()=>{
+      const canvas=document.createElement('canvas');canvas.width=160;canvas.height=190;
+      const ctx=canvas.getContext('2d');ctx.fillStyle='#7b5032';ctx.fillRect(0,0,160,190);
+      ctx.fillStyle='#dedbd0';ctx.beginPath();
+      ctx.moveTo(34,24);ctx.lineTo(124,31);ctx.lineTo(139,164);ctx.lineTo(21,156);ctx.closePath();ctx.fill();
+      ctx.strokeStyle='#151515';ctx.lineWidth=7;ctx.beginPath();ctx.moveTo(64,55);ctx.lineTo(70,132);ctx.stroke();
+      ctx.lineWidth=6;ctx.beginPath();ctx.moveTo(70,91);ctx.lineTo(105,94);ctx.stroke();
+      const api=window.M7CameraV36;
+      const quad=api.detectFaceQuad(canvas);
+      const warped=quad?api.warpQuadToCanvas(canvas,quad,64,96):null;
+      const geom=warped?api.detectFaceGeometry(warped):null;
+      const feat=warped?api.descriptorFromCanvas(warped):null;
+      return {quad,geom:geom?{faceW:geom.faceW,faceH:geom.faceH,fill:geom.fill}:null,kind:feat?.kind||''};
+    });
+    assert(perspectiveRectification.quad&&perspectiveRectification.quad.length===4,
+      'v46 perspective quad detection failed '+JSON.stringify(perspectiveRectification));
+    assert(perspectiveRectification.geom&&perspectiveRectification.geom.faceH>perspectiveRectification.geom.faceW,
+      'v46 perspective warp did not produce an upright tile '+JSON.stringify(perspectiveRectification));
+    assert.equal(perspectiveRectification.kind,'perspective-direct-v1',
+      'v46 perspective descriptor kind missing '+JSON.stringify(perspectiveRectification));
 
     // Simulate a landscape camera frame and verify shutter -> post-capture 14 editable previews.
     const shutter=await page.evaluate(async()=>{
@@ -149,8 +170,11 @@ const server=http.createServer((req,res)=>{
       const a=button.getBoundingClientRect(),b=cancel.getBoundingClientRect();
       const overlap=!(a.right<=b.left||b.right<=a.left||a.bottom<=b.top||b.bottom<=a.top);
       button.click();
-      await new Promise(resolve=>setTimeout(resolve,220));
-      const result=document.getElementById('hand-result-overlay-m7v5');
+      let result=null;
+      for(let i=0;i<30&&!result;i++){
+        await new Promise(resolve=>setTimeout(resolve,100));
+        result=document.getElementById('hand-result-overlay-m7v5');
+      }
       const tiles=result?.querySelectorAll('.hand-result-tile-m7v5').length||0;
       const crops=result?.querySelectorAll('.hand-result-tile-m7v5.m7v36-crop').length||0;
       const note=result?.querySelector('.hand-result-note-m7v5')?.textContent||'';
@@ -185,14 +209,14 @@ const server=http.createServer((req,res)=>{
           ok.click();
           await new Promise(resolve=>setTimeout(resolve,180));
           try{
-            const lib=JSON.parse(localStorage.getItem('MahjongScoreApp_tile_templates_m7v45oriented1')||'{}');
+            const lib=JSON.parse(localStorage.getItem('MahjongScoreApp_tile_templates_m7v46perspective1')||'{}');
             learned=Object.values(lib).reduce((n,list)=>n+(Array.isArray(list)&&list.length?1:0),0);
             rawSaved=(await window.M7CameraV36.loadTrainingSamples()).length;
           }catch(_){}
         }
       }
       result?.remove();fake.remove();
-      localStorage.removeItem('MahjongScoreApp_tile_templates_m7v45oriented1');
+      localStorage.removeItem('MahjongScoreApp_tile_templates_m7v46perspective1');
       const suggestionCount=window.__m7v39SuggestionCount||0;delete window.__m7v39SuggestionCount;
       const secondSuggestions=window.__m7v42SecondSuggestions||[];delete window.__m7v42SecondSuggestions;
       const ownerIndex=window.__m7v42OwnerIndex;delete window.__m7v42OwnerIndex;
@@ -201,10 +225,10 @@ const server=http.createServer((req,res)=>{
     assert.equal(shutter.overlap,false,'v36 shutter and cancel overlap '+JSON.stringify(shutter));
     assert.equal(shutter.tiles,14,'v36 shutter did not open 14 editable slots '+JSON.stringify(shutter));
     assert.equal(shutter.crops,14,'v36 did not use 14 high-resolution row crops '+JSON.stringify(shutter));
-    assert(shutter.note.includes('初回学習'),'v45 first calibration explanation missing '+JSON.stringify(shutter));
+    assert(shutter.note.includes('初回学習'),'v46 first calibration explanation missing '+JSON.stringify(shutter));
     assert.equal(shutter.preview.backgroundSize,'contain','tile preview must show the full crop '+JSON.stringify(shutter));
     assert(shutter.preview.height<190,'tile preview should not stretch through the whole result card '+JSON.stringify(shutter));
-    assert.equal(shutter.learned,14,'verified v45 calibration was not persisted before result close '+JSON.stringify(shutter));
+    assert.equal(shutter.learned,14,'verified v46 calibration was not persisted before result close '+JSON.stringify(shutter));
     assert(shutter.rawSaved>=14,'verified tile images were not persisted to IndexedDB '+JSON.stringify(shutter));
     assert.equal(shutter.suggestionCount,3,'top-3 quick suggestions missing '+JSON.stringify(shutter));
     assert.equal(shutter.ownerIndex,1,'continuous picker owner did not advance to tile 2 '+JSON.stringify(shutter));

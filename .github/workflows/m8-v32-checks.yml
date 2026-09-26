@@ -23,6 +23,7 @@ on:
       - work/m7-v43-hog-color-training-images
       - work/m7-v44-direct-template-match
       - work/m7-v45-oriented-normalization
+      - work/m7-v46-perspective-rectification
   workflow_dispatch:
 
 jobs:

@@ -73,6 +73,13 @@ test('direct image distance tolerates small transform',()=>{
   assert.equal(ranked[0].label,'correct');
 });
 
+test('perspective direct descriptor stays supported',()=>{
+  const w=16,h=24,n=w*h;
+  const a={kind:'perspective-direct-v1',width:w,height:h,gray:Array(n).fill(0),edge:Array(n).fill(0),red:Array(n).fill(0),green:Array(n).fill(0)};
+  const b={...a,gray:Array(n).fill(.05),edge:Array(n).fill(.02),red:Array(n).fill(0),green:Array(n).fill(0)};
+  assert(Number.isFinite(core.featureDistance(a,b)));
+});
+
 test('13/14 candidate position stability requires similar positions',()=>{
   const p=Array.from({length:14},(_,i)=>i/14);
   assert.equal(core.stableEnough(p,p.map(x=>x+.01)),true);
@@ -86,7 +93,7 @@ test('camera v36 is loaded before ui-fixes so verified clicks train the active c
   assert(index.indexOf('script.js')<index.indexOf('m7-recognition-core.js'));
   assert(index.indexOf('m7-recognition-core.js')<index.indexOf('m7-camera-v36.js'));
   assert(index.indexOf('m7-camera-v36.js')<index.indexOf('ui-fixes.js'));
-  assert(index.includes('M7 v45'));
+  assert(index.includes('M7 v46'));
 });
 
 test('legacy live detector and demo fill yield to the active camera owner',()=>{
@@ -103,12 +110,15 @@ test('v36 camera avoids fixed bright-white threshold and closes camera when hidd
   assert(camera.includes(".realtime-hand-cancel-m7v3')?.click()"));
 });
 
-test('v45 exposes rank1 without covering the tile image',()=>{
+test('v46 exposes rank1 and perspective-normalizes before matching',()=>{
   const camera=fs.readFileSync(path.join(root,'m7-camera-v36.js'),'utf8');
   assert(camera.includes("badge.className='m7v45-top1'"));
   assert(camera.includes("position:absolute;right:3px;top:3px"));
   assert(camera.includes('canonicalizeCanvas'));
-  assert(camera.includes("MahjongScoreApp_tile_templates_m7v45oriented1"));
+  assert(camera.includes('detectFaceQuad'));
+  assert(camera.includes('warpQuadToCanvas'));
+  assert(camera.includes('perspectiveFaceCanvas'));
+  assert(camera.includes("MahjongScoreApp_tile_templates_m7v46perspective1"));
 });
 
 test('all published JavaScript entrypoints parse',()=>{
