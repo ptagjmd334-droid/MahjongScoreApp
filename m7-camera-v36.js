@@ -9,7 +9,8 @@
   const core=window.M7RecognitionCoreV33;
   if(!core)return;
 
-  const LIB_KEY='MahjongScoreApp_tile_templates_m7v53innercrop1';
+  const LIB_KEY='MahjongScoreApp_tile_templates_stable1';
+  const LIB_BACKUP_KEY='MahjongScoreApp_tile_templates_stable1_backup';
   const LEGACY_LIB_KEYS=[
     'MahjongScoreApp_tile_templates_m7v53innercrop1',
     'MahjongScoreApp_tile_templates_m7v48balanced24x36',
@@ -96,14 +97,33 @@
   `;
   document.head.appendChild(style);
 
+  function nonEmptyLibrary(x){
+    return !!(x&&typeof x==='object'&&Object.values(x).some(list=>Array.isArray(list)&&list.length));
+  }
+
   function loadLibrary(){
     try{
-      const x=JSON.parse(localStorage.getItem(LIB_KEY)||'{}');
-      return x&&typeof x==='object'?x:{};
+      const primary=JSON.parse(localStorage.getItem(LIB_KEY)||'{}');
+      if(primary&&typeof primary==='object'&&nonEmptyLibrary(primary))return primary;
+      const backup=JSON.parse(localStorage.getItem(LIB_BACKUP_KEY)||'{}');
+      if(backup&&typeof backup==='object'&&nonEmptyLibrary(backup)){
+        try{localStorage.setItem(LIB_KEY,JSON.stringify(backup));}catch(_){}
+        return backup;
+      }
+      return primary&&typeof primary==='object'?primary:{};
     }catch(_){return {};}
   }
   function saveLibrary(lib){
-    try{localStorage.setItem(LIB_KEY,JSON.stringify(lib));}catch(_){}
+    try{
+      const json=JSON.stringify(lib||{});
+      localStorage.setItem(LIB_KEY,json);
+      localStorage.setItem(LIB_BACKUP_KEY,json);
+      const labels=Object.keys(lib||{}).filter(label=>Array.isArray(lib[label])&&lib[label].length);
+      localStorage.setItem('MahjongScoreApp_tile_learning_meta1',JSON.stringify({
+        schema:'stable1',labels:labels.length,updatedAt:Date.now()
+      }));
+      return labels.length;
+    }catch(_){return 0;}
   }
 
 
@@ -158,7 +178,7 @@
     try{
       for(let i=0;i<localStorage.length;i++){
         const key=localStorage.key(i);
-        if(!key||key===LIB_KEY||!key.startsWith('MahjongScoreApp_tile_templates_'))continue;
+        if(!key||key===LIB_KEY||key===LIB_BACKUP_KEY||!key.startsWith('MahjongScoreApp_tile_templates_'))continue;
         if(!keys.includes(key))keys.push(key);
       }
     }catch(_){}
@@ -699,7 +719,7 @@
   async function rebuildLibraryFromTrainingImages(){
     const existing=loadLibrary();
     if(Object.values(existing).some(list=>Array.isArray(list)&&list.length)){
-      state.librarySource='v53';
+      state.librarySource='stable';
       return existing;
     }
     const rows=(await loadTrainingSamples()).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
@@ -1097,12 +1117,12 @@
       const note=root.querySelector('.hand-result-note-m7v5');
       if(note)note.textContent=features.length===14
         ?(firstCalibration
-          ?'保存済みの牌画像がないため、M7 v55の初回学習が必要です。14枚を正しく指定してください。確定後は牌画像も端末内に保存します。'
+          ?'この保存領域には学習データがありません。今回だけ14枚を正しく指定してください。確定すると安定保存キー＋バックアップへ保存し、次版以降も同じ学習データを使います。'
           :`精度優先版です。内側cropを維持しつつ、強すぎる台形補正は拒否して回転補正へ戻します。表示画像も実際に認識へ使った内側cropです。高信頼候補 ${auto}枚。`)
         :'白枠内から牌列を特定できませんでした。撮影画像を確認し、14枠を手動入力するか「読み取り直す」で再撮影してください。';
       const status=root.querySelector('.hand-result-status-m7v5');
       if(status&&auto<14)status.textContent=features.length===14
-        ?(firstCalibration?'初回学習：14枚を指定してください':`学習済み ${learnedLabels}種類${state.librarySource?` / 元:${state.librarySource}`:''} / 精度優先 / 射影採用 ${analysis.perspectiveCount||0}/14 / 高信頼 ${auto}枚`)
+        ?(firstCalibration?'初回学習：14枚を指定してください':`学習済み ${learnedLabels}種類${state.librarySource?` / 元:${state.librarySource}`:''} / 安定保存 / 精度優先 / 射影採用 ${analysis.perspectiveCount||0}/14 / 高信頼 ${auto}枚`)
         :'手動入力：0 / 14枚';
       if(features.length!==14&&analysis.photo){
         const img=document.createElement('img');img.className='m7v36-photo';img.alt='白枠内を撮影した画像';img.src=analysis.photo;
@@ -1202,6 +1222,6 @@
   },true);
 
   window.M7CameraV36=Object.freeze({
-    sourceRectForCover,locateTileRow,splitRow,splitRowBySeams,analyzeGuideCanvas,featureFromBox,tileFaceRect,descriptorFromCanvas,detectFaceGeometry,detectFaceQuad,canonicalizeCanvas,orientedFaceCanvas,perspectiveFaceCanvas,warpQuadToCanvas,trainingImageDataUrl,innerRecognitionCanvas,innerFeatureFromCanonical,analyzeTileBox,loadTrainingSamples,rebuildLibraryFromTrainingImages,loadLibrary,loadLegacyLibrary,legacyLibraryKeys,convertLegacyDirectFeature,cropResampleFeatureMap,confidentCandidate,renderPickerSuggestions,pickerCurrentIndex,schedulePickerSuggestionSync,attachPickerSuggestionObserver
+    sourceRectForCover,locateTileRow,splitRow,splitRowBySeams,analyzeGuideCanvas,featureFromBox,tileFaceRect,descriptorFromCanvas,detectFaceGeometry,detectFaceQuad,canonicalizeCanvas,orientedFaceCanvas,perspectiveFaceCanvas,warpQuadToCanvas,trainingImageDataUrl,innerRecognitionCanvas,innerFeatureFromCanonical,analyzeTileBox,loadTrainingSamples,rebuildLibraryFromTrainingImages,loadLibrary,saveLibrary,loadLegacyLibrary,legacyLibraryKeys,convertLegacyDirectFeature,cropResampleFeatureMap,confidentCandidate,renderPickerSuggestions,pickerCurrentIndex,schedulePickerSuggestionSync,attachPickerSuggestionObserver
   });
 })();
