@@ -324,7 +324,7 @@
     if(!values.length)return NaN;
     const p=Math.max(0,Math.min(values.length-1,(values.length-1)*q));
     const i=Math.floor(p),f=p-i;
-    return values[i]*(1-f)+(values[Math.min(values.length-1,i+1)]||values[i])*f;
+    return values[i]*(1-f)+(values[Math.min(values.length-1,i+1)]??values[i])*f;
   }
 
   function linearFit(points){
