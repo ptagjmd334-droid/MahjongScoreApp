@@ -257,8 +257,8 @@
     if(!labels.length||!families.length)return labels;
     const familyMap=new Map(families.map(f=>[f.label,f]));
     const minFamily=Number(families[0].distance);
-    const priorWeight=Number.isFinite(options.priorWeight)?Math.max(0,options.priorWeight):.35;
-    const maxPenalty=Number.isFinite(options.maxPenalty)?Math.max(0,options.maxPenalty):.030;
+    const priorWeight=Number.isFinite(options.priorWeight)?Math.max(0,options.priorWeight):.18;
+    const maxPenalty=Number.isFinite(options.maxPenalty)?Math.max(0,options.maxPenalty):.012;
     const runner=families[1];
     const familyGap=runner&&Number.isFinite(runner.distance)?runner.distance-minFamily:Infinity;
     const familyRatio=runner&&runner.distance>0?minFamily/runner.distance:0;
