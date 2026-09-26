@@ -493,10 +493,34 @@
       y:Math.max(0,Math.min(h-1,center.y+(p.y-center.y)*1.015))
     }));
     function dist(a,b){return Math.hypot(a.x-b.x,a.y-b.y);}
-    const top=dist(quad[0],quad[1]),right=dist(quad[1],quad[2]),bottom=dist(quad[2],quad[3]),left=dist(quad[3],quad[0]);
+    function dir(a,b){return Math.atan2(b.y-a.y,b.x-a.x);}
+    function parallelDelta(a,b){
+      let d=Math.abs(a-b)%Math.PI;
+      if(d>Math.PI/2)d=Math.PI-d;
+      return d;
+    }
+    function cornerCos(a,b,c){
+      const ux=a.x-b.x,uy=a.y-b.y,vx=c.x-b.x,vy=c.y-b.y;
+      const den=Math.hypot(ux,uy)*Math.hypot(vx,vy);
+      return den>1e-6?Math.abs((ux*vx+uy*vy)/den):1;
+    }
+    const top=dist(quad[0],quad[1]),right=dist(quad[1],quad[2]),bottom=dist(quad[3],quad[2]),left=dist(quad[0],quad[3]);
     const avgW=(top+bottom)/2,avgH=(left+right)/2,aspect=avgH/Math.max(1,avgW);
     let area=0;for(let i=0;i<4;i++){const a=quad[i],b=quad[(i+1)%4];area+=a.x*b.y-b.x*a.y;}area=Math.abs(area)/2;
-    if(area<w*h*.10||avgW<w*.22||avgH<h*.25||aspect<.80||aspect>2.85)return null;
+    const tb=Math.max(top,bottom)/Math.max(1,Math.min(top,bottom));
+    const lr=Math.max(left,right)/Math.max(1,Math.min(left,right));
+    const horizontalDelta=parallelDelta(dir(quad[0],quad[1]),dir(quad[3],quad[2]));
+    const verticalDelta=parallelDelta(dir(quad[0],quad[3]),dir(quad[1],quad[2]));
+    const worstCorner=Math.max(
+      cornerCos(quad[1],quad[0],quad[3]),cornerCos(quad[0],quad[1],quad[2]),
+      cornerCos(quad[1],quad[2],quad[3]),cornerCos(quad[2],quad[3],quad[0])
+    );
+    // The app asks for a near-top-down row. Extreme trapezoids here are usually
+    // glyph/background edges being mistaken for tile corners, which creates the
+    // visibly slanted crops seen on iPhone. Reject them and use rotation-only
+    // canonicalization instead of forcing a bad projective warp.
+    if(area<w*h*.30||avgW<w*.32||avgH<h*.38||aspect<1.00||aspect>1.95)return null;
+    if(tb>1.22||lr>1.22||horizontalDelta>.16||verticalDelta>.16||worstCorner>.30)return null;
     return quad;
   }
 
@@ -647,11 +671,12 @@
 
   function analyzeTileBox(ctx,b){
     const canonical=perspectiveFaceCanvas(ctx,b,96,144);
-    const imageDataUrl=canonical.toDataURL('image/jpeg',.90);
+    const recognition=innerRecognitionCanvas(canonical,96,144);
+    const trainingImage=canonical.toDataURL('image/jpeg',.92);
     return {
-      feature:innerFeatureFromCanonical(canonical),
-      crop:imageDataUrl,
-      trainingImage:imageDataUrl,
+      feature:descriptorFromCanvas(recognition),
+      crop:recognition.toDataURL('image/jpeg',.92),
+      trainingImage,
       perspectiveUsed:canonical.__m7v46Perspective===true
     };
   }
@@ -1072,12 +1097,12 @@
       const note=root.querySelector('.hand-result-note-m7v5');
       if(note)note.textContent=features.length===14
         ?(firstCalibration
-          ?'保存済みの牌画像がないため、M7 v54の初回学習が必要です。14枚を正しく指定してください。確定後は牌画像も端末内に保存します。'
-          :`v52診断で通常crop 9/14に対して内側crop 12/14だったため、外周を除いた内側cropを本番認識に採用しています。高信頼候補 ${auto}枚。`)
+          ?'保存済みの牌画像がないため、M7 v55の初回学習が必要です。14枚を正しく指定してください。確定後は牌画像も端末内に保存します。'
+          :`精度優先版です。内側cropを維持しつつ、強すぎる台形補正は拒否して回転補正へ戻します。表示画像も実際に認識へ使った内側cropです。高信頼候補 ${auto}枚。`)
         :'白枠内から牌列を特定できませんでした。撮影画像を確認し、14枠を手動入力するか「読み取り直す」で再撮影してください。';
       const status=root.querySelector('.hand-result-status-m7v5');
       if(status&&auto<14)status.textContent=features.length===14
-        ?(firstCalibration?'初回学習：14枚を指定してください':`学習済み ${learnedLabels}種類${state.librarySource?` / 元:${state.librarySource}`:''} / 内側crop / 射影 ${analysis.perspectiveCount||0}/14 / 高信頼 ${auto}枚`)
+        ?(firstCalibration?'初回学習：14枚を指定してください':`学習済み ${learnedLabels}種類${state.librarySource?` / 元:${state.librarySource}`:''} / 精度優先 / 射影採用 ${analysis.perspectiveCount||0}/14 / 高信頼 ${auto}枚`)
         :'手動入力：0 / 14枚';
       if(features.length!==14&&analysis.photo){
         const img=document.createElement('img');img.className='m7v36-photo';img.alt='白枠内を撮影した画像';img.src=analysis.photo;
