@@ -42,6 +42,7 @@ on:
       - work/m7-v62-picker-layout-distance-diagnostics
       - work/m7-v63-medoid-template-consensus
       - work/m7-v64-structural-shape-ranking
+      - work/m7-v65-multiview-consensus
   workflow_dispatch:
 
 jobs:
