@@ -96,7 +96,7 @@ test('soft family prior can recover a strong label even when family1 is wrong',(
     '5筒':[feat(.02)],'6筒':[feat(.80)],'8筒':[feat(.80)]
   };
   assert.equal(core.rankFamiliesBalanced(query,lib)[0].label,'萬','fixture must make family stage prefer 萬');
-  const soft=core.rankLabelsSoftHierarchical(query,lib,{priorWeight:.35,maxPenalty:.030});
+  const soft=core.rankLabelsSoftHierarchical(query,lib,{priorWeight:.18,maxPenalty:.012});
   assert.equal(soft[0].label,'5筒','soft prior must not hard-exclude the globally strong 筒 candidate');
   assert.equal(soft[0].family,'筒');
   assert.equal(soft[0].bestFamily,'萬');
@@ -112,7 +112,7 @@ test('soft family prior nudges a close global race toward a clearly stronger fam
   };
   assert.equal(core.rankLabelsBalanced(query,lib)[0].label,'5筒','fixture needs a slight global 筒 lead');
   assert.equal(core.rankFamiliesBalanced(query,lib)[0].label,'萬','family evidence should clearly prefer 萬');
-  const soft=core.rankLabelsSoftHierarchical(query,lib,{priorWeight:.35,maxPenalty:.030});
+  const soft=core.rankLabelsSoftHierarchical(query,lib,{priorWeight:.18,maxPenalty:.012});
   assert.equal(soft[0].label,'1萬','family prior should break only the close race');
 });
 
