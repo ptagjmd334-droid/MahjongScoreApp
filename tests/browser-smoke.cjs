@@ -34,7 +34,7 @@ const server=http.createServer((req,res)=>{
     const errors=[];page.on('pageerror',e=>errors.push(String(e)));
     await page.goto('http://127.0.0.1:'+port+'/',{waitUntil:'domcontentloaded',timeout:30000});
     await page.waitForSelector('#go-confirm-button',{timeout:12000});
-    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'M7 v59');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'M7 v60');
     // v36 analyzes one long row after the shutter instead of requiring 14 live connected components.
     const synthetic=await page.evaluate(()=>{
       const canvas=document.createElement('canvas');canvas.width=840;canvas.height=260;
@@ -249,7 +249,7 @@ const server=http.createServer((req,res)=>{
       const cropStyle=firstCrop?getComputedStyle(firstCrop):null;
       const preview={backgroundSize:cropStyle?.backgroundSize||'',height:firstCrop?.getBoundingClientRect().height||0};
       const diag=window.M7V36LastDiagnostics||null;
-      let learned=0,rawSaved=0,firstPreviewSrc='',secondPreviewSrc='';
+      let learned=0,rawSaved=0,firstPreviewSrc='',secondPreviewSrc='',pickerLayout=null;
       if(result){
         const resultTiles=[...result.querySelectorAll('.hand-result-tile-m7v5')];
         if(resultTiles[0]){
@@ -261,6 +261,20 @@ const server=http.createServer((req,res)=>{
           const suggestionButtons=[...document.querySelectorAll('#tile-picker-m7v5 .m7v39-suggestions button')];
           window.__m7v39SuggestionCount=suggestionButtons.length;
           const picker=document.getElementById('tile-picker-m7v5');
+          if(picker){
+            const card=picker.querySelector('.tile-picker-card-m7v5');
+            const grid=picker.querySelector('.tile-picker-grid-m7v5');
+            const close=picker.querySelector('.tile-picker-cancel-m7v5');
+            const cr=card?.getBoundingClientRect(),gr=grid?.getBoundingClientRect(),xr=close?.getBoundingClientRect();
+            const vh=window.visualViewport?.height||innerHeight;
+            pickerLayout={
+              cardTop:cr?.top??-999,cardBottom:cr?.bottom??999,closeBottom:xr?.bottom??999,viewportHeight:vh,
+              tileCount:grid?.querySelectorAll('button').length||0,
+              gridOverflowY:grid?getComputedStyle(grid).overflowY:'',
+              gridClientHeight:grid?.clientHeight||0,gridScrollHeight:grid?.scrollHeight||0,
+              gridBottom:gr?.bottom??999
+            };
+          }
           const normalChoice=picker?.querySelector('.tile-picker-grid-m7v5 button');
           normalChoice?.click();
           await new Promise(resolve=>setTimeout(resolve,110));
@@ -292,7 +306,7 @@ const server=http.createServer((req,res)=>{
       const suggestionCount=window.__m7v39SuggestionCount||0;delete window.__m7v39SuggestionCount;
       const secondSuggestions=window.__m7v42SecondSuggestions||[];delete window.__m7v42SecondSuggestions;
       const ownerIndex=window.__m7v42OwnerIndex;delete window.__m7v42OwnerIndex;
-      return {overlap,tiles,crops,note,diag,preview,learned,rawSaved,rawRecovered,firstPreviewSrc,secondPreviewSrc,suggestionCount,secondSuggestions,ownerIndex};
+      return {overlap,tiles,crops,note,diag,preview,learned,rawSaved,rawRecovered,firstPreviewSrc,secondPreviewSrc,suggestionCount,secondSuggestions,ownerIndex,pickerLayout};
     });
     assert.equal(shutter.overlap,false,'v36 shutter and cancel overlap '+JSON.stringify(shutter));
     assert.equal(shutter.tiles,14,'v36 shutter did not open 14 editable slots '+JSON.stringify(shutter));
@@ -309,6 +323,15 @@ const server=http.createServer((req,res)=>{
     assert.equal(shutter.suggestionCount,3,'top-3 quick suggestions missing '+JSON.stringify(shutter));
     assert.equal(shutter.ownerIndex,1,'continuous picker owner did not advance to tile 2 '+JSON.stringify(shutter));
     assert.deepEqual(shutter.secondSuggestions,['4筒','5筒','6筒'],'normal-grid advance kept stale suggestions '+JSON.stringify(shutter));
+    assert(shutter.pickerLayout,'v60 picker layout diagnostics missing '+JSON.stringify(shutter));
+    assert(shutter.pickerLayout.cardTop>=-1&&shutter.pickerLayout.cardBottom<=shutter.pickerLayout.viewportHeight+1,
+      'v60 continuous picker card is outside landscape viewport '+JSON.stringify(shutter.pickerLayout));
+    assert(shutter.pickerLayout.closeBottom<=shutter.pickerLayout.viewportHeight+1,
+      'v60 close button is cut off '+JSON.stringify(shutter.pickerLayout));
+    assert.equal(shutter.pickerLayout.tileCount,34,'v60 picker must keep all 34 tile options visible '+JSON.stringify(shutter.pickerLayout));
+    assert.equal(shutter.pickerLayout.gridOverflowY,'hidden','v60 tile list must not require inner scrolling '+JSON.stringify(shutter.pickerLayout));
+    assert(shutter.pickerLayout.gridScrollHeight<=shutter.pickerLayout.gridClientHeight+1,
+      'v60 tile grid still scrolls in iPhone-sized landscape viewport '+JSON.stringify(shutter.pickerLayout));
     const confidence=await page.evaluate(()=>{
       const api=window.M7CameraV36;
       const clear=api.confidentCandidate([{label:'A',distance:.11},{label:'B',distance:.24}]);
