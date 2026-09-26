@@ -44,6 +44,7 @@ on:
       - work/m7-v64-structural-shape-ranking
       - work/m7-v65-multiview-consensus
       - work/m7-v66-fast-multiview
+      - work/m7-v67-cached-budgeted-multiview
   workflow_dispatch:
 
 jobs:
