@@ -188,7 +188,7 @@ test('camera v36 is loaded before ui-fixes so verified clicks train the active c
   assert(index.indexOf('script.js')<index.indexOf('m7-recognition-core.js'));
   assert(index.indexOf('m7-recognition-core.js')<index.indexOf('m7-camera-v36.js'));
   assert(index.indexOf('m7-camera-v36.js')<index.indexOf('ui-fixes.js'));
-  assert(index.includes('M7 v60'));
+  assert(index.includes('M7 v61'));
 });
 
 test('legacy live detector and demo fill yield to the active camera owner',()=>{
@@ -205,7 +205,7 @@ test('v36 camera avoids fixed bright-white threshold and closes camera when hidd
   assert(camera.includes(".realtime-hand-cancel-m7v3')?.click()"));
 });
 
-test('v60 preserves v59 durable learning and adds precision diagnostics',()=>{
+test('v61 preserves stable learning and adds global-grid diagnostics',()=>{
   const camera=fs.readFileSync(path.join(root,'m7-camera-v36.js'),'utf8');
   assert(camera.includes("MahjongScoreApp_tile_templates_stable1"));
   assert(camera.includes("MahjongScoreApp_tile_templates_stable1_backup"));
@@ -220,6 +220,12 @@ test('v60 preserves v59 durable learning and adds precision diagnostics',()=>{
   assert(camera.includes('templateSpread'));
   assert(camera.includes('sameFamilyGap'));
   assert(camera.includes('requiredLocalGap'));
+  assert(camera.includes('function fitGlobalRowGrid'));
+  assert(camera.includes('const gridFit=fitGlobalRowGrid(lowCtx,lowRow,14)'));
+  assert(camera.includes("reason:'periodic-grid'"));
+  assert(camera.includes("reason:'same-family-margin'"));
+  assert(camera.includes("reason:'absolute-distance'"));
+  assert(camera.includes('confidenceReasonSummary'));
   const picker=fs.readFileSync(path.join(root,'m8-v3.js'),'utf8');
   assert(picker.includes('100dvh'));
   assert(picker.includes('grid-template-columns:repeat(12,minmax(0,1fr))'));
