@@ -359,7 +359,7 @@ const server=http.createServer((req,res)=>{
     const confidence=await page.evaluate(()=>{
       const api=window.M7CameraV36;
       const clear=api.confidentCandidate([{label:'A',distance:.11},{label:'B',distance:.24}]);
-      const ambiguousAssessment=api.confidenceAssessment([{label:'A',distance:.14,family:'萬'},{label:'B',distance:.155,family:'萬'}]);
+      const ambiguousAssessment=api.confidenceAssessment([{label:'A',distance:.09,family:'萬'},{label:'B',distance:.10,family:'萬'}]);
       const ambiguous=ambiguousAssessment.candidate;
       const farAssessment=api.confidenceAssessment([{label:'A',distance:.25},{label:'B',distance:.40}]);
       const far=farAssessment.candidate;
