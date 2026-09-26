@@ -250,6 +250,39 @@
     }));
   }
 
+  function rankLabelsSoftHierarchical(feature,library,options={}){
+    if(!feature||!library||typeof library!=='object')return [];
+    const labels=rankLabelsBalanced(feature,library);
+    const families=rankFamiliesBalanced(feature,library);
+    if(!labels.length||!families.length)return labels;
+    const familyMap=new Map(families.map(f=>[f.label,f]));
+    const minFamily=Number(families[0].distance);
+    const priorWeight=Number.isFinite(options.priorWeight)?Math.max(0,options.priorWeight):.18;
+    const maxPenalty=Number.isFinite(options.maxPenalty)?Math.max(0,options.maxPenalty):.012;
+    const runner=families[1];
+    const familyGap=runner&&Number.isFinite(runner.distance)?runner.distance-minFamily:Infinity;
+    const familyRatio=runner&&runner.distance>0?minFamily/runner.distance:0;
+    return labels.map(x=>{
+      const family=tileFamily(x.label);
+      const f=familyMap.get(family);
+      const familyDistance=Number.isFinite(f?.distance)?f.distance:minFamily;
+      const familyPenalty=Math.min(maxPenalty,Math.max(0,familyDistance-minFamily)*priorWeight);
+      return {
+        ...x,
+        globalDistance:x.distance,
+        distance:x.distance+familyPenalty,
+        family,
+        familyDistance,
+        familyPenalty,
+        bestFamily:families[0].label,
+        familyRunnerUpDistance:runner?.distance??Infinity,
+        familyGap,
+        familyRatio,
+        familyRanked:families.slice(0,4).map(v=>({family:v.label,distance:v.distance}))
+      };
+    }).sort((a,b)=>a.distance-b.distance);
+  }
+
   function rankLabels(feature,library){
     const out=[];
     if(!feature||!library||typeof library!=='object')return out;
@@ -281,7 +314,7 @@
     }
     return shift/current.length<=maxShift;
   }
-  const api=Object.freeze({rmsDistance,shiftedRmsDistance,shiftedGroupedRmsDistance,structuredFeatureDistance,directImageDistance,featureDistance,prototypeFeature,rankLabels,rankLabelsRobust,rankLabelsBalanced,tileFamily,buildFamilyLibrary,rankFamiliesBalanced,rankLabelsHierarchical,classify,stableEnough});
+  const api=Object.freeze({rmsDistance,shiftedRmsDistance,shiftedGroupedRmsDistance,structuredFeatureDistance,directImageDistance,featureDistance,prototypeFeature,rankLabels,rankLabelsRobust,rankLabelsBalanced,tileFamily,buildFamilyLibrary,rankFamiliesBalanced,rankLabelsHierarchical,rankLabelsSoftHierarchical,classify,stableEnough});
   root.M7RecognitionCoreV33=api;
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })(typeof window!=='undefined'?window:globalThis);

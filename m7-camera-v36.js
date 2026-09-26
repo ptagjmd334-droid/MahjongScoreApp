@@ -659,14 +659,10 @@
     if(!Array.isArray(ranked)||!ranked.length)return null;
     const best=ranked[0],second=ranked.find(x=>x.label!==best.label);
     if(!best||!Number.isFinite(best.distance))return null;
-    // v49 is hierarchical: a label is never auto-filled unless the family decision
-    // itself is separated from the runner-up family.
-    if(Number.isFinite(best.familyRunnerUpDistance)){
-      const familyGap=Number(best.familyGap);
-      const familyRatio=Number(best.familyRatio);
-      if(!Number.isFinite(familyGap)||familyGap<.012)return null;
-      if(Number.isFinite(familyRatio)&&familyRatio>.86)return null;
-    }
+    // v50 keeps every label recoverable. Family is only a soft prior for ranking.
+    // For auto-fill only, stay conservative when a strong family signal disagrees
+    // with the winning label; the Top1 suggestion itself is still shown.
+    if(best.bestFamily&&best.family&&best.bestFamily!==best.family&&Number(best.familyGap)>.020)return null;
     // False positives are worse than leaving a tile as "?".
     const bestRaw=Number.isFinite(best.bestDistance)?best.bestDistance:best.distance;
     if(best.distance>.145||bestRaw>.12)return null;
@@ -683,12 +679,15 @@
     const lib=loadLibrary(),used={},debug=[];
     state.learnedLabelCount=Object.keys(lib).filter(label=>Array.isArray(lib[label])&&lib[label].length).length;
     const labels=features.map((feature,index)=>{
-      const ranked=core.rankLabelsHierarchical(feature,lib);
+      const ranked=core.rankLabelsSoftHierarchical(feature,lib,{priorWeight:.18,maxPenalty:.012});
       debug[index]=ranked.slice(0,3).map(x=>({
         label:x.label,
         family:x.family||core.tileFamily(x.label),
         distance:Number(x.distance.toFixed(4)),
+        globalDistance:Number.isFinite(x.globalDistance)?Number(x.globalDistance.toFixed(4)):null,
         familyDistance:Number.isFinite(x.familyDistance)?Number(x.familyDistance.toFixed(4)):null,
+        familyPenalty:Number.isFinite(x.familyPenalty)?Number(x.familyPenalty.toFixed(4)):null,
+        bestFamily:x.bestFamily||'',
         familyGap:Number.isFinite(x.familyGap)?Number(x.familyGap.toFixed(4)):null
       }));
       const available=ranked.filter(x=>(used[x.label]||0)<4);
@@ -1010,12 +1009,12 @@
       const note=root.querySelector('.hand-result-note-m7v5');
       if(note)note.textContent=features.length===14
         ?(firstCalibration
-          ?'保存済みの牌画像がないため、M7 v49の初回学習が必要です。14枚を正しく指定してください。確定後は牌画像も端末内に保存します。'
-          :`白枠内の手牌列を14枚に分割しました。萬・筒・索・字牌を先に判定し、その中で牌種を選ぶ二段階認識です。高信頼候補 ${auto}枚。`)
+          ?'保存済みの牌画像がないため、M7 v50の初回学習が必要です。14枚を正しく指定してください。確定後は牌画像も端末内に保存します。'
+          :`白枠内の手牌列を14枚に分割しました。全牌種を候補に残したまま、萬・筒・索・字牌の判定を補助点として加えるファミリー補助認識です。高信頼候補 ${auto}枚。`)
         :'白枠内から牌列を特定できませんでした。撮影画像を確認し、14枠を手動入力するか「読み取り直す」で再撮影してください。';
       const status=root.querySelector('.hand-result-status-m7v5');
       if(status&&auto<14)status.textContent=features.length===14
-        ?(firstCalibration?'初回学習：14枚を指定してください':`学習済み ${learnedLabels}種類${state.librarySource?` / 元:${state.librarySource}`:''} / 二段階 / 射影 ${analysis.perspectiveCount||0}/14 / 高信頼 ${auto}枚`)
+        ?(firstCalibration?'初回学習：14枚を指定してください':`学習済み ${learnedLabels}種類${state.librarySource?` / 元:${state.librarySource}`:''} / ファミリー補助 / 射影 ${analysis.perspectiveCount||0}/14 / 高信頼 ${auto}枚`)
         :'手動入力：0 / 14枚';
       if(features.length!==14&&analysis.photo){
         const img=document.createElement('img');img.className='m7v36-photo';img.alt='白枠内を撮影した画像';img.src=analysis.photo;

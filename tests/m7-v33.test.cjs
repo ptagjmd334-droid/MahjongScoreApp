@@ -87,7 +87,7 @@ test('class-balanced ranking removes template-count advantage',()=>{
   assert.equal(balanced.find(x=>x.label==='one').sampleCount,1);
 });
 
-test('family-first ranking prevents a single cross-family outlier from winning globally',()=>{
+test('soft family prior can recover a strong label even when family1 is wrong',()=>{
   const w=4,h=4,n=w*h;
   const feat=v=>({kind:'perspective-direct-v1',width:w,height:h,gray:Array(n).fill(v),edge:Array(n).fill(0),red:Array(n).fill(0),green:Array(n).fill(0)});
   const query=feat(0);
@@ -95,13 +95,25 @@ test('family-first ranking prevents a single cross-family outlier from winning g
     '1萬':[feat(.10)],'2萬':[feat(.10)],'3萬':[feat(.10)],
     '5筒':[feat(.02)],'6筒':[feat(.80)],'8筒':[feat(.80)]
   };
-  assert.equal(core.rankLabelsBalanced(query,lib)[0].label,'5筒','fixture must expose the global cross-family outlier');
-  const families=core.rankFamiliesBalanced(query,lib);
-  assert.equal(families[0].label,'萬');
-  const hierarchical=core.rankLabelsHierarchical(query,lib);
-  assert.equal(hierarchical[0].family,'萬');
-  assert.equal(hierarchical[0].label,'1萬');
-  assert(hierarchical.every(x=>core.tileFamily(x.label)==='萬'));
+  assert.equal(core.rankFamiliesBalanced(query,lib)[0].label,'萬','fixture must make family stage prefer 萬');
+  const soft=core.rankLabelsSoftHierarchical(query,lib,{priorWeight:.18,maxPenalty:.012});
+  assert.equal(soft[0].label,'5筒','soft prior must not hard-exclude the globally strong 筒 candidate');
+  assert.equal(soft[0].family,'筒');
+  assert.equal(soft[0].bestFamily,'萬');
+});
+
+test('soft family prior nudges a close global race toward a clearly stronger family',()=>{
+  const w=4,h=4,n=w*h;
+  const feat=v=>({kind:'perspective-direct-v1',width:w,height:h,gray:Array(n).fill(v),edge:Array(n).fill(0),red:Array(n).fill(0),green:Array(n).fill(0)});
+  const query=feat(0);
+  const lib={
+    '1萬':[feat(.08)],'2萬':[feat(.08)],'3萬':[feat(.08)],
+    '5筒':[feat(.075)],'6筒':[feat(.35)],'8筒':[feat(.35)]
+  };
+  assert.equal(core.rankLabelsBalanced(query,lib)[0].label,'5筒','fixture needs a slight global 筒 lead');
+  assert.equal(core.rankFamiliesBalanced(query,lib)[0].label,'萬','family evidence should clearly prefer 萬');
+  const soft=core.rankLabelsSoftHierarchical(query,lib,{priorWeight:.18,maxPenalty:.012});
+  assert.equal(soft[0].label,'1萬','family prior should break only the close race');
 });
 
 test('tile family mapping covers suits, honors and red fives',()=>{
@@ -131,7 +143,7 @@ test('camera v36 is loaded before ui-fixes so verified clicks train the active c
   assert(index.indexOf('script.js')<index.indexOf('m7-recognition-core.js'));
   assert(index.indexOf('m7-recognition-core.js')<index.indexOf('m7-camera-v36.js'));
   assert(index.indexOf('m7-camera-v36.js')<index.indexOf('ui-fixes.js'));
-  assert(index.includes('M7 v49'));
+  assert(index.includes('M7 v50'));
 });
 
 test('legacy live detector and demo fill yield to the active camera owner',()=>{
@@ -148,7 +160,7 @@ test('v36 camera avoids fixed bright-white threshold and closes camera when hidd
   assert(camera.includes(".realtime-hand-cancel-m7v3')?.click()"));
 });
 
-test('v49 uses family-first high-resolution perspective matching',()=>{
+test('v50 uses soft family-prior high-resolution perspective matching',()=>{
   const camera=fs.readFileSync(path.join(root,'m7-camera-v36.js'),'utf8');
   assert(camera.includes("badge.className='m7v45-top1'"));
   assert(camera.includes("position:absolute;right:3px;top:3px"));
@@ -158,8 +170,8 @@ test('v49 uses family-first high-resolution perspective matching',()=>{
   assert(camera.includes('perspectiveFaceCanvas'));
   assert(camera.includes("MahjongScoreApp_tile_templates_m7v48balanced24x36"));
   assert(camera.includes('const width=24,height=36'));
-  assert(camera.includes('core.rankLabelsHierarchical(feature,lib)'));
-  assert(camera.includes('/ 二段階 / 射影'));
+  assert(camera.includes('core.rankLabelsSoftHierarchical(feature,lib'));
+  assert(camera.includes('/ ファミリー補助 / 射影'));
   assert(camera.includes("MahjongScoreApp_tile_templates_m7v45oriented1"));
   assert(camera.includes('loadLegacyLibrary'));
   assert(camera.includes("if(raw.length)saveTrainingBatch(raw).catch(()=>{})"));
