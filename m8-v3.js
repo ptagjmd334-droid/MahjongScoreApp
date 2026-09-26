@@ -2,7 +2,54 @@
 (() => {
   const glyphs = window.MAHJONG_TILE_GLYPHS_M7 || {};
   const style=document.createElement('style');
-  style.textContent=`#tile-picker-m7v5 .m8v31-selection-strip{display:grid;grid-template-columns:repeat(14,1fr);gap:4px;margin:0 0 9px}#tile-picker-m7v5 .m8v31-slot{height:40px;border:2px solid #d8d4ca;border-radius:7px;background:#fff;display:flex;align-items:center;justify-content:center;font-size:27px;overflow:hidden}#tile-picker-m7v5 .m8v31-slot.current{border-color:#078cff;background:#eaf5ff;box-shadow:0 0 0 2px rgba(7,140,255,.18)}#tile-picker-m7v5 .m8v31-help{text-align:center;font-size:13px;font-weight:800;margin:-3px 0 8px;color:#33443d}#m8-yaku-hint-v31{margin-top:12px;padding:10px;border-radius:12px;background:#eef7f1;font-size:14px;font-weight:700}`;
+  style.textContent=`
+    #tile-picker-m7v5 .m8v31-selection-strip{display:grid;grid-template-columns:repeat(14,minmax(0,1fr));gap:4px;margin:0 0 7px;flex:none}
+    #tile-picker-m7v5 .m8v31-slot{height:38px;min-width:0;border:2px solid #d8d4ca;border-radius:7px;background:#fff;display:flex;align-items:center;justify-content:center;font-size:25px;overflow:hidden;padding:0}
+    #tile-picker-m7v5 .m8v31-slot.current{border-color:#078cff;background:#eaf5ff;box-shadow:0 0 0 2px rgba(7,140,255,.18)}
+    #tile-picker-m7v5 .m8v31-help{text-align:center;font-size:13px;font-weight:800;margin:-2px 0 6px;color:#33443d;flex:none}
+    #m8-yaku-hint-v31{margin-top:12px;padding:10px;border-radius:12px;background:#eef7f1;font-size:14px;font-weight:700}
+    @media (orientation:landscape) and (max-height:500px){
+      #tile-picker-m7v5{
+        padding:max(4px,env(safe-area-inset-top)) max(6px,env(safe-area-inset-right)) max(4px,env(safe-area-inset-bottom)) max(6px,env(safe-area-inset-left))!important;
+        align-items:center!important;overflow:hidden!important
+      }
+      #tile-picker-m7v5 .tile-picker-card-m7v5{
+        width:min(930px,calc(100vw - max(12px,env(safe-area-inset-left)) - max(12px,env(safe-area-inset-right))))!important;
+        height:calc(100dvh - max(8px,env(safe-area-inset-top)) - max(8px,env(safe-area-inset-bottom)))!important;
+        max-height:none!important;min-height:0!important;gap:3px!important;padding:5px 7px!important;
+        border-radius:12px!important;overflow:hidden!important
+      }
+      #tile-picker-m7v5 .tile-picker-title-m7v5{font-size:13px!important;line-height:1!important;flex:none}
+      #tile-picker-m7v5 .m8v31-selection-strip{gap:3px;margin:0!important}
+      #tile-picker-m7v5 .m8v31-slot{height:28px!important;border-width:2px;font-size:18px!important;border-radius:6px!important}
+      #tile-picker-m7v5 .m8v31-help{font-size:10px!important;line-height:1.05!important;margin:0!important}
+      #tile-picker-m7v5 .m7v57-photo-preview{
+        min-height:36px!important;height:36px!important;margin:0!important;padding:2px 5px!important;gap:6px!important;
+        border-radius:7px!important;flex:none!important
+      }
+      #tile-picker-m7v5 .m7v57-photo-preview img{width:30px!important;height:32px!important;border-radius:5px!important}
+      #tile-picker-m7v5 .m7v57-photo-preview .m7v57-copy{font-size:10px!important;line-height:1.05!important}
+      #tile-picker-m7v5 .m7v57-photo-preview .m7v57-copy small{font-size:8px!important;margin-top:0!important}
+      #tile-picker-m7v5 .m7v39-suggestions{
+        min-height:32px!important;margin:0!important;padding:2px 4px!important;border-radius:7px!important;
+        display:flex!important;align-items:center!important;gap:4px!important;flex:none!important
+      }
+      #tile-picker-m7v5 .m7v39-suggestions b{display:inline!important;margin:0 4px 0 0!important;font-size:9px!important;white-space:nowrap}
+      #tile-picker-m7v5 .m7v39-suggestions button{min-height:26px!important;height:26px!important;margin:0!important;padding:2px 7px!important;font-size:11px!important}
+      #tile-picker-m7v5 .tile-picker-grid-m7v5{
+        flex:1 1 auto!important;min-height:0!important;overflow:hidden!important;
+        display:grid!important;grid-template-columns:repeat(12,minmax(0,1fr))!important;
+        grid-template-rows:repeat(3,minmax(0,1fr))!important;gap:3px!important
+      }
+      #tile-picker-m7v5 .tile-picker-grid-m7v5 button{
+        min-width:0!important;min-height:0!important;height:auto!important;padding:1px!important;
+        border-radius:5px!important;font-size:10px!important;line-height:1!important
+      }
+      #tile-picker-m7v5 .tile-picker-cancel-m7v5{
+        min-height:28px!important;height:28px!important;padding:2px 8px!important;font-size:12px!important;line-height:1!important;flex:none!important
+      }
+    }
+  `;
   document.head.appendChild(style);
   let current=0;
   function root(){return document.getElementById('hand-result-overlay-m7v5');}
