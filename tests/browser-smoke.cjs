@@ -34,7 +34,7 @@ const server=http.createServer((req,res)=>{
     const errors=[];page.on('pageerror',e=>errors.push(String(e)));
     await page.goto('http://127.0.0.1:'+port+'/',{waitUntil:'domcontentloaded',timeout:30000});
     await page.waitForSelector('#go-confirm-button',{timeout:12000});
-    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'M7 v55');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'M7 v56');
     // v36 analyzes one long row after the shutter instead of requiring 14 live connected components.
     const synthetic=await page.evaluate(()=>{
       const canvas=document.createElement('canvas');canvas.width=840;canvas.height=260;
@@ -340,6 +340,20 @@ const server=http.createServer((req,res)=>{
     assert.equal(legacyRecovery.kind,'perspective-direct-v1','v54 recovered wrong feature kind '+JSON.stringify(legacyRecovery));
     assert.equal(legacyRecovery.width,24,'v54 recovered wrong feature width '+JSON.stringify(legacyRecovery));
     assert.equal(legacyRecovery.height,36,'v54 recovered wrong feature height '+JSON.stringify(legacyRecovery));
+    const stableStorage=await page.evaluate(()=>{
+      const n=24*36;
+      const feat={kind:'perspective-direct-v1',width:24,height:36,
+        gray:Array(n).fill(.2),edge:Array(n).fill(.1),red:Array(n).fill(0),green:Array(n).fill(0)};
+      const saved=window.M7CameraV36.saveLibrary({'東':[feat]});
+      const primary=localStorage.getItem('MahjongScoreApp_tile_templates_stable1');
+      const backup=localStorage.getItem('MahjongScoreApp_tile_templates_stable1_backup');
+      localStorage.removeItem('MahjongScoreApp_tile_templates_stable1');
+      const restored=window.M7CameraV36.loadLibrary();
+      return {saved,hasPrimary:!!primary,hasBackup:!!backup,restored:Object.keys(restored)};
+    });
+    assert.equal(stableStorage.saved,1,'v56 stable library save did not report one learned class '+JSON.stringify(stableStorage));
+    assert(stableStorage.hasPrimary&&stableStorage.hasBackup,'v56 did not write primary and backup learning stores '+JSON.stringify(stableStorage));
+    assert.deepEqual(stableStorage.restored,['東'],'v56 did not restore the learning library from backup '+JSON.stringify(stableStorage));
     // Reload after the isolated camera/calibration probe so the remaining game-flow smoke test
     // starts from a pristine setup screen.
     await page.reload({waitUntil:'domcontentloaded',timeout:30000});
