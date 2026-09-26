@@ -249,6 +249,21 @@ test('v67 caches medoids/signatures and keeps fast-view vote helpers determinist
   assert(Number.isFinite(d));
 });
 
+test('v68 fast full-label auxiliary ranking preserves suit discrimination without transform search',()=>{
+  const w=24,h=36,n=w*h;
+  const make=(kind)=>({
+    kind:'perspective-direct-v1',width:w,height:h,
+    gray:Array.from({length:n},(_,i)=>kind==='a'?((i%w)<12?1:0):((i%w)>=12?1:0)),
+    edge:Array.from({length:n},(_,i)=>kind==='a'?((i%w)===11?1:0):((i%w)===12?1:0)),
+    red:Array(n).fill(0),green:Array(n).fill(0)
+  });
+  const lib={'5筒':[make('a'),make('a')],'8筒':[make('b'),make('b')]};
+  const ranked=core.rankLabelsFastDiscriminative(make('a'),lib,{});
+  assert.equal(ranked[0].label,'5筒');
+  assert(Number.isFinite(ranked[0].distance));
+  assert(Number.isFinite(core.alignedDirectImageDistance(make('a'),make('b'))));
+});
+
 test('tile family mapping covers suits, honors and red fives',()=>{
   assert.equal(core.tileFamily('3萬'),'萬');
   assert.equal(core.tileFamily('赤5筒'),'筒');
@@ -276,7 +291,7 @@ test('camera v36 is loaded before ui-fixes so verified clicks train the active c
   assert(index.indexOf('script.js')<index.indexOf('m7-recognition-core.js'));
   assert(index.indexOf('m7-recognition-core.js')<index.indexOf('m7-camera-v36.js'));
   assert(index.indexOf('m7-camera-v36.js')<index.indexOf('ui-fixes.js'));
-  assert(index.includes('M7 v67'));
+  assert(index.includes('M7 v68'));
 });
 
 test('legacy live detector and demo fill yield to the active camera owner',()=>{
@@ -293,7 +308,7 @@ test('v36 camera avoids fixed bright-white threshold and closes camera when hidd
   assert(camera.includes(".realtime-hand-cancel-m7v3')?.click()"));
 });
 
-test('v67 preserves stable learning and caps cached auxiliary rechecks',()=>{
+test('v68 preserves stable learning and restores full-label five-view votes with fast aux scoring',()=>{
   const camera=fs.readFileSync(path.join(root,'m7-camera-v36.js'),'utf8');
   assert(camera.includes("MahjongScoreApp_tile_templates_stable1"));
   assert(camera.includes("MahjongScoreApp_tile_templates_stable1_backup"));
@@ -315,6 +330,9 @@ test('v67 preserves stable learning and caps cached auxiliary rechecks',()=>{
   assert(coreSource.includes('function templateStructuralConsensusDistance'));
   assert(coreSource.includes('function combineViewRankings'));
   assert(coreSource.includes('function rankCandidateLabelsStructural'));
+  assert(coreSource.includes('function alignedDirectImageDistance'));
+  assert(coreSource.includes('function alignedTemplateConsensusDistance'));
+  assert(coreSource.includes('function rankLabelsFastDiscriminative'));
   assert(coreSource.includes('function applyViewVoteConsensus'));
   assert(coreSource.includes('const MEDOID_CACHE=new WeakMap()'));
   assert(coreSource.includes('const STRUCTURAL_SIGNATURE_CACHE=new WeakMap()'));
@@ -332,8 +350,10 @@ test('v67 preserves stable learning and caps cached auxiliary rechecks',()=>{
   assert(camera.includes('core.rankCandidateLabelsStructural(view,lib,candidateLabels)'));
   assert(camera.includes('core.applyViewVoteConsensus(baseRanked,auxRankings'));
   assert(camera.includes('const AUX_BUDGET_MS=2500'));
-  assert(camera.includes('baseGap<.030||baseRatio>.80'));
-  assert(camera.includes('baseRanked.slice(0,4)'));
+  assert(!camera.includes('baseGap<.030||baseRatio>.80'));
+  assert(!camera.includes('baseRanked.slice(0,4)'));
+  assert(camera.includes('core.rankLabelsFastDiscriminative(view,lib'));
+  assert(camera.includes('votePenalty:.010'));
   assert(camera.includes('if(now()-started>AUX_BUDGET_MS)'));
   assert(camera.includes('lastAuxFallbackCount'));
   assert(!camera.includes('views.map(view=>core.rankLabelsFamilyDiscriminative'));
