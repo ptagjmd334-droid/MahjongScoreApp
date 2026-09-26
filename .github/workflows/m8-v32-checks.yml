@@ -48,6 +48,7 @@ on:
       - work/m7-v68-fast-fullview-consensus
       - work/m7-v69-allfast-fiveview
       - work/m7-v70-microshift-refine
+      - work/m7-v71-bleed-safe-crops
   workflow_dispatch:
 
 jobs:
