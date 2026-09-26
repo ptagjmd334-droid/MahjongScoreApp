@@ -161,7 +161,7 @@ test('camera v36 is loaded before ui-fixes so verified clicks train the active c
   assert(index.indexOf('script.js')<index.indexOf('m7-recognition-core.js'));
   assert(index.indexOf('m7-recognition-core.js')<index.indexOf('m7-camera-v36.js'));
   assert(index.indexOf('m7-camera-v36.js')<index.indexOf('ui-fixes.js'));
-  assert(index.includes('M7 v56'));
+  assert(index.includes('M7 v57'));
 });
 
 test('legacy live detector and demo fill yield to the active camera owner',()=>{
@@ -178,7 +178,7 @@ test('v36 camera avoids fixed bright-white threshold and closes camera when hidd
   assert(camera.includes(".realtime-hand-cancel-m7v3')?.click()"));
 });
 
-test('v56 keeps precision geometry and uses stable learning storage',()=>{
+test('v57 keeps stable learning and shows the photographed calibration tile',()=>{
   const camera=fs.readFileSync(path.join(root,'m7-camera-v36.js'),'utf8');
   assert(camera.includes("MahjongScoreApp_tile_templates_stable1"));
   assert(camera.includes("MahjongScoreApp_tile_templates_stable1_backup"));
@@ -206,6 +206,9 @@ test('v56 keeps precision geometry and uses stable learning storage',()=>{
   assert(camera.includes('core.rankLabelsFamilyDiscriminative(feature,lib'));
   assert(camera.includes("if(raw.length)saveTrainingBatch(raw).catch(()=>{})"));
   assert(camera.includes("MahjongScoreApp_tile_learning_meta1"));
+  assert(camera.includes('m7v57-photo-preview'));
+  assert(camera.includes('renderPickerPhoto(index)'));
+  assert(camera.includes('撮影回数では学習されません'));
   assert(camera.includes("localStorage.setItem(LIB_BACKUP_KEY,json)"));
   assert(camera.includes("},true);"));
 });
