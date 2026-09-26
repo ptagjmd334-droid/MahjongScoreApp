@@ -194,6 +194,25 @@ test('v64 structural distance is more tolerant to a one-pixel shift than to a di
   assert(consensus<core.structuralDistance(shifted,other),'structural consensus should favor repeated same-shape samples');
 });
 
+test('v65 multi-view rank consensus ignores one bad crop and tracks view votes',()=>{
+  const mk=(a,b)=>[
+    {label:'5筒',distance:a,family:'筒',representativeDistance:a,templateConsensusDistance:a,bestDistance:a,sampleCount:3},
+    {label:'8筒',distance:b,family:'筒',representativeDistance:b,templateConsensusDistance:b,bestDistance:b,sampleCount:3}
+  ];
+  const noisy=mk(.15,.07).sort((a,b)=>a.distance-b.distance);
+  const combined=core.combineViewRankings([
+    mk(.08,.13),
+    mk(.09,.12),
+    noisy,
+    mk(.085,.125),
+    mk(.095,.115)
+  ]);
+  assert.equal(combined[0].label,'5筒','four agreeing crops should beat one noisy crop');
+  assert.equal(combined[0].viewTopVotes,4);
+  assert.equal(combined[0].viewCount,5);
+  assert(Number.isFinite(combined[0].viewDistanceRange));
+});
+
 test('tile family mapping covers suits, honors and red fives',()=>{
   assert.equal(core.tileFamily('3萬'),'萬');
   assert.equal(core.tileFamily('赤5筒'),'筒');
@@ -221,7 +240,7 @@ test('camera v36 is loaded before ui-fixes so verified clicks train the active c
   assert(index.indexOf('script.js')<index.indexOf('m7-recognition-core.js'));
   assert(index.indexOf('m7-recognition-core.js')<index.indexOf('m7-camera-v36.js'));
   assert(index.indexOf('m7-camera-v36.js')<index.indexOf('ui-fixes.js'));
-  assert(index.includes('M7 v64'));
+  assert(index.includes('M7 v65'));
 });
 
 test('legacy live detector and demo fill yield to the active camera owner',()=>{
@@ -238,7 +257,7 @@ test('v36 camera avoids fixed bright-white threshold and closes camera when hidd
   assert(camera.includes(".realtime-hand-cancel-m7v3')?.click()"));
 });
 
-test('v64 preserves stable learning and adds multi-scale structural ranking',()=>{
+test('v65 preserves stable learning and adds five-view crop consensus',()=>{
   const camera=fs.readFileSync(path.join(root,'m7-camera-v36.js'),'utf8');
   assert(camera.includes("MahjongScoreApp_tile_templates_stable1"));
   assert(camera.includes("MahjongScoreApp_tile_templates_stable1_backup"));
@@ -258,6 +277,7 @@ test('v64 preserves stable learning and adds multi-scale structural ranking',()=
   assert(coreSource.includes('function templateConsensusDistance'));
   assert(coreSource.includes('function structuralDistance'));
   assert(coreSource.includes('function templateStructuralConsensusDistance'));
+  assert(coreSource.includes('function combineViewRankings'));
   assert(coreSource.includes('shapeBlend'));
   assert(coreSource.includes('representativeScore*(1-templateBlend)+consensusDistance*templateBlend'));
   assert(camera.includes('function fitGlobalRowGrid'));
@@ -265,6 +285,9 @@ test('v64 preserves stable learning and adds multi-scale structural ranking',()=
   assert(camera.includes("reason:'periodic-grid'"));
   assert(camera.includes("reason:'same-family-margin'"));
   assert(camera.includes('confidenceReasonSummary'));
+  assert(camera.includes('function inferenceFeatureViews'));
+  assert(camera.includes('core.combineViewRankings(viewRankings)'));
+  assert(camera.includes("reason:'view-disagreement'"));
   assert(camera.includes("reason:'representative-distance'"));
   assert(camera.includes("reason:'template-consensus'"));
   assert(camera.includes("reason:'template-distance'"));
@@ -290,7 +313,7 @@ test('v64 preserves stable learning and adds multi-scale structural ranking',()=
   assert(camera.includes('warpQuadToCanvas'));
   assert(camera.includes('perspectiveFaceCanvas'));
   assert(camera.includes('const width=24,height=36'));
-  assert(camera.includes('core.rankLabelsFamilyDiscriminative(feature,lib'));
+  assert(camera.includes('core.rankLabelsFamilyDiscriminative(view,lib'));
   assert(camera.includes("rawSaved=await saveTrainingBatch(raw)"));
   assert(camera.includes("MahjongScoreApp_tile_learning_meta1"));
   assert(camera.includes('m7v57-photo-preview'));
