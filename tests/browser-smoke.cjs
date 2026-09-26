@@ -394,7 +394,7 @@ const server=http.createServer((req,res)=>{
       const ambiguous=ambiguousAssessment.candidate;
       const farAssessment=api.confidenceAssessment([{label:'A',distance:.25,representativeDistance:.25,templateConsensusDistance:.09,bestDistance:.08,sampleCount:1},{label:'B',distance:.40,bestDistance:.09}]);
       const far=farAssessment.candidate;
-      const rawFarAssessment=api.confidenceAssessment([{label:'A',distance:.10,representativeDistance:.10,templateConsensusDistance:.14,bestDistance:.08,sampleCount:3},{label:'B',distance:.24,bestDistance:.15}]);
+      const rawFarAssessment=api.confidenceAssessment([{label:'A',distance:.10,representativeDistance:.10,templateConsensusDistance:.16,structuralRepresentativeDistance:.14,structuralConsensusDistance:.13,bestDistance:.14,sampleCount:3},{label:'B',distance:.24,bestDistance:.15}]);
       const rawFar=rawFarAssessment.candidate;
       const supportedAssessment=api.confidenceAssessment([
         {label:'A',distance:.11,representativeDistance:.17,templateConsensusDistance:.09,bestDistance:.08,sampleCount:3,family:'萬',sameFamilyGap:.08,sameFamilyRatio:.55},
@@ -410,7 +410,7 @@ const server=http.createServer((req,res)=>{
     assert.equal(confidence.ambiguousReason,'same-family-margin','v63 must explain same-family ambiguity '+JSON.stringify(confidence));
     assert.equal(confidence.far,'','far candidate must be withheld '+JSON.stringify(confidence));
     assert.equal(confidence.farReason,'representative-distance','v63 must reject a far representative without multi-template support '+JSON.stringify(confidence));
-    assert.equal(confidence.rawFar,'','nearest-template distance must also be able to reject '+JSON.stringify(confidence));
+    assert.equal(confidence.rawFar,'','weak direct and structural consensus must still reject '+JSON.stringify(confidence));
     assert.equal(confidence.rawFarReason,'template-consensus','v63 must reject weak multi-template consensus '+JSON.stringify(confidence));
     assert.equal(confidence.supported,'A','v63 repeated nearby templates should support a real representative even when the representative alone is farther '+JSON.stringify(confidence));
     assert.equal(confidence.supportedReason,'accepted','v63 supported candidate should pass confidence '+JSON.stringify(confidence));
