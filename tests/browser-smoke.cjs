@@ -34,7 +34,7 @@ const server=http.createServer((req,res)=>{
     const errors=[];page.on('pageerror',e=>errors.push(String(e)));
     await page.goto('http://127.0.0.1:'+port+'/',{waitUntil:'domcontentloaded',timeout:30000});
     await page.waitForSelector('#go-confirm-button',{timeout:12000});
-    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'M7 v48');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'M7 v49');
     // v36 analyzes one long row after the shutter instead of requiring 14 live connected components.
     const synthetic=await page.evaluate(()=>{
       const canvas=document.createElement('canvas');canvas.width=840;canvas.height=260;
@@ -65,9 +65,9 @@ const server=http.createServer((req,res)=>{
     });
     assert(faceNorm.rect.w<120&&faceNorm.rect.h<140&&faceNorm.rect.y>20,
       'tile face normalization did not remove row background '+JSON.stringify(faceNorm));
-    assert.equal(faceNorm.kind,'perspective-direct-v1','v48 descriptor kind missing '+JSON.stringify(faceNorm));
-    assert.equal(faceNorm.width,24,'v48 descriptor width changed unexpectedly '+JSON.stringify(faceNorm));
-    assert.equal(faceNorm.height,36,'v48 descriptor height changed unexpectedly '+JSON.stringify(faceNorm));
+    assert.equal(faceNorm.kind,'perspective-direct-v1','v49 descriptor kind missing '+JSON.stringify(faceNorm));
+    assert.equal(faceNorm.width,24,'v49 descriptor width changed unexpectedly '+JSON.stringify(faceNorm));
+    assert.equal(faceNorm.height,36,'v49 descriptor height changed unexpectedly '+JSON.stringify(faceNorm));
     assert.equal(faceNorm.gray,864,'v48 gray map size changed unexpectedly '+JSON.stringify(faceNorm));
     assert.equal(faceNorm.edge,864,'v48 edge map size changed unexpectedly '+JSON.stringify(faceNorm));
     assert.equal(faceNorm.red,864,'v48 red map size changed unexpectedly '+JSON.stringify(faceNorm));
@@ -95,9 +95,9 @@ const server=http.createServer((req,res)=>{
       };
     });
     assert(descriptorRobustness.same<descriptorRobustness.different,
-      'v48 perspective matcher is not more stable to lighting than to a different symbol '+JSON.stringify(descriptorRobustness));
+      'v49 perspective matcher is not more stable to lighting than to a different symbol '+JSON.stringify(descriptorRobustness));
     assert(descriptorRobustness.redGreen>0,
-      'v48 color maps failed to distinguish red and green ink '+JSON.stringify(descriptorRobustness));
+      'v49 color maps failed to distinguish red and green ink '+JSON.stringify(descriptorRobustness));
     const orientationRobustness=await page.evaluate(()=>{
       function make(rot=0,variant='same'){
         const source=document.createElement('canvas');source.width=100;source.height=140;
@@ -118,7 +118,7 @@ const server=http.createServer((req,res)=>{
       return {same:core.featureDistance(a,tilted),different:core.featureDistance(a,different)};
     });
     assert(orientationRobustness.same<orientationRobustness.different,
-      'v48 orientation normalization did not stabilize the same tile '+JSON.stringify(orientationRobustness));
+      'v49 orientation normalization did not stabilize the same tile '+JSON.stringify(orientationRobustness));
 
     const perspectiveRectification=await page.evaluate(()=>{
       const canvas=document.createElement('canvas');canvas.width=160;canvas.height=190;
@@ -135,11 +135,11 @@ const server=http.createServer((req,res)=>{
       return {quad,geom:geom?{faceW:geom.faceW,faceH:geom.faceH,fill:geom.fill}:null,kind:feat?.kind||''};
     });
     assert(perspectiveRectification.quad&&perspectiveRectification.quad.length===4,
-      'v48 perspective quad detection failed '+JSON.stringify(perspectiveRectification));
+      'v49 perspective quad detection failed '+JSON.stringify(perspectiveRectification));
     assert(perspectiveRectification.geom&&perspectiveRectification.geom.faceH>perspectiveRectification.geom.faceW,
-      'v48 perspective warp did not produce an upright tile '+JSON.stringify(perspectiveRectification));
+      'v49 perspective warp did not produce an upright tile '+JSON.stringify(perspectiveRectification));
     assert.equal(perspectiveRectification.kind,'perspective-direct-v1',
-      'v48 perspective descriptor kind missing '+JSON.stringify(perspectiveRectification));
+      'v49 perspective descriptor kind missing '+JSON.stringify(perspectiveRectification));
 
     const legacyMigration=await page.evaluate(()=>{
       const n=16*24;
@@ -154,10 +154,10 @@ const server=http.createServer((req,res)=>{
       localStorage.removeItem('MahjongScoreApp_tile_templates_m7v45oriented1');
       return {labels:Object.keys(migrated),kind:migrated['5筒']?.[0]?.kind||'',width:migrated['5筒']?.[0]?.width||0,height:migrated['5筒']?.[0]?.height||0};
     });
-    assert.deepEqual(legacyMigration.labels,['5筒'],'v48 did not recover the v45 learning library '+JSON.stringify(legacyMigration));
-    assert.equal(legacyMigration.kind,'perspective-direct-v1','v48 legacy feature kind was not converted '+JSON.stringify(legacyMigration));
-    assert.equal(legacyMigration.width,24,'v48 legacy feature was not upsampled to 24px '+JSON.stringify(legacyMigration));
-    assert.equal(legacyMigration.height,36,'v48 legacy feature was not upsampled to 36px '+JSON.stringify(legacyMigration));
+    assert.deepEqual(legacyMigration.labels,['5筒'],'v49 did not recover the v45 learning library '+JSON.stringify(legacyMigration));
+    assert.equal(legacyMigration.kind,'perspective-direct-v1','v49 legacy feature kind was not converted '+JSON.stringify(legacyMigration));
+    assert.equal(legacyMigration.width,24,'v49 legacy feature was not upsampled to 24px '+JSON.stringify(legacyMigration));
+    assert.equal(legacyMigration.height,36,'v49 legacy feature was not upsampled to 36px '+JSON.stringify(legacyMigration));
 
     const balancedRanking=await page.evaluate(()=>{
       const core=window.M7RecognitionCoreV33,w=4,h=4,n=w*h;
@@ -168,8 +168,25 @@ const server=http.createServer((req,res)=>{
         balanced:core.rankLabelsBalanced(query,{many,one})[0]?.label||''
       };
     });
-    assert.equal(balancedRanking.old,'many','v48 fixture no longer demonstrates old template-count bias '+JSON.stringify(balancedRanking));
-    assert.equal(balancedRanking.balanced,'one','v48 balanced ranking still favors template-count chance '+JSON.stringify(balancedRanking));
+    assert.equal(balancedRanking.old,'many','v49 fixture no longer demonstrates old template-count bias '+JSON.stringify(balancedRanking));
+    assert.equal(balancedRanking.balanced,'one','v49 balanced ranking still favors template-count chance '+JSON.stringify(balancedRanking));
+
+    const familyFirst=await page.evaluate(()=>{
+      const core=window.M7RecognitionCoreV33,w=4,h=4,n=w*h;
+      const feat=v=>({kind:'perspective-direct-v1',width:w,height:h,gray:Array(n).fill(v),edge:Array(n).fill(0),red:Array(n).fill(0),green:Array(n).fill(0)});
+      const query=feat(0),lib={
+        '1萬':[feat(.10)],'2萬':[feat(.10)],'3萬':[feat(.10)],
+        '5筒':[feat(.02)],'6筒':[feat(.80)],'8筒':[feat(.80)]
+      };
+      return {
+        global:core.rankLabelsBalanced(query,lib)[0]?.label||'',
+        family:core.rankFamiliesBalanced(query,lib)[0]?.label||'',
+        hierarchical:core.rankLabelsHierarchical(query,lib)[0]?.label||''
+      };
+    });
+    assert.equal(familyFirst.global,'5筒','v49 family fixture no longer exposes cross-family global error '+JSON.stringify(familyFirst));
+    assert.equal(familyFirst.family,'萬','v49 family stage chose the wrong family '+JSON.stringify(familyFirst));
+    assert.equal(familyFirst.hierarchical,'1萬','v49 hierarchical label stage escaped the chosen family '+JSON.stringify(familyFirst));
 
     // Simulate a landscape camera frame and verify shutter -> post-capture 14 editable previews.
     const shutter=await page.evaluate(async()=>{
@@ -255,10 +272,10 @@ const server=http.createServer((req,res)=>{
     assert.equal(shutter.overlap,false,'v36 shutter and cancel overlap '+JSON.stringify(shutter));
     assert.equal(shutter.tiles,14,'v36 shutter did not open 14 editable slots '+JSON.stringify(shutter));
     assert.equal(shutter.crops,14,'v36 did not use 14 high-resolution row crops '+JSON.stringify(shutter));
-    assert(shutter.note.includes('初回学習'),'v48 first calibration explanation missing '+JSON.stringify(shutter));
+    assert(shutter.note.includes('初回学習'),'v49 first calibration explanation missing '+JSON.stringify(shutter));
     assert.equal(shutter.preview.backgroundSize,'contain','tile preview must show the full crop '+JSON.stringify(shutter));
     assert(shutter.preview.height<190,'tile preview should not stretch through the whole result card '+JSON.stringify(shutter));
-    assert.equal(shutter.learned,14,'verified v48 calibration was not persisted before result close '+JSON.stringify(shutter));
+    assert.equal(shutter.learned,14,'verified v49 calibration was not persisted before result close '+JSON.stringify(shutter));
     assert(shutter.rawSaved>=14,'verified tile images were not persisted to IndexedDB '+JSON.stringify(shutter));
     assert.equal(shutter.suggestionCount,3,'top-3 quick suggestions missing '+JSON.stringify(shutter));
     assert.equal(shutter.ownerIndex,1,'continuous picker owner did not advance to tile 2 '+JSON.stringify(shutter));

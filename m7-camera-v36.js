@@ -659,8 +659,15 @@
     if(!Array.isArray(ranked)||!ranked.length)return null;
     const best=ranked[0],second=ranked.find(x=>x.label!==best.label);
     if(!best||!Number.isFinite(best.distance))return null;
-    // False positives are worse than leaving a tile as "?". v38 real-shuffle test
-    // produced 8 auto candidates but only 4 were correct, so v39 is precision-first.
+    // v49 is hierarchical: a label is never auto-filled unless the family decision
+    // itself is separated from the runner-up family.
+    if(Number.isFinite(best.familyRunnerUpDistance)){
+      const familyGap=Number(best.familyGap);
+      const familyRatio=Number(best.familyRatio);
+      if(!Number.isFinite(familyGap)||familyGap<.012)return null;
+      if(Number.isFinite(familyRatio)&&familyRatio>.86)return null;
+    }
+    // False positives are worse than leaving a tile as "?".
     const bestRaw=Number.isFinite(best.bestDistance)?best.bestDistance:best.distance;
     if(best.distance>.145||bestRaw>.12)return null;
     if(!second||!Number.isFinite(second.distance)){
@@ -676,8 +683,14 @@
     const lib=loadLibrary(),used={},debug=[];
     state.learnedLabelCount=Object.keys(lib).filter(label=>Array.isArray(lib[label])&&lib[label].length).length;
     const labels=features.map((feature,index)=>{
-      const ranked=core.rankLabelsBalanced(feature,lib);
-      debug[index]=ranked.slice(0,3).map(x=>({label:x.label,distance:Number(x.distance.toFixed(4))}));
+      const ranked=core.rankLabelsHierarchical(feature,lib);
+      debug[index]=ranked.slice(0,3).map(x=>({
+        label:x.label,
+        family:x.family||core.tileFamily(x.label),
+        distance:Number(x.distance.toFixed(4)),
+        familyDistance:Number.isFinite(x.familyDistance)?Number(x.familyDistance.toFixed(4)):null,
+        familyGap:Number.isFinite(x.familyGap)?Number(x.familyGap.toFixed(4)):null
+      }));
       const available=ranked.filter(x=>(used[x.label]||0)<4);
       const accepted=confidentCandidate(available);
       if(!accepted)return '';
@@ -997,12 +1010,12 @@
       const note=root.querySelector('.hand-result-note-m7v5');
       if(note)note.textContent=features.length===14
         ?(firstCalibration
-          ?'保存済みの牌画像がないため、M7 v48の初回学習が必要です。14枚を正しく指定してください。確定後は牌画像も端末内に保存します。'
-          :`白枠内の手牌列を14枚に分割しました。高信頼候補 ${auto}枚。各枠の下に1位候補を表示しています。精度評価はこの1位候補を基準にします。`)
+          ?'保存済みの牌画像がないため、M7 v49の初回学習が必要です。14枚を正しく指定してください。確定後は牌画像も端末内に保存します。'
+          :`白枠内の手牌列を14枚に分割しました。萬・筒・索・字牌を先に判定し、その中で牌種を選ぶ二段階認識です。高信頼候補 ${auto}枚。`)
         :'白枠内から牌列を特定できませんでした。撮影画像を確認し、14枠を手動入力するか「読み取り直す」で再撮影してください。';
       const status=root.querySelector('.hand-result-status-m7v5');
       if(status&&auto<14)status.textContent=features.length===14
-        ?(firstCalibration?'初回学習：14枚を指定してください':`学習済み ${learnedLabels}種類${state.librarySource?` / 元:${state.librarySource}`:''} / 均等比較 / 射影 ${analysis.perspectiveCount||0}/14 / 高信頼 ${auto}枚`)
+        ?(firstCalibration?'初回学習：14枚を指定してください':`学習済み ${learnedLabels}種類${state.librarySource?` / 元:${state.librarySource}`:''} / 二段階 / 射影 ${analysis.perspectiveCount||0}/14 / 高信頼 ${auto}枚`)
         :'手動入力：0 / 14枚';
       if(features.length!==14&&analysis.photo){
         const img=document.createElement('img');img.className='m7v36-photo';img.alt='白枠内を撮影した画像';img.src=analysis.photo;
