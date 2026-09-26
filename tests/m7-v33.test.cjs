@@ -116,6 +116,24 @@ test('soft family prior nudges a close global race toward a clearly stronger fam
   assert.equal(soft[0].label,'1萬','family prior should break only the close race');
 });
 
+test('family discriminative map emphasizes pixels that separate labels',()=>{
+  const w=6,h=6,n=w*h;
+  const feat=(top)=>{
+    const gray=Array(n).fill(.15),edge=Array(n).fill(.05),red=Array(n).fill(0),green=Array(n).fill(0);
+    for(let x=0;x<w;x++){gray[x]=top;edge[x]=top;}
+    return {kind:'perspective-direct-v1',width:w,height:h,gray,edge,red,green};
+  };
+  const lib={'1萬':[feat(.1)],'2萬':[feat(.9)]};
+  const weights=core.familyDiscriminativeWeights(lib)['萬'];
+  assert.equal(weights.length,n);
+  const top=weights.slice(0,w).reduce((s,v)=>s+v,0)/w;
+  const bottom=weights.slice(w).reduce((s,v)=>s+v,0)/(n-w);
+  assert(top>bottom*2,{top,bottom});
+  const ranked=core.rankLabelsFamilyDiscriminative(feat(.82),lib,{blend:.84,priorWeight:.26,maxPenalty:.016});
+  assert.equal(ranked[0].label,'2萬');
+  assert(Number.isFinite(ranked[0].discriminativeDistance));
+});
+
 test('tile family mapping covers suits, honors and red fives',()=>{
   assert.equal(core.tileFamily('3萬'),'萬');
   assert.equal(core.tileFamily('赤5筒'),'筒');
@@ -143,7 +161,7 @@ test('camera v36 is loaded before ui-fixes so verified clicks train the active c
   assert(index.indexOf('script.js')<index.indexOf('m7-recognition-core.js'));
   assert(index.indexOf('m7-recognition-core.js')<index.indexOf('m7-camera-v36.js'));
   assert(index.indexOf('m7-camera-v36.js')<index.indexOf('ui-fixes.js'));
-  assert(index.includes('M7 v50'));
+  assert(index.includes('M7 v51'));
 });
 
 test('legacy live detector and demo fill yield to the active camera owner',()=>{
@@ -160,7 +178,7 @@ test('v36 camera avoids fixed bright-white threshold and closes camera when hidd
   assert(camera.includes(".realtime-hand-cancel-m7v3')?.click()"));
 });
 
-test('v50 uses soft family-prior high-resolution perspective matching',()=>{
+test('v51 uses within-family discriminative weighting with perspective matching',()=>{
   const camera=fs.readFileSync(path.join(root,'m7-camera-v36.js'),'utf8');
   assert(camera.includes("badge.className='m7v45-top1'"));
   assert(camera.includes("position:absolute;right:3px;top:3px"));
@@ -170,8 +188,8 @@ test('v50 uses soft family-prior high-resolution perspective matching',()=>{
   assert(camera.includes('perspectiveFaceCanvas'));
   assert(camera.includes("MahjongScoreApp_tile_templates_m7v48balanced24x36"));
   assert(camera.includes('const width=24,height=36'));
-  assert(camera.includes('core.rankLabelsSoftHierarchical(feature,lib'));
-  assert(camera.includes('/ ファミリー補助 / 射影'));
+  assert(camera.includes('core.rankLabelsFamilyDiscriminative(feature,lib'));
+  assert(camera.includes('/ 差分強調 / 射影'));
   assert(camera.includes("MahjongScoreApp_tile_templates_m7v45oriented1"));
   assert(camera.includes('loadLegacyLibrary'));
   assert(camera.includes("if(raw.length)saveTrainingBatch(raw).catch(()=>{})"));
