@@ -73,6 +73,20 @@ test('direct image distance tolerates small transform',()=>{
   assert.equal(ranked[0].label,'correct');
 });
 
+test('class-balanced ranking removes template-count advantage',()=>{
+  const w=4,h=4,n=w*h;
+  const feat=v=>({kind:'perspective-direct-v1',width:w,height:h,gray:Array(n).fill(v),edge:Array(n).fill(0),red:Array(n).fill(0),green:Array(n).fill(0)});
+  const query=feat(0);
+  const many=[feat(0),feat(.1),feat(.1),feat(.8),feat(.8)];
+  const one=[feat(.2)];
+  const old=core.rankLabelsRobust(query,{many,one},{singlePenalty:.018,maxTemplates:3});
+  const balanced=core.rankLabelsBalanced(query,{many,one});
+  assert.equal(old[0].label,'many','legacy ranking should expose the sample-count advantage in this fixture');
+  assert.equal(balanced[0].label,'one','balanced ranking must compare one class prototype per label');
+  assert.equal(balanced.find(x=>x.label==='many').sampleCount,5);
+  assert.equal(balanced.find(x=>x.label==='one').sampleCount,1);
+});
+
 test('perspective direct descriptor stays supported',()=>{
   const w=16,h=24,n=w*h;
   const a={kind:'perspective-direct-v1',width:w,height:h,gray:Array(n).fill(0),edge:Array(n).fill(0),red:Array(n).fill(0),green:Array(n).fill(0)};
@@ -93,7 +107,7 @@ test('camera v36 is loaded before ui-fixes so verified clicks train the active c
   assert(index.indexOf('script.js')<index.indexOf('m7-recognition-core.js'));
   assert(index.indexOf('m7-recognition-core.js')<index.indexOf('m7-camera-v36.js'));
   assert(index.indexOf('m7-camera-v36.js')<index.indexOf('ui-fixes.js'));
-  assert(index.includes('M7 v47'));
+  assert(index.includes('M7 v48'));
 });
 
 test('legacy live detector and demo fill yield to the active camera owner',()=>{
@@ -110,7 +124,7 @@ test('v36 camera avoids fixed bright-white threshold and closes camera when hidd
   assert(camera.includes(".realtime-hand-cancel-m7v3')?.click()"));
 });
 
-test('v47 preserves perspective matching and legacy learning migration',()=>{
+test('v48 uses higher-resolution class-balanced perspective matching',()=>{
   const camera=fs.readFileSync(path.join(root,'m7-camera-v36.js'),'utf8');
   assert(camera.includes("badge.className='m7v45-top1'"));
   assert(camera.includes("position:absolute;right:3px;top:3px"));
@@ -118,7 +132,9 @@ test('v47 preserves perspective matching and legacy learning migration',()=>{
   assert(camera.includes('detectFaceQuad'));
   assert(camera.includes('warpQuadToCanvas'));
   assert(camera.includes('perspectiveFaceCanvas'));
-  assert(camera.includes("MahjongScoreApp_tile_templates_m7v47migration1"));
+  assert(camera.includes("MahjongScoreApp_tile_templates_m7v48balanced24x36"));
+  assert(camera.includes('const width=24,height=36'));
+  assert(camera.includes('core.rankLabelsBalanced(feature,lib)'));
   assert(camera.includes("MahjongScoreApp_tile_templates_m7v45oriented1"));
   assert(camera.includes('loadLegacyLibrary'));
   assert(camera.includes("if(raw.length)saveTrainingBatch(raw).catch(()=>{})"));

@@ -152,6 +152,53 @@
     return out.sort((a,b)=>a.distance-b.distance);
   }
 
+
+  function prototypeFeature(templates){
+    if(!Array.isArray(templates)||!templates.length)return null;
+    const first=templates.find(Boolean);if(!first)return null;
+    const directKinds=new Set(['direct-edge-v1','oriented-direct-v1','perspective-direct-v1']);
+    if(directKinds.has(first.kind)){
+      const width=Number(first.width)||0,height=Number(first.height)||0,n=width*height;
+      if(width<1||height<1)return null;
+      const valid=templates.filter(t=>t&&t.kind===first.kind&&Number(t.width)===width&&Number(t.height)===height&&
+        ['gray','edge','red','green'].every(k=>Array.isArray(t[k])&&t[k].length===n));
+      if(!valid.length)return null;
+      const out={kind:first.kind,width,height,gray:Array(n).fill(0),edge:Array(n).fill(0),red:Array(n).fill(0),green:Array(n).fill(0)};
+      for(const t of valid)for(const k of ['gray','edge','red','green'])for(let i=0;i<n;i++)out[k][i]+=Number(t[k][i])||0;
+      for(const k of ['gray','edge','red','green'])for(let i=0;i<n;i++)out[k][i]/=valid.length;
+      return out;
+    }
+    if(Array.isArray(first)){
+      const valid=templates.filter(t=>Array.isArray(t)&&t.length===first.length);
+      if(!valid.length)return null;
+      const out=Array(first.length).fill(0);
+      for(const t of valid)for(let i=0;i<out.length;i++)out[i]+=Number(t[i])||0;
+      for(let i=0;i<out.length;i++)out[i]/=valid.length;
+      return out;
+    }
+    return first;
+  }
+
+  function rankLabelsBalanced(feature,library){
+    const out=[];
+    if(!feature||!library||typeof library!=='object')return out;
+    for(const [label,templates] of Object.entries(library)){
+      if(!Array.isArray(templates)||!templates.length)continue;
+      const prototype=prototypeFeature(templates);
+      const distance=featureDistance(feature,prototype);
+      if(!Number.isFinite(distance))continue;
+      const raw=templates.map(t=>featureDistance(feature,t)).filter(Number.isFinite).sort((a,b)=>a-b);
+      out.push({
+        label,
+        distance,
+        bestDistance:raw[0]??distance,
+        sampleCount:templates.length,
+        prototype:true
+      });
+    }
+    return out.sort((a,b)=>a.distance-b.distance);
+  }
+
   function rankLabels(feature,library){
     const out=[];
     if(!feature||!library||typeof library!=='object')return out;
@@ -183,7 +230,7 @@
     }
     return shift/current.length<=maxShift;
   }
-  const api=Object.freeze({rmsDistance,shiftedRmsDistance,shiftedGroupedRmsDistance,structuredFeatureDistance,directImageDistance,featureDistance,rankLabels,rankLabelsRobust,classify,stableEnough});
+  const api=Object.freeze({rmsDistance,shiftedRmsDistance,shiftedGroupedRmsDistance,structuredFeatureDistance,directImageDistance,featureDistance,prototypeFeature,rankLabels,rankLabelsRobust,rankLabelsBalanced,classify,stableEnough});
   root.M7RecognitionCoreV33=api;
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })(typeof window!=='undefined'?window:globalThis);
