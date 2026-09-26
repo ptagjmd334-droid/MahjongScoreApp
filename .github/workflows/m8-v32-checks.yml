@@ -26,6 +26,7 @@ on:
       - work/m7-v46-perspective-rectification
       - work/m7-v47-legacy-learning-migration
       - work/m7-v48-class-balanced-hires
+      - work/m7-v49-family-first-ranking
   workflow_dispatch:
 
 jobs:
