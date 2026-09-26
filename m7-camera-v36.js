@@ -24,7 +24,7 @@
   const FEATURE_KIND='perspective-direct-v1';
   const MAX_TEMPLATES=5;
   const MAX_IMAGES_PER_LABEL=10;
-  const state={overlay:null,captured:false,pendingFeatures:[],pendingCrops:[],pendingTrainingImages:[],diagnostics:null,predictionDebug:[],confidenceReasons:[],learnedLabelCount:0,librarySource:'',runtimeLibrary:null,storageDiagnostics:null,lastRecognitionMs:0,lastAuxViewsUsed:0,lastAuxFallbackCount:0};
+  const state={overlay:null,captured:false,pendingFeatures:[],pendingCrops:[],pendingTrainingImages:[],diagnostics:null,predictionDebug:[],confidenceReasons:[],learnedLabelCount:0,librarySource:'',runtimeLibrary:null,storageDiagnostics:null,lastRecognitionMs:0,lastAuxViewsUsed:0,lastAuxFallbackCount:0,lastMicroRefined:0};
   const persistPromises=new WeakMap();
 
   const style=document.createElement('style');
@@ -1009,16 +1009,11 @@
     const lib=activeLibrary(),used={},debug=[],reasons=[];
     const now=()=>((typeof performance!=='undefined'&&performance.now)?performance.now():Date.now());
     const started=now();
-    const TOTAL_BUDGET_MS=5000;
-    let auxViewsUsed=0,auxFallbackCount=0;
+    const TOTAL_BUDGET_MS=7500;
+    let auxViewsUsed=0,auxFallbackCount=0,microRefined=0;
     state.learnedLabelCount=Object.keys(lib).filter(label=>Array.isArray(lib[label])&&lib[label].length).length;
     const labels=features.map((feature,index)=>{
       const views=Array.isArray(inferenceViews[index])&&inferenceViews[index].length?inferenceViews[index]:[feature];
-      // v69: v68 showed the original full matcher itself costs ~20 s on iPhone,
-      // before auxiliary views even run. Use the cached aligned scorer for ALL
-      // five nearby crops, then restore the v65-style median consensus. The
-      // crop variants already provide shift/scale tolerance, so explicit
-      // rotate/scale/translation search is no longer repeated per label.
       const rankings=[];
       for(const view of views){
         if(rankings.length>0&&now()-started>TOTAL_BUDGET_MS){auxFallbackCount++;break;}
@@ -1028,7 +1023,21 @@
       if(!rankings.length){
         rankings.push(core.rankLabelsFastDiscriminative(feature,lib,{labelBlend:.72,templateBlend:.38,shapeBlend:.60}));
       }
-      const ranked=core.combineViewRankings(rankings);
+      let ranked=core.combineViewRankings(rankings);
+
+      // v70: v69 is fast (~2.3s) but loses three tiles versus v65. Reintroduce
+      // only the cheapest useful part of the old transform search: integer
+      // +/-1px alignment on the current Top4 candidates. Run it once on the
+      // standard crop, not for every label/view.
+      if(ranked.length&&now()-started<TOTAL_BUDGET_MS){
+        const candidateLabels=ranked.slice(0,4).map(x=>x.label);
+        const refined=core.rankCandidateLabelsMicroShift(views[0]||feature,lib,candidateLabels,{});
+        if(refined.length){
+          ranked=core.mergeCandidateRefinement(ranked,refined,.72);
+          microRefined++;
+        }
+      }
+
       debug[index]=ranked.slice(0,3).map(x=>({
         label:x.label,
         family:x.family||core.tileFamily(x.label),
@@ -1038,7 +1047,6 @@
         structuralRepresentativeDistance:Number.isFinite(x.structuralRepresentativeDistance)?Number(x.structuralRepresentativeDistance.toFixed(4)):null,
         structuralConsensusDistance:Number.isFinite(x.structuralConsensusDistance)?Number(x.structuralConsensusDistance.toFixed(4)):null,
         structuralScore:Number.isFinite(x.structuralScore)?Number(x.structuralScore.toFixed(4)):null,
-        bestDistance:Number.isFinite(x.bestDistance)?Number(x.bestDistance.toFixed(4)):null,
         sampleCount:Number(x.sampleCount)||0,
         discriminativeDistance:Number.isFinite(x.discriminativeDistance)?Number(x.discriminativeDistance.toFixed(4)):null,
         labelWeightedDistance:Number.isFinite(x.labelWeightedDistance)?Number(x.labelWeightedDistance.toFixed(4)):null,
@@ -1047,7 +1055,9 @@
         sameFamilyRatio:Number.isFinite(x.sameFamilyRatio)?Number(x.sameFamilyRatio.toFixed(4)):null,
         viewTopVotes:Number(x.viewTopVotes)||0,
         viewCount:Number(x.viewCount)||rankings.length,
-        viewDistanceRange:Number.isFinite(x.viewDistanceRange)?Number(x.viewDistanceRange.toFixed(4)):null
+        viewDistanceRange:Number.isFinite(x.viewDistanceRange)?Number(x.viewDistanceRange.toFixed(4)):null,
+        fastConsensusDistance:Number.isFinite(x.fastConsensusDistance)?Number(x.fastConsensusDistance.toFixed(4)):null,
+        microShiftDistance:Number.isFinite(x.microShiftDistance)?Number(x.microShiftDistance.toFixed(4)):null
       }));
       const available=ranked.filter(x=>(used[x.label]||0)<4);
       if(!available.length){reasons[index]='label-limit';return '';}
@@ -1062,6 +1072,7 @@
     state.confidenceReasons=reasons;
     state.lastAuxViewsUsed=auxViewsUsed;
     state.lastAuxFallbackCount=auxFallbackCount;
+    state.lastMicroRefined=microRefined;
     const ended=now();
     state.lastRecognitionMs=Math.max(0,Math.round(ended-started));
     return labels;
@@ -1496,7 +1507,7 @@
       if(note)note.textContent=features.length===14
         ?(firstCalibration
           ?'この保存領域には学習データがありません。今回だけ14枚を正しく指定してください。「この手牌で進む」を押した時に保存完了を確認してから次へ進みます。'
-          :`精度優先版です。v65で効いた5視点中央値合意は維持し、5視点すべてを回転・拡大探索なしの高速比較へ統一しました。高信頼候補 ${auto}枚。保留理由: ${confidenceReasonSummary()}。認識 ${Math.max(0,state.lastRecognitionMs||0)}ms / 補助view ${state.lastAuxViewsUsed||0}${state.lastAuxFallbackCount?' / 時間上限fallback':''}。`)
+          :`精度優先版です。高速5視点中央値合意の後、Top4だけを±1pxの軽量再整列で再判定します。高信頼候補 ${auto}枚。保留理由: ${confidenceReasonSummary()}。認識 ${Math.max(0,state.lastRecognitionMs||0)}ms / 補助view ${state.lastAuxViewsUsed||0} / 微調整 ${state.lastMicroRefined||0}${state.lastAuxFallbackCount?' / 時間上限fallback':''}。`)
         :'白枠内から牌列を特定できませんでした。撮影画像を確認し、14枠を手動入力するか「読み取り直す」で再撮影してください。';
       const status=root.querySelector('.hand-result-status-m7v5');
       if(status&&auto<14)status.textContent=features.length===14
