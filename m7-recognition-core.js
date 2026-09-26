@@ -250,6 +250,125 @@
     }));
   }
 
+
+  function familyDiscriminativeWeights(library){
+    const byFamily={};
+    if(!library||typeof library!=='object')return byFamily;
+    for(const [label,templates] of Object.entries(library)){
+      const family=tileFamily(label);
+      if(!family||!Array.isArray(templates)||!templates.length)continue;
+      const p=prototypeFeature(templates);
+      if(!p||!['direct-edge-v1','oriented-direct-v1','perspective-direct-v1'].includes(p.kind))continue;
+      (byFamily[family]||(byFamily[family]=[])).push(p);
+    }
+    const out={};
+    for(const [family,protos] of Object.entries(byFamily)){
+      const first=protos[0],n=(Number(first.width)||0)*(Number(first.height)||0);
+      if(protos.length<2||!n){out[family]=Array(n).fill(1);continue;}
+      const score=Array(n).fill(0);
+      for(let i=0;i<n;i++){
+        let vg=0,ve=0,vr=0,vn=0;
+        for(const [key,acc] of [['gray','g'],['edge','e'],['red','r'],['green','n']]){
+          let mean=0;
+          for(const p of protos)mean+=Number(p[key][i])||0;
+          mean/=protos.length;
+          let v=0;
+          for(const p of protos){const d=(Number(p[key][i])||0)-mean;v+=d*d;}
+          v/=protos.length;
+          if(acc==='g')vg=v;else if(acc==='e')ve=v;else if(acc==='r')vr=v;else vn=v;
+        }
+        score[i]=ve*.52+vg*.30+(vr+vn)*.09;
+      }
+      const sorted=score.slice().sort((a,b)=>a-b);
+      const ref=sorted[Math.max(0,Math.min(sorted.length-1,Math.floor(sorted.length*.92)))]||Math.max(...score,1e-6);
+      out[family]=score.map(v=>{
+        const x=Math.max(0,Math.min(1,v/Math.max(ref,1e-7)));
+        return .35+2.65*Math.sqrt(x);
+      });
+    }
+    return out;
+  }
+
+  function weightedDirectImageDistance(a,b,weights){
+    const directKinds=new Set(['direct-edge-v1','oriented-direct-v1','perspective-direct-v1']);
+    if(!a||!b||!directKinds.has(a.kind)||a.kind!==b.kind)return featureDistance(a,b);
+    const width=Number(a.width)||0,height=Number(a.height)||0,n=width*height;
+    if(width!==Number(b.width)||height!==Number(b.height)||!Array.isArray(weights)||weights.length!==n)return directImageDistance(a,b);
+    const channels=['gray','edge','red','green'];
+    for(const k of channels)if(!Array.isArray(a[k])||!Array.isArray(b[k])||a[k].length!==n||b[k].length!==n)return directImageDistance(a,b);
+    const cx=(width-1)/2,cy=(height-1)/2;
+    const transforms=[];
+    for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++)transforms.push({angle:0,scale:1,dx,dy});
+    transforms.push({angle:-2*Math.PI/180,scale:1,dx:0,dy:0});
+    transforms.push({angle:2*Math.PI/180,scale:1,dx:0,dy:0});
+    transforms.push({angle:0,scale:.97,dx:0,dy:0});
+    transforms.push({angle:0,scale:1.03,dx:0,dy:0});
+    let best=Infinity;
+    for(const t of transforms){
+      const cos=Math.cos(t.angle),sin=Math.sin(t.angle);
+      let sg=0,se=0,sr=0,weightSum=0;
+      for(let y=0;y<height;y++)for(let x=0;x<width;x++){
+        const i=y*width+x;
+        const ux=x-cx-t.dx,uy=y-cy-t.dy;
+        const bx=(ux*cos+uy*sin)/t.scale+cx;
+        const by=(-ux*sin+uy*cos)/t.scale+cy;
+        const ag=Number(a.gray[i])||0,ae=Number(a.edge[i])||0;
+        const ar=Number(a.red[i])||0,an=Number(a.green[i])||0;
+        const bg=bilinear(b.gray,width,height,bx,by),be=bilinear(b.edge,width,height,bx,by);
+        const br=bilinear(b.red,width,height,bx,by),bn=bilinear(b.green,width,height,bx,by);
+        const ink=.28+Math.max(ag,bg,ae,be,ar,br,an,bn);
+        const w=ink*(Number(weights[i])||1);
+        sg+=(ag-bg)*(ag-bg)*w;
+        se+=(ae-be)*(ae-be)*w;
+        sr+=((ar-br)*(ar-br)+(an-bn)*(an-bn))*.5*w;
+        weightSum+=w;
+      }
+      if(!weightSum)continue;
+      const gray=Math.sqrt(sg/weightSum),edge=Math.sqrt(se/weightSum),color=Math.sqrt(sr/weightSum);
+      const penalty=(Math.abs(t.dx)+Math.abs(t.dy))*.004+Math.abs(t.angle)*.10+Math.abs(1-t.scale)*.18;
+      best=Math.min(best,edge*.50+gray*.36+color*.14+penalty);
+    }
+    return best;
+  }
+
+  function rankLabelsFamilyDiscriminative(feature,library,options={}){
+    if(!feature||!library||typeof library!=='object')return [];
+    const families=rankFamiliesBalanced(feature,library);
+    const familyMap=new Map(families.map(f=>[f.label,f]));
+    const minFamily=Number(families[0]?.distance);
+    const runner=families[1];
+    const familyGap=runner&&Number.isFinite(runner.distance)&&Number.isFinite(minFamily)?runner.distance-minFamily:Infinity;
+    const familyRatio=runner&&runner.distance>0&&Number.isFinite(minFamily)?minFamily/runner.distance:0;
+    const maps=familyDiscriminativeWeights(library);
+    const blend=Number.isFinite(options.blend)?Math.max(0,Math.min(1,options.blend)):.84;
+    const priorWeight=Number.isFinite(options.priorWeight)?Math.max(0,options.priorWeight):.26;
+    const maxPenalty=Number.isFinite(options.maxPenalty)?Math.max(0,options.maxPenalty):.016;
+    const out=[];
+    for(const [label,templates] of Object.entries(library)){
+      if(!Array.isArray(templates)||!templates.length)continue;
+      const prototype=prototypeFeature(templates);if(!prototype)continue;
+      const family=tileFamily(label);
+      const globalDistance=featureDistance(feature,prototype);
+      if(!Number.isFinite(globalDistance))continue;
+      const discriminativeDistance=weightedDirectImageDistance(feature,prototype,maps[family]||[]);
+      if(!Number.isFinite(discriminativeDistance))continue;
+      const f=familyMap.get(family);
+      const familyDistance=Number.isFinite(f?.distance)?f.distance:minFamily;
+      const rawPenalty=Number.isFinite(minFamily)&&Number.isFinite(familyDistance)?Math.max(0,familyDistance-minFamily)*priorWeight:0;
+      const familyPenalty=Math.min(maxPenalty,rawPenalty);
+      const distance=discriminativeDistance*blend+globalDistance*(1-blend)+familyPenalty;
+      const raw=templates.map(t=>featureDistance(feature,t)).filter(Number.isFinite).sort((a,b)=>a-b);
+      out.push({
+        label,distance,bestDistance:raw[0]??globalDistance,sampleCount:templates.length,prototype:true,
+        globalDistance,discriminativeDistance,family,familyDistance,familyPenalty,
+        bestFamily:families[0]?.label||'',familyRunnerUpDistance:runner?.distance??Infinity,
+        familyGap,familyRatio,
+        familyRanked:families.slice(0,4).map(v=>({family:v.label,distance:v.distance}))
+      });
+    }
+    return out.sort((a,b)=>a.distance-b.distance);
+  }
+
   function rankLabelsSoftHierarchical(feature,library,options={}){
     if(!feature||!library||typeof library!=='object')return [];
     const labels=rankLabelsBalanced(feature,library);
@@ -314,7 +433,7 @@
     }
     return shift/current.length<=maxShift;
   }
-  const api=Object.freeze({rmsDistance,shiftedRmsDistance,shiftedGroupedRmsDistance,structuredFeatureDistance,directImageDistance,featureDistance,prototypeFeature,rankLabels,rankLabelsRobust,rankLabelsBalanced,tileFamily,buildFamilyLibrary,rankFamiliesBalanced,rankLabelsHierarchical,rankLabelsSoftHierarchical,classify,stableEnough});
+  const api=Object.freeze({rmsDistance,shiftedRmsDistance,shiftedGroupedRmsDistance,structuredFeatureDistance,directImageDistance,featureDistance,prototypeFeature,rankLabels,rankLabelsRobust,rankLabelsBalanced,tileFamily,buildFamilyLibrary,rankFamiliesBalanced,rankLabelsHierarchical,rankLabelsSoftHierarchical,familyDiscriminativeWeights,weightedDirectImageDistance,rankLabelsFamilyDiscriminative,classify,stableEnough});
   root.M7RecognitionCoreV33=api;
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })(typeof window!=='undefined'?window:globalThis);

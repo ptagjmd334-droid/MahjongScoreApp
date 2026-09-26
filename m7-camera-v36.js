@@ -659,7 +659,8 @@
     if(!Array.isArray(ranked)||!ranked.length)return null;
     const best=ranked[0],second=ranked.find(x=>x.label!==best.label);
     if(!best||!Number.isFinite(best.distance))return null;
-    // v50 keeps every label recoverable. Family is only a soft prior for ranking.
+    // v51 keeps every label recoverable. Family remains soft, while ranking
+    // emphasizes pixels that distinguish labels inside the same family.
     // For auto-fill only, stay conservative when a strong family signal disagrees
     // with the winning label; the Top1 suggestion itself is still shown.
     if(best.bestFamily&&best.family&&best.bestFamily!==best.family&&Number(best.familyGap)>.020)return null;
@@ -679,12 +680,13 @@
     const lib=loadLibrary(),used={},debug=[];
     state.learnedLabelCount=Object.keys(lib).filter(label=>Array.isArray(lib[label])&&lib[label].length).length;
     const labels=features.map((feature,index)=>{
-      const ranked=core.rankLabelsSoftHierarchical(feature,lib,{priorWeight:.18,maxPenalty:.012});
+      const ranked=core.rankLabelsFamilyDiscriminative(feature,lib,{blend:.84,priorWeight:.26,maxPenalty:.016});
       debug[index]=ranked.slice(0,3).map(x=>({
         label:x.label,
         family:x.family||core.tileFamily(x.label),
         distance:Number(x.distance.toFixed(4)),
         globalDistance:Number.isFinite(x.globalDistance)?Number(x.globalDistance.toFixed(4)):null,
+        discriminativeDistance:Number.isFinite(x.discriminativeDistance)?Number(x.discriminativeDistance.toFixed(4)):null,
         familyDistance:Number.isFinite(x.familyDistance)?Number(x.familyDistance.toFixed(4)):null,
         familyPenalty:Number.isFinite(x.familyPenalty)?Number(x.familyPenalty.toFixed(4)):null,
         bestFamily:x.bestFamily||'',
@@ -1009,12 +1011,12 @@
       const note=root.querySelector('.hand-result-note-m7v5');
       if(note)note.textContent=features.length===14
         ?(firstCalibration
-          ?'保存済みの牌画像がないため、M7 v50の初回学習が必要です。14枚を正しく指定してください。確定後は牌画像も端末内に保存します。'
-          :`白枠内の手牌列を14枚に分割しました。全牌種を候補に残したまま、萬・筒・索・字牌の判定を補助点として加えるファミリー補助認識です。高信頼候補 ${auto}枚。`)
+          ?'保存済みの牌画像がないため、M7 v51の初回学習が必要です。14枚を正しく指定してください。確定後は牌画像も端末内に保存します。'
+          :`白枠内の手牌列を14枚に分割しました。全牌種を候補に残しつつ、同じファミリー内で牌種ごとの差が大きい部分を自動で強調して比較します。高信頼候補 ${auto}枚。`)
         :'白枠内から牌列を特定できませんでした。撮影画像を確認し、14枠を手動入力するか「読み取り直す」で再撮影してください。';
       const status=root.querySelector('.hand-result-status-m7v5');
       if(status&&auto<14)status.textContent=features.length===14
-        ?(firstCalibration?'初回学習：14枚を指定してください':`学習済み ${learnedLabels}種類${state.librarySource?` / 元:${state.librarySource}`:''} / ファミリー補助 / 射影 ${analysis.perspectiveCount||0}/14 / 高信頼 ${auto}枚`)
+        ?(firstCalibration?'初回学習：14枚を指定してください':`学習済み ${learnedLabels}種類${state.librarySource?` / 元:${state.librarySource}`:''} / 差分強調 / 射影 ${analysis.perspectiveCount||0}/14 / 高信頼 ${auto}枚`)
         :'手動入力：0 / 14枚';
       if(features.length!==14&&analysis.photo){
         const img=document.createElement('img');img.className='m7v36-photo';img.alt='白枠内を撮影した画像';img.src=analysis.photo;

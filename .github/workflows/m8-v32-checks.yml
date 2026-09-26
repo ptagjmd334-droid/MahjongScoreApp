@@ -28,6 +28,7 @@ on:
       - work/m7-v48-class-balanced-hires
       - work/m7-v49-family-first-ranking
       - work/m7-v50-soft-family-prior
+      - work/m7-v51-family-discriminative
   workflow_dispatch:
 
 jobs:

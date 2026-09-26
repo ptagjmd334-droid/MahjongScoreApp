@@ -551,6 +551,15 @@
 **回帰テスト:** global balanced rankingでは単独の別ファミリーoutlierが勝つfixtureを用意し、family-first rankingでは正しいfamilyを選び、そのfamily外のlabelが最終候補に入らないことをunit/Chromiumで確認する。
 **確度:** v48の跨ぎ誤りは実機画像で確認済み。単段rankingの構造はコード上確定。二段階化が実牌Top1を改善するかはv49実機確認待ち。
 
+## M070: v50はファミリー一致11/14でもTop1 6/14で、同family内の細分類が主ボトルネックになった
+**時期:** M7 v50→v51
+**症状:** iPhone実機で学習済み11種類、ファミリー補助、射影14/14、高信頼0、Top1 6/14。最終Top1のfamilyだけなら11/14合っていたが、同family内で7索→6索、5筒→6筒、筒子同士の誤認が多かった。
+**判断:** v48ではfamily跨ぎ誤りが目立ったが、v50ではsoft family priorにより大分類は改善した一方、family内の数字/模様の識別が残った。family priorをさらに強めても同family誤認は直らない。
+**修正:** v51では各family内の牌種prototype間の画素分散からdiscriminative weight mapを作り、牌種間で差が大きい領域を0.35〜3.0倍で強調して直接画像距離を計算。萬子の共通『萬』など全牌に共通する領域の影響を相対的に下げる。従来global距離も16%残し、過適合を抑える。
+**再発防止:** 認識誤りをfamily跨ぎとfamily内誤りに分けて集計する。family一致率が高いのにTop1が低い場合、family priorやhard gateをいじらず、family内識別特徴を改善する。
+**回帰テスト:** synthetic萬子fixtureで牌種差のある上段画素の重みが共通領域の2倍超になることと、差分強調rankingが正しいラベルを1位にすることをunit/Chromiumで確認。
+**確度:** v50 Top1 6/14・高信頼0・画像上のfamily一致11/14は実機スクリーンショットから確認。v51が実牌精度を改善するかはiPhone確認待ち。
+
 # 変更前に特に見る高頻度項目
 1. **古いパッチとの競合**（M001/M003/M004/M006/M007）
 2. **実DOMとCSS前提**（M011/M015/M017）

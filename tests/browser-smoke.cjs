@@ -34,7 +34,7 @@ const server=http.createServer((req,res)=>{
     const errors=[];page.on('pageerror',e=>errors.push(String(e)));
     await page.goto('http://127.0.0.1:'+port+'/',{waitUntil:'domcontentloaded',timeout:30000});
     await page.waitForSelector('#go-confirm-button',{timeout:12000});
-    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'M7 v50');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'M7 v51');
     // v36 analyzes one long row after the shutter instead of requiring 14 live connected components.
     const synthetic=await page.evaluate(()=>{
       const canvas=document.createElement('canvas');canvas.width=840;canvas.height=260;
@@ -187,6 +187,26 @@ const server=http.createServer((req,res)=>{
     assert.equal(familyFirst.global,'5筒','v49 family fixture no longer exposes cross-family global error '+JSON.stringify(familyFirst));
     assert.equal(familyFirst.family,'萬','v49 family stage chose the wrong family '+JSON.stringify(familyFirst));
     assert.equal(familyFirst.hierarchical,'1萬','v49 hierarchical label stage escaped the chosen family '+JSON.stringify(familyFirst));
+
+    const familyDiscriminative=await page.evaluate(()=>{
+      const core=window.M7RecognitionCoreV33,w=6,h=6,n=w*h;
+      const feat=top=>{
+        const gray=Array(n).fill(.15),edge=Array(n).fill(.05),red=Array(n).fill(0),green=Array(n).fill(0);
+        for(let x=0;x<w;x++){gray[x]=top;edge[x]=top;}
+        return {kind:'perspective-direct-v1',width:w,height:h,gray,edge,red,green};
+      };
+      const lib={'1萬':[feat(.1)],'2萬':[feat(.9)]};
+      const weights=core.familyDiscriminativeWeights(lib)['萬'];
+      return {
+        top:weights.slice(0,w).reduce((s,v)=>s+v,0)/w,
+        bottom:weights.slice(w).reduce((s,v)=>s+v,0)/(n-w),
+        label:core.rankLabelsFamilyDiscriminative(feat(.82),lib,{blend:.84,priorWeight:.26,maxPenalty:.016})[0]?.label||''
+      };
+    });
+    assert(familyDiscriminative.top>familyDiscriminative.bottom*2,
+      'v51 did not emphasize within-family discriminative pixels '+JSON.stringify(familyDiscriminative));
+    assert.equal(familyDiscriminative.label,'2萬',
+      'v51 discriminative ranking chose the wrong label '+JSON.stringify(familyDiscriminative));
 
     // Simulate a landscape camera frame and verify shutter -> post-capture 14 editable previews.
     const shutter=await page.evaluate(async()=>{
