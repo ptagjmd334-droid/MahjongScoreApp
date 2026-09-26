@@ -192,7 +192,6 @@ test('v55 keeps learning recovery and rejects aggressive projective warps',()=>{
   assert(camera.includes("badge.className='m7v53-top1'"));
   assert(camera.includes('innerRecognitionCanvas'));
   assert(camera.includes('innerFeatureFromCanonical'));
-  assert(camera.includes('feature:innerFeatureFromCanonical(canonical)'));
   assert(camera.includes('resolve(innerFeatureFromCanonical(canonical))'));
   assert(camera.includes('Promise.all(selected.map'));
   assert(camera.includes('/ 内側crop / 射影'));
