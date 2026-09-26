@@ -37,6 +37,7 @@ on:
       - work/m7-v57-calibration-photo-preview
       - work/m7-v58-blocking-learning-save
       - work/m7-v59-idb-learning-fallback
+      - work/m7-v60-picker-precision
   workflow_dispatch:
 
 jobs:
