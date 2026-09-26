@@ -210,7 +210,7 @@ test('v59 keeps verified learning durable across localStorage cache failures',()
   assert(camera.includes('renderPickerPhoto(index)'));
   assert(camera.includes('保存完了を確認してから次へ進みます'));
   assert(camera.includes('async function persistVerifiedHand'));
-  assert(camera.includes("reason:'stable-store-write-failed'"));
+  assert(camera.includes("reason:raw.length?'durable-store-failed':'raw-images-missing'"));
   assert(camera.includes("status.textContent='学習データを保存中…'"));
   assert(camera.includes("localStorage.setItem(LIB_BACKUP_KEY,json)"));
   assert(camera.includes('saveLibraryDetailed'));
