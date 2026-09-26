@@ -34,7 +34,7 @@ const server=http.createServer((req,res)=>{
     const errors=[];page.on('pageerror',e=>errors.push(String(e)));
     await page.goto('http://127.0.0.1:'+port+'/',{waitUntil:'domcontentloaded',timeout:30000});
     await page.waitForSelector('#go-confirm-button',{timeout:12000});
-    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'M7 v64');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'M7 v65');
     // v36 analyzes one long row after the shutter instead of requiring 14 live connected components.
     const synthetic=await page.evaluate(()=>{
       const canvas=document.createElement('canvas');canvas.width=840;canvas.height=260;
@@ -386,6 +386,16 @@ const server=http.createServer((req,res)=>{
       return {same:core.structuralDistance(a,shift),different:core.structuralDistance(a,other)};
     });
     assert(structural.same<structural.different,'v64 structural distance lost shift robustness '+JSON.stringify(structural));
+    const inferenceViews=await page.evaluate(()=>{
+      const c=document.createElement('canvas');c.width=96;c.height=144;
+      const x=c.getContext('2d');x.fillStyle='#eee9dc';x.fillRect(0,0,96,144);
+      x.fillStyle='#111';x.fillRect(42,30,10,82);
+      const views=window.M7CameraV36.inferenceFeatureViews(c);
+      return views.map(v=>({kind:v.kind,width:v.width,height:v.height,n:v.gray.length}));
+    });
+    assert.equal(inferenceViews.length,5,'v65 must create five nearby inference crops '+JSON.stringify(inferenceViews));
+    assert(inferenceViews.every(v=>v.kind==='perspective-direct-v1'&&v.width===24&&v.height===36&&v.n===864),
+      'v65 inference crops changed feature schema '+JSON.stringify(inferenceViews));
 
     const confidence=await page.evaluate(()=>{
       const api=window.M7CameraV36;
@@ -400,10 +410,14 @@ const server=http.createServer((req,res)=>{
         {label:'A',distance:.11,representativeDistance:.17,templateConsensusDistance:.09,bestDistance:.08,sampleCount:3,family:'萬',sameFamilyGap:.08,sameFamilyRatio:.55},
         {label:'B',distance:.24,representativeDistance:.24,templateConsensusDistance:.20,bestDistance:.18,sampleCount:3,family:'萬'}
       ]);
+      const viewDisagreeAssessment=api.confidenceAssessment([
+        {label:'A',distance:.08,representativeDistance:.08,templateConsensusDistance:.08,bestDistance:.07,sampleCount:3,family:'萬',sameFamilyGap:.08,sameFamilyRatio:.50,viewCount:5,viewTopVotes:2},
+        {label:'B',distance:.20,representativeDistance:.20,templateConsensusDistance:.18,bestDistance:.17,sampleCount:3,family:'萬'}
+      ]);
       return {clear:clear?.label||'',ambiguous:ambiguous?.label||'',far:far?.label||'',rawFar:rawFar?.label||'',
-        supported:supportedAssessment.candidate?.label||'',
+        supported:supportedAssessment.candidate?.label||'',viewDisagree:viewDisagreeAssessment.candidate?.label||'',
         ambiguousReason:ambiguousAssessment.reason,farReason:farAssessment.reason,rawFarReason:rawFarAssessment.reason,
-        supportedReason:supportedAssessment.reason};
+        supportedReason:supportedAssessment.reason,viewDisagreeReason:viewDisagreeAssessment.reason};
     });
     assert.equal(confidence.clear,'A','clear candidate should be accepted '+JSON.stringify(confidence));
     assert.equal(confidence.ambiguous,'','ambiguous candidate must be withheld '+JSON.stringify(confidence));
@@ -413,7 +427,9 @@ const server=http.createServer((req,res)=>{
     assert.equal(confidence.rawFar,'','weak direct and structural consensus must still reject '+JSON.stringify(confidence));
     assert.equal(confidence.rawFarReason,'template-consensus','v63 must reject weak multi-template consensus '+JSON.stringify(confidence));
     assert.equal(confidence.supported,'A','v63 repeated nearby templates should support a real representative even when the representative alone is farther '+JSON.stringify(confidence));
-    assert.equal(confidence.supportedReason,'accepted','v63 supported candidate should pass confidence '+JSON.stringify(confidence));
+    assert.equal(confidence.supportedReason,'accepted','v64 supported candidate should pass confidence '+JSON.stringify(confidence));
+    assert.equal(confidence.viewDisagree,'','v65 must not auto-confirm when fewer than half of nearby crops agree '+JSON.stringify(confidence));
+    assert.equal(confidence.viewDisagreeReason,'view-disagreement','v65 must explain crop-view disagreement '+JSON.stringify(confidence));
     assert(shutter.diag?.rowFound,'v36 diagnostics did not record the located row '+JSON.stringify(shutter));
     assert.equal(shutter.diag?.gridUsed,false,'v62 must not apply the v61 global-grid candidate to production crops '+JSON.stringify(shutter.diag));
     const innerApi=await page.evaluate(()=>{
