@@ -598,6 +598,15 @@
 **回帰テスト:** source testで長辺比・対向辺角度・corner orthogonality guardが存在すること、結果表示cropがrecognition入力と同一であることを確認。
 **確度:** 実機で斜め変形が発生したことは画像で確定。誤ったquad受理が主因という説明はコード構造から有力。
 
+## M075: versionごとに学習保存keyを変え続け、実機で毎回初回学習へ戻る状態を作った
+**時期:** M7 v44〜v55→v56
+**症状:** v52では学習済み11種類が見えていたが、v53以降はmigration修正を重ねてもiPhone実機では初回学習表示が継続した。
+**根本原因:** 認識feature形式の変更ごとにlocalStorage keyをversion付きで変更し、旧key/raw IndexedDBからのmigration成功を前提にした。端末の実際の保存領域・実行コンテキストで旧データが見えない場合、migrationコードを増やしても0件のままになる。
+**修正:** v56から通常保存先をversion非依存の`MahjongScoreApp_tile_templates_stable1`へ固定し、backup keyにも二重保存する。今後feature schemaを変える必要がある場合はstable schema自体を明示的にversion-upし、通常のUI build番号ではkeyを変えない。
+**運用判断:** 旧データ救出はここで打ち切り、iPhone上で一度だけ14枚を正しく確定してstable libraryを作る。その後、次回撮影で学習済み表示が維持されることを最優先で確認する。
+**回帰テスト:** Chromiumでstable libraryを保存し、primaryを削除してもbackupから同じラベルが復旧することを確認。
+**確度:** 実機で初回学習が継続したことは確定。旧保存データが現在の実行コンテキストから見えない理由自体は端末storageを直接検査できないため未確定。
+
 # 変更前に特に見る高頻度項目
 1. **古いパッチとの競合**（M001/M003/M004/M006/M007）
 2. **実DOMとCSS前提**（M011/M015/M017）
