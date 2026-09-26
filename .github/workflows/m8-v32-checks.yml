@@ -34,6 +34,7 @@ on:
       - work/m7-v54-inner-library-migration
       - work/m7-v55-precision-geometry-guard
       - work/m7-v56-stable-learning-storage
+      - work/m7-v57-calibration-photo-preview
   workflow_dispatch:
 
 jobs:
