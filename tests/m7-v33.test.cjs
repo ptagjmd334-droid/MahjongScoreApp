@@ -161,7 +161,7 @@ test('camera v36 is loaded before ui-fixes so verified clicks train the active c
   assert(index.indexOf('script.js')<index.indexOf('m7-recognition-core.js'));
   assert(index.indexOf('m7-recognition-core.js')<index.indexOf('m7-camera-v36.js'));
   assert(index.indexOf('m7-camera-v36.js')<index.indexOf('ui-fixes.js'));
-  assert(index.includes('M7 v54'));
+  assert(index.includes('M7 v55'));
 });
 
 test('legacy live detector and demo fill yield to the active camera owner',()=>{
@@ -178,12 +178,16 @@ test('v36 camera avoids fixed bright-white threshold and closes camera when hidd
   assert(camera.includes(".realtime-hand-cancel-m7v3')?.click()"));
 });
 
-test('v54 keeps inner crop production and recovers v48/v52 learning',()=>{
+test('v55 prioritizes stable geometry, inner crop and recovered learning',()=>{
   const camera=fs.readFileSync(path.join(root,'m7-camera-v36.js'),'utf8');
   assert(camera.includes("MahjongScoreApp_tile_templates_m7v53innercrop1"));
   assert(camera.includes("MahjongScoreApp_tile_templates_m7v48balanced24x36"));
   assert(camera.includes('legacyLibraryKeys'));
   assert(camera.includes('cropResampleFeatureMap'));
+  assert(camera.includes('stablePerspectiveQuad'));
+  assert(camera.includes('const stable=quad&&stablePerspectiveQuad(quad)'));
+  assert(camera.includes('state.activeLibrary=lib'));
+  assert(camera.includes("const lib=(state.activeLibrary&&Object.keys(state.activeLibrary).length)?state.activeLibrary:loadLibrary()"));
   assert(camera.includes("applyInnerCrop=!key.includes('m7v53innercrop')"));
   assert(camera.includes("badge.className='m7v53-top1'"));
   assert(camera.includes('innerRecognitionCanvas'));
@@ -191,7 +195,7 @@ test('v54 keeps inner crop production and recovers v48/v52 learning',()=>{
   assert(camera.includes('feature:innerFeatureFromCanonical(canonical)'));
   assert(camera.includes('resolve(innerFeatureFromCanonical(canonical))'));
   assert(camera.includes('Promise.all(selected.map'));
-  assert(camera.includes('/ 内側crop / 射影'));
+  assert(camera.includes('/ 内側crop / 安定射影'));
   assert(!camera.includes('diagnosticReadyPromise'));
   assert(!camera.includes('buildInnerDiagnosticLibrary'));
   assert(camera.includes('canonicalizeCanvas'));
