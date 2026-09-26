@@ -720,6 +720,16 @@
 **回帰テスト:** source testで`views.map(...rankLabelsFamilyDiscriminative...)`が存在しないこと、重いrankingがbase viewのみで残りは`rankCandidateLabelsStructural`を使うこと、5視点投票がclose raceを補正することをunit/Chromiumで確認する。  
 **確度:** 5分以上停止は実機報告で確定。v65コード上で全5viewに重いrankingを繰り返していたことも確定。
 
+
+## M087: v66でも30秒以上停止し補助再評価がまだ重かった
+**時期:** M7 v66→v67  
+**症状:** v66実機でも撮影後30秒以上結果画面へ進まなかった。  
+**根本原因:** v66は全候補の重いrankingを1回へ減らしたが、残り4crop×Top6候補で`rankCandidateLabelsStructural`を回すたびに、各ラベルのmedoidを`featureDistance`で再計算し、各templateの多段階poolingも毎回作り直していた。つまり「候補を絞った」だけで、候補ごとの前処理コストを大量に重複させていた。  
+**修正:** v67では学習template配列ごとのmedoidをWeakMapでキャッシュし、各featureの6×9/3×5/縦横投影もstructural signatureとしてWeakMapへキャッシュする。family/label識別weightもlibrary単位でキャッシュ。さらに補助viewはbase判定が接戦（gap<0.030またはratio>0.80）の牌だけ、Top4候補だけに限定し、全体で2500msの補助処理予算を超えたら即base-onlyへfallbackする。  
+**再発防止:** 「軽量比較」の内部で重い代表template生成やdescriptor生成を毎回再計算しない。実機時間上限をアルゴリズム側へ持たせ、精度改善が端末速度を破壊した場合は自動的に直前のbase判定へ退避する。  
+**回帰テスト:** medoid/signatureが同一objectで再利用されること、source上でTop4・接戦限定・2500ms budgetが存在すること、既存保存schema・picker・5view生成・confidence条件が維持されることをunit/Chromiumで確認する。  
+**確度:** v66の30秒以上停止は実機報告で確定。medoidとstructural poolingの重複再計算はコード上確定。
+
 # 変更前に特に見る高頻度項目
 1. **古いパッチとの競合**（M001/M003/M004/M006/M007）
 2. **実DOMとCSS前提**（M011/M015/M017）

@@ -232,6 +232,23 @@ test('v66 fast view voting keeps expensive base distance and uses auxiliary majo
   assert.equal(ranked[0].baseDistance,.103,'base calibrated distance must remain available');
 });
 
+test('v67 caches medoids/signatures and keeps fast-view vote helpers deterministic',()=>{
+  const w=24,h=36,n=w*h;
+  const mk=(shift=0)=>({
+    kind:'perspective-direct-v1',width:w,height:h,
+    gray:Array.from({length:n},(_,i)=>((i%w)+shift)/w),
+    edge:Array.from({length:n},(_,i)=>(((i%w)+shift)%5===0?1:0)),
+    red:Array(n).fill(0),green:Array(n).fill(0)
+  });
+  const templates=[mk(0),mk(1),mk(2)];
+  const a=core.medoidFeature(templates),b=core.medoidFeature(templates);
+  assert.equal(a,b,'medoid cache must preserve the same representative object');
+  const s1=core.structuralSignature(templates[0]),s2=core.structuralSignature(templates[0]);
+  assert.equal(s1,s2,'structural signature cache must reuse the same derived object');
+  const d=core.structuralSignatureDistance(s1,core.structuralSignature(templates[1]));
+  assert(Number.isFinite(d));
+});
+
 test('tile family mapping covers suits, honors and red fives',()=>{
   assert.equal(core.tileFamily('3萬'),'萬');
   assert.equal(core.tileFamily('赤5筒'),'筒');
@@ -259,7 +276,7 @@ test('camera v36 is loaded before ui-fixes so verified clicks train the active c
   assert(index.indexOf('script.js')<index.indexOf('m7-recognition-core.js'));
   assert(index.indexOf('m7-recognition-core.js')<index.indexOf('m7-camera-v36.js'));
   assert(index.indexOf('m7-camera-v36.js')<index.indexOf('ui-fixes.js'));
-  assert(index.includes('M7 v66'));
+  assert(index.includes('M7 v67'));
 });
 
 test('legacy live detector and demo fill yield to the active camera owner',()=>{
@@ -276,7 +293,7 @@ test('v36 camera avoids fixed bright-white threshold and closes camera when hidd
   assert(camera.includes(".realtime-hand-cancel-m7v3')?.click()"));
 });
 
-test('v66 preserves stable learning and replaces five full rankings with fast top-6 rechecks',()=>{
+test('v67 preserves stable learning and caps cached auxiliary rechecks',()=>{
   const camera=fs.readFileSync(path.join(root,'m7-camera-v36.js'),'utf8');
   assert(camera.includes("MahjongScoreApp_tile_templates_stable1"));
   assert(camera.includes("MahjongScoreApp_tile_templates_stable1_backup"));
@@ -299,6 +316,11 @@ test('v66 preserves stable learning and replaces five full rankings with fast to
   assert(coreSource.includes('function combineViewRankings'));
   assert(coreSource.includes('function rankCandidateLabelsStructural'));
   assert(coreSource.includes('function applyViewVoteConsensus'));
+  assert(coreSource.includes('const MEDOID_CACHE=new WeakMap()'));
+  assert(coreSource.includes('const STRUCTURAL_SIGNATURE_CACHE=new WeakMap()'));
+  assert(coreSource.includes('const FAMILY_WEIGHT_CACHE=new WeakMap()'));
+  assert(coreSource.includes('const LABEL_WEIGHT_CACHE=new WeakMap()'));
+  assert(coreSource.includes('function structuralSignature'));
   assert(coreSource.includes('shapeBlend'));
   assert(coreSource.includes('representativeScore*(1-templateBlend)+consensusDistance*templateBlend'));
   assert(camera.includes('function fitGlobalRowGrid'));
@@ -309,6 +331,11 @@ test('v66 preserves stable learning and replaces five full rankings with fast to
   assert(camera.includes('function inferenceFeatureViews'));
   assert(camera.includes('core.rankCandidateLabelsStructural(view,lib,candidateLabels)'));
   assert(camera.includes('core.applyViewVoteConsensus(baseRanked,auxRankings'));
+  assert(camera.includes('const AUX_BUDGET_MS=2500'));
+  assert(camera.includes('baseGap<.030||baseRatio>.80'));
+  assert(camera.includes('baseRanked.slice(0,4)'));
+  assert(camera.includes('if(now()-started>AUX_BUDGET_MS)'));
+  assert(camera.includes('lastAuxFallbackCount'));
   assert(!camera.includes('views.map(view=>core.rankLabelsFamilyDiscriminative'));
   assert(camera.includes("reason:'view-disagreement'"));
   assert(camera.includes("reason:'representative-distance'"));
