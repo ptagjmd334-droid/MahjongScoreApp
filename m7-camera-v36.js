@@ -918,14 +918,16 @@
     const representativeDistance=Number.isFinite(best.representativeDistance)?best.representativeDistance:
       (Number.isFinite(best.globalDistance)?best.globalDistance:best.distance);
     const consensusDistance=Number.isFinite(best.templateConsensusDistance)?best.templateConsensusDistance:bestRaw;
-    const multiSampleSupport=(Number(best.sampleCount)||0)>=2&&consensusDistance<=.115&&bestRaw<=.100;
-    // v63 no longer treats a blurred arithmetic class average as ground truth.
-    // A real medoid capture is the representative, and multiple nearby learned
-    // examples may support it. This is stricter than simply loosening a threshold:
-    // one accidental nearest template cannot bypass the representative check.
-    if(representativeDistance>.150&&!multiSampleSupport)return {candidate:null,reason:'representative-distance'};
-    if(consensusDistance>.135)return {candidate:null,reason:'template-consensus'};
-    if(bestRaw>.125)return {candidate:null,reason:'template-distance'};
+    const structuralRepresentativeDistance=Number.isFinite(best.structuralRepresentativeDistance)?best.structuralRepresentativeDistance:Infinity;
+    const structuralConsensusDistance=Number.isFinite(best.structuralConsensusDistance)?best.structuralConsensusDistance:Infinity;
+    const directMultiSupport=(Number(best.sampleCount)||0)>=2&&consensusDistance<=.115&&bestRaw<=.100;
+    const shapeMultiSupport=(Number(best.sampleCount)||0)>=2&&structuralConsensusDistance<=.095&&structuralRepresentativeDistance<=.115;
+    // v64 lets coarse shape evidence rescue harmless pixel-level shifts, but only
+    // when multiple learned examples agree. A single close template still cannot
+    // bypass the conservative confidence gate.
+    if(representativeDistance>.150&&!directMultiSupport&&!shapeMultiSupport)return {candidate:null,reason:'representative-distance'};
+    if(consensusDistance>.145&&structuralConsensusDistance>.105)return {candidate:null,reason:'template-consensus'};
+    if(bestRaw>.135&&structuralRepresentativeDistance>.115)return {candidate:null,reason:'template-distance'};
 
     const spread=Math.max(0,Number.isFinite(best.templateSpread)?best.templateSpread:0);
     const sameFamily=ranked.find(x=>x.label!==best.label&&x.family===best.family&&Number.isFinite(x.distance));
@@ -985,13 +987,16 @@
     const lib=activeLibrary(),used={},debug=[],reasons=[];
     state.learnedLabelCount=Object.keys(lib).filter(label=>Array.isArray(lib[label])&&lib[label].length).length;
     const labels=features.map((feature,index)=>{
-      const ranked=core.rankLabelsFamilyDiscriminative(feature,lib,{blend:.84,labelBlend:.72,templateBlend:.38,priorWeight:.26,maxPenalty:.016});
+      const ranked=core.rankLabelsFamilyDiscriminative(feature,lib,{blend:.84,labelBlend:.72,templateBlend:.38,shapeBlend:.60,priorWeight:.26,maxPenalty:.016});
       debug[index]=ranked.slice(0,3).map(x=>({
         label:x.label,
         family:x.family||core.tileFamily(x.label),
         distance:Number(x.distance.toFixed(4)),
         representativeDistance:Number.isFinite(x.representativeDistance)?Number(x.representativeDistance.toFixed(4)):null,
         templateConsensusDistance:Number.isFinite(x.templateConsensusDistance)?Number(x.templateConsensusDistance.toFixed(4)):null,
+        structuralRepresentativeDistance:Number.isFinite(x.structuralRepresentativeDistance)?Number(x.structuralRepresentativeDistance.toFixed(4)):null,
+        structuralConsensusDistance:Number.isFinite(x.structuralConsensusDistance)?Number(x.structuralConsensusDistance.toFixed(4)):null,
+        structuralScore:Number.isFinite(x.structuralScore)?Number(x.structuralScore.toFixed(4)):null,
         bestDistance:Number.isFinite(x.bestDistance)?Number(x.bestDistance.toFixed(4)):null,
         sampleCount:Number(x.sampleCount)||0,
         globalDistance:Number.isFinite(x.globalDistance)?Number(x.globalDistance.toFixed(4)):null,
@@ -1448,7 +1453,7 @@
       if(note)note.textContent=features.length===14
         ?(firstCalibration
           ?'この保存領域には学習データがありません。今回だけ14枚を正しく指定してください。「この手牌で進む」を押した時に保存完了を確認してから次へ進みます。'
-          :`精度優先版です。牌列14等分と内側cropは維持し、学習画像の算術平均ではなく実在する代表画像＋複数実例の合意で比較します。高信頼候補 ${auto}枚。保留理由: ${confidenceReasonSummary()}。`)
+          :`精度優先版です。牌列14等分と内側cropは維持し、実在する代表画像＋複数実例に加えて、細かいピクセルずれに強い多段階の形状比較を使います。高信頼候補 ${auto}枚。保留理由: ${confidenceReasonSummary()}。`)
         :'白枠内から牌列を特定できませんでした。撮影画像を確認し、14枠を手動入力するか「読み取り直す」で再撮影してください。';
       const status=root.querySelector('.hand-result-status-m7v5');
       if(status&&auto<14)status.textContent=features.length===14

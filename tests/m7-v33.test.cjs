@@ -161,7 +161,7 @@ test('v60 label-specific map and template spread expose same-family evidence',()
   assert(Number.isFinite(ranked[0].sameFamilyGap));
 });
 
-test('v63 medoid keeps a real class exemplar and template consensus needs multiple support',()=>{
+test('v64 medoid/template consensus and structural shape distance remain available',()=>{
   const w=4,h=4,n=w*h;
   const feat=v=>({kind:'perspective-direct-v1',width:w,height:h,gray:Array(n).fill(v),edge:Array(n).fill(0),red:Array(n).fill(0),green:Array(n).fill(0)});
   const templates=[feat(.10),feat(.11),feat(.90)];
@@ -173,6 +173,25 @@ test('v63 medoid keeps a real class exemplar and template consensus needs multip
   assert(consensus<core.featureDistance(q,templates[2]),'consensus must favor repeated nearby captures over an outlier');
   const single=core.templateConsensusDistance(q,[feat(.10)]);
   assert(single>core.featureDistance(q,feat(.10)),'single-template classes must keep a small support penalty');
+});
+
+test('v64 structural distance is more tolerant to a one-pixel shift than to a different shape',()=>{
+  const w=24,h=36,n=w*h;
+  const make=(kind,shift=0)=>{
+    const gray=Array(n).fill(0),edge=Array(n).fill(0),red=Array(n).fill(0),green=Array(n).fill(0);
+    if(kind==='vertical'){
+      for(let y=7;y<29;y++)for(let x=10+shift;x<13+shift;x++)gray[y*w+x]=edge[y*w+x]=1;
+    }else{
+      for(let y=17;y<20;y++)for(let x=4;x<20;x++)gray[y*w+x]=edge[y*w+x]=1;
+    }
+    return {kind:'perspective-direct-v1',width:w,height:h,gray,edge,red,green};
+  };
+  const a=make('vertical',0),shifted=make('vertical',1),other=make('horizontal',0);
+  const same=core.structuralDistance(a,shifted),different=core.structuralDistance(a,other);
+  assert(Number.isFinite(same)&&Number.isFinite(different));
+  assert(same<different,'structural descriptor should preserve shape identity across a one-pixel shift');
+  const consensus=core.templateStructuralConsensusDistance(shifted,[a,make('vertical',-1),other]);
+  assert(consensus<core.structuralDistance(shifted,other),'structural consensus should favor repeated same-shape samples');
 });
 
 test('tile family mapping covers suits, honors and red fives',()=>{
@@ -202,7 +221,7 @@ test('camera v36 is loaded before ui-fixes so verified clicks train the active c
   assert(index.indexOf('script.js')<index.indexOf('m7-recognition-core.js'));
   assert(index.indexOf('m7-recognition-core.js')<index.indexOf('m7-camera-v36.js'));
   assert(index.indexOf('m7-camera-v36.js')<index.indexOf('ui-fixes.js'));
-  assert(index.includes('M7 v63'));
+  assert(index.includes('M7 v64'));
 });
 
 test('legacy live detector and demo fill yield to the active camera owner',()=>{
@@ -219,7 +238,7 @@ test('v36 camera avoids fixed bright-white threshold and closes camera when hidd
   assert(camera.includes(".realtime-hand-cancel-m7v3')?.click()"));
 });
 
-test('v63 preserves stable learning and uses medoid/template-consensus recognition',()=>{
+test('v64 preserves stable learning and adds multi-scale structural ranking',()=>{
   const camera=fs.readFileSync(path.join(root,'m7-camera-v36.js'),'utf8');
   assert(camera.includes("MahjongScoreApp_tile_templates_stable1"));
   assert(camera.includes("MahjongScoreApp_tile_templates_stable1_backup"));
@@ -237,6 +256,9 @@ test('v63 preserves stable learning and uses medoid/template-consensus recogniti
   const coreSource=fs.readFileSync(path.join(root,'m7-recognition-core.js'),'utf8');
   assert(coreSource.includes('function medoidFeature'));
   assert(coreSource.includes('function templateConsensusDistance'));
+  assert(coreSource.includes('function structuralDistance'));
+  assert(coreSource.includes('function templateStructuralConsensusDistance'));
+  assert(coreSource.includes('shapeBlend'));
   assert(coreSource.includes('representativeScore*(1-templateBlend)+consensusDistance*templateBlend'));
   assert(camera.includes('function fitGlobalRowGrid'));
   assert(camera.includes('const gridFit=fitGlobalRowGrid(lowCtx,lowRow,14)'));

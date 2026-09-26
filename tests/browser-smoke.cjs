@@ -34,7 +34,7 @@ const server=http.createServer((req,res)=>{
     const errors=[];page.on('pageerror',e=>errors.push(String(e)));
     await page.goto('http://127.0.0.1:'+port+'/',{waitUntil:'domcontentloaded',timeout:30000});
     await page.waitForSelector('#go-confirm-button',{timeout:12000});
-    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'M7 v63');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'M7 v64');
     // v36 analyzes one long row after the shutter instead of requiring 14 live connected components.
     const synthetic=await page.evaluate(()=>{
       const canvas=document.createElement('canvas');canvas.width=840;canvas.height=260;
@@ -371,6 +371,22 @@ const server=http.createServer((req,res)=>{
     assert.deepEqual(shutter.pickerLayout.tileNames.slice(24,34),
       ['1索','2索','3索','4索','5索','6索','7索','8索','9索','中'],
       'v62 souzu must sit directly below pinzu '+JSON.stringify(shutter.pickerLayout.tileNames));
+    const structural=await page.evaluate(()=>{
+      const core=window.M7RecognitionCoreV33,w=24,h=36,n=w*h;
+      const make=(horizontal,shift=0)=>{
+        const gray=Array(n).fill(0),edge=Array(n).fill(0),red=Array(n).fill(0),green=Array(n).fill(0);
+        if(horizontal){
+          for(let y=17;y<20;y++)for(let x=4;x<20;x++)gray[y*w+x]=edge[y*w+x]=1;
+        }else{
+          for(let y=7;y<29;y++)for(let x=10+shift;x<13+shift;x++)gray[y*w+x]=edge[y*w+x]=1;
+        }
+        return {kind:'perspective-direct-v1',width:w,height:h,gray,edge,red,green};
+      };
+      const a=make(false,0),shift=make(false,1),other=make(true,0);
+      return {same:core.structuralDistance(a,shift),different:core.structuralDistance(a,other)};
+    });
+    assert(structural.same<structural.different,'v64 structural distance lost shift robustness '+JSON.stringify(structural));
+
     const confidence=await page.evaluate(()=>{
       const api=window.M7CameraV36;
       const clear=api.confidentCandidate([{label:'A',distance:.11},{label:'B',distance:.24}]);
@@ -378,7 +394,7 @@ const server=http.createServer((req,res)=>{
       const ambiguous=ambiguousAssessment.candidate;
       const farAssessment=api.confidenceAssessment([{label:'A',distance:.25,representativeDistance:.25,templateConsensusDistance:.09,bestDistance:.08,sampleCount:1},{label:'B',distance:.40,bestDistance:.09}]);
       const far=farAssessment.candidate;
-      const rawFarAssessment=api.confidenceAssessment([{label:'A',distance:.10,representativeDistance:.10,templateConsensusDistance:.14,bestDistance:.08,sampleCount:3},{label:'B',distance:.24,bestDistance:.15}]);
+      const rawFarAssessment=api.confidenceAssessment([{label:'A',distance:.10,representativeDistance:.10,templateConsensusDistance:.16,structuralRepresentativeDistance:.14,structuralConsensusDistance:.13,bestDistance:.14,sampleCount:3},{label:'B',distance:.24,bestDistance:.15}]);
       const rawFar=rawFarAssessment.candidate;
       const supportedAssessment=api.confidenceAssessment([
         {label:'A',distance:.11,representativeDistance:.17,templateConsensusDistance:.09,bestDistance:.08,sampleCount:3,family:'萬',sameFamilyGap:.08,sameFamilyRatio:.55},
@@ -394,7 +410,7 @@ const server=http.createServer((req,res)=>{
     assert.equal(confidence.ambiguousReason,'same-family-margin','v63 must explain same-family ambiguity '+JSON.stringify(confidence));
     assert.equal(confidence.far,'','far candidate must be withheld '+JSON.stringify(confidence));
     assert.equal(confidence.farReason,'representative-distance','v63 must reject a far representative without multi-template support '+JSON.stringify(confidence));
-    assert.equal(confidence.rawFar,'','nearest-template distance must also be able to reject '+JSON.stringify(confidence));
+    assert.equal(confidence.rawFar,'','weak direct and structural consensus must still reject '+JSON.stringify(confidence));
     assert.equal(confidence.rawFarReason,'template-consensus','v63 must reject weak multi-template consensus '+JSON.stringify(confidence));
     assert.equal(confidence.supported,'A','v63 repeated nearby templates should support a real representative even when the representative alone is farther '+JSON.stringify(confidence));
     assert.equal(confidence.supportedReason,'accepted','v63 supported candidate should pass confidence '+JSON.stringify(confidence));
