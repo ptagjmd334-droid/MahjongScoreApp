@@ -161,7 +161,7 @@ test('camera v36 is loaded before ui-fixes so verified clicks train the active c
   assert(index.indexOf('script.js')<index.indexOf('m7-recognition-core.js'));
   assert(index.indexOf('m7-recognition-core.js')<index.indexOf('m7-camera-v36.js'));
   assert(index.indexOf('m7-camera-v36.js')<index.indexOf('ui-fixes.js'));
-  assert(index.includes('M7 v54'));
+  assert(index.includes('M7 v55'));
 });
 
 test('legacy live detector and demo fill yield to the active camera owner',()=>{
@@ -178,20 +178,22 @@ test('v36 camera avoids fixed bright-white threshold and closes camera when hidd
   assert(camera.includes(".realtime-hand-cancel-m7v3')?.click()"));
 });
 
-test('v54 keeps inner crop production and recovers v48/v52 learning',()=>{
+test('v55 keeps learning recovery and rejects aggressive projective warps',()=>{
   const camera=fs.readFileSync(path.join(root,'m7-camera-v36.js'),'utf8');
   assert(camera.includes("MahjongScoreApp_tile_templates_m7v53innercrop1"));
   assert(camera.includes("MahjongScoreApp_tile_templates_m7v48balanced24x36"));
   assert(camera.includes('legacyLibraryKeys'));
   assert(camera.includes('cropResampleFeatureMap'));
+  assert(camera.includes('tb>1.22||lr>1.22'));
+  assert(camera.includes('horizontalDelta>.16||verticalDelta>.16||worstCorner>.30'));
+  assert(camera.includes('crop:recognition.toDataURL'));
+  assert(camera.includes('feature:descriptorFromCanvas(recognition)'));
   assert(camera.includes("applyInnerCrop=!key.includes('m7v53innercrop')"));
   assert(camera.includes("badge.className='m7v53-top1'"));
   assert(camera.includes('innerRecognitionCanvas'));
   assert(camera.includes('innerFeatureFromCanonical'));
-  assert(camera.includes('feature:innerFeatureFromCanonical(canonical)'));
   assert(camera.includes('resolve(innerFeatureFromCanonical(canonical))'));
   assert(camera.includes('Promise.all(selected.map'));
-  assert(camera.includes('/ 内側crop / 射影'));
   assert(!camera.includes('diagnosticReadyPromise'));
   assert(!camera.includes('buildInnerDiagnosticLibrary'));
   assert(camera.includes('canonicalizeCanvas'));

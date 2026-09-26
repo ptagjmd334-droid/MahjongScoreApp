@@ -34,7 +34,7 @@ const server=http.createServer((req,res)=>{
     const errors=[];page.on('pageerror',e=>errors.push(String(e)));
     await page.goto('http://127.0.0.1:'+port+'/',{waitUntil:'domcontentloaded',timeout:30000});
     await page.waitForSelector('#go-confirm-button',{timeout:12000});
-    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'M7 v54');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'M7 v55');
     // v36 analyzes one long row after the shutter instead of requiring 14 live connected components.
     const synthetic=await page.evaluate(()=>{
       const canvas=document.createElement('canvas');canvas.width=840;canvas.height=260;
@@ -124,7 +124,7 @@ const server=http.createServer((req,res)=>{
       const canvas=document.createElement('canvas');canvas.width=160;canvas.height=190;
       const ctx=canvas.getContext('2d');ctx.fillStyle='#7b5032';ctx.fillRect(0,0,160,190);
       ctx.fillStyle='#dedbd0';ctx.beginPath();
-      ctx.moveTo(34,24);ctx.lineTo(124,31);ctx.lineTo(139,164);ctx.lineTo(21,156);ctx.closePath();ctx.fill();
+      ctx.moveTo(30,24);ctx.lineTo(126,28);ctx.lineTo(132,164);ctx.lineTo(25,160);ctx.closePath();ctx.fill();
       ctx.strokeStyle='#151515';ctx.lineWidth=7;ctx.beginPath();ctx.moveTo(64,55);ctx.lineTo(70,132);ctx.stroke();
       ctx.lineWidth=6;ctx.beginPath();ctx.moveTo(70,91);ctx.lineTo(105,94);ctx.stroke();
       const api=window.M7CameraV36;
@@ -135,11 +135,11 @@ const server=http.createServer((req,res)=>{
       return {quad,geom:geom?{faceW:geom.faceW,faceH:geom.faceH,fill:geom.fill}:null,kind:feat?.kind||''};
     });
     assert(perspectiveRectification.quad&&perspectiveRectification.quad.length===4,
-      'v49 perspective quad detection failed '+JSON.stringify(perspectiveRectification));
+      'v55 mild perspective quad detection failed '+JSON.stringify(perspectiveRectification));
     assert(perspectiveRectification.geom&&perspectiveRectification.geom.faceH>perspectiveRectification.geom.faceW,
-      'v49 perspective warp did not produce an upright tile '+JSON.stringify(perspectiveRectification));
+      'v55 mild perspective warp did not produce an upright tile '+JSON.stringify(perspectiveRectification));
     assert.equal(perspectiveRectification.kind,'perspective-direct-v1',
-      'v49 perspective descriptor kind missing '+JSON.stringify(perspectiveRectification));
+      'v55 perspective descriptor kind missing '+JSON.stringify(perspectiveRectification));
 
     const legacyMigration=await page.evaluate(()=>{
       const n=16*24;
