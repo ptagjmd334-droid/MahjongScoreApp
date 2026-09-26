@@ -625,6 +625,16 @@
 **回帰テスト:** source testでui-fixesが`await window.M7CameraV36.persistVerifiedHand(root)`を呼ぶことを確認。browser smokeで実際の「この手牌で進む」クリック後にstable keyへ14ラベルが保存されることを確認。
 **確度:** v57再撮影でも初回学習だったことはユーザー実機で確定。旧UIが保存完了を待たず遷移する構造はコード上確定。
 
+
+## M078: v58の保存失敗表示は原因を潰せず、localStorageを学習の単一障害点にしていた
+**時期:** M7 v58→v59  
+**症状:** iPhone実機で14枚を確定して「この手牌で進む」を押すと、v58が意図どおり遷移を止めた一方、「学習データの保存に失敗しました」だけが表示され、どの保存段階で失敗したか判別できなかった。  
+**確定している設計上の原因:** v58の`saveLibrary()`はprimary / backup / metaを1つのtry内でlocalStorageへ連続保存し、どれか1つの失敗をすべて同じ0へ潰していた。また学習の利用経路もlocalStorage読込を前提にしており、すでにIndexedDBへ保存しているraw教師画像を永続fallbackとして使い切れていなかった。iPhone実機で実際にどのsetItemが失敗したか自体は未確定。  
+**修正:** v59ではraw教師画像を先にIndexedDBへ保存・read-back確認し、これを耐久fallbackに昇格。localStorageは高速cache扱いへ変更し、primaryだけを直接read-back検証する。backup/meta失敗だけでは保存全体を失敗にしない。primaryが容量等で失敗した場合は旧version付きtemplate keyを整理し、rawが安全に保存済みなら古いbackupも退避対象にしてprimaryを再試行する。localStorageが最後まで失敗しても、IndexedDBが検証済みならruntime libraryを使って進み、次回起動時にrawから再構築する。失敗時はreason / storage stage / cleanup数を画面へ表示する。  
+**再発防止:** 大きい学習データをlocalStorageだけに依存させない。primary / backup / metadataを別々に検証し、補助backupの失敗をprimary成功と同一扱いにしない。実機エラーはgeneric文言だけでなく原因コードを残す。  
+**回帰テスト:** Chromiumで通常保存、backupだけQuotaExceededErrorになるfixtureでもprimary成功なら全体成功になること、stable localStorageを削除後にIndexedDB rawから14ラベルを再構築できることを確認する。  
+**確度:** v58で保存失敗画面に止まったことは実機で確定。v58のエラー集約とlocalStorage単一障害点はコード上確定。実機で最初に失敗した具体的APIは未確定で、v59の詳細コードで次回失敗時に確定する。
+
 # 変更前に特に見る高頻度項目
 1. **古いパッチとの競合**（M001/M003/M004/M006/M007）
 2. **実DOMとCSS前提**（M011/M015/M017）
