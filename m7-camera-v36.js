@@ -899,30 +899,66 @@
     return out;
   }
 
+  function safeInsetWindow(source,trimX=.12,bleedInfo=null,extra=0,bias=0){
+    const w=Math.max(1,source?.width||1);
+    const safe=bleedInfo||estimateBleedSafeShift(source,trimX);
+    let left=trimX+extra+bias;
+    let right=1-trimX-extra+bias;
+    const margin=.024;
+    const leftSeam=Number.isFinite(safe.leftSeam)?safe.leftSeam/w:null;
+    const rightSeam=Number.isFinite(safe.rightSeam)?safe.rightSeam/w:null;
+
+    // v72: do not move a fixed-width window toward the clean side. When a
+    // neighboring-tile seam is visible, remove that contaminated side and
+    // rescale the remaining center. This directly discards bleed instead of
+    // carrying it along inside a shifted window.
+    if(leftSeam!==null)left=Math.max(left,leftSeam+margin);
+    if(rightSeam!==null)right=Math.min(right,rightSeam-margin);
+
+    left=Math.max(.07,Math.min(.30,left));
+    right=Math.max(.70,Math.min(.93,right));
+    if(right-left<.54){
+      const mid=Math.max(.35,Math.min(.65,(left+right)/2));
+      left=Math.max(.07,mid-.27);
+      right=Math.min(.93,mid+.27);
+    }
+    const applied=Math.abs(left-trimX)>.012||Math.abs(right-(1-trimX))>.012;
+    return {left,right,applied,leftSeam,rightSeam,side:safe.side||'none',confidence:Number(safe.confidence)||0};
+  }
+
+  function innerRecognitionWindowCanvas(source,width=96,height=144,left=.12,right=.88,trimY=.08){
+    const out=document.createElement('canvas');out.width=width;out.height=height;
+    const o=out.getContext('2d',{willReadFrequently:true});
+    o.fillStyle='#f4f1e8';o.fillRect(0,0,width,height);
+    const sx=Math.max(0,Math.min(source.width-1,Math.round(source.width*left)));
+    const ex=Math.max(sx+1,Math.min(source.width,Math.round(source.width*right)));
+    const sy=Math.max(0,Math.round(source.height*trimY));
+    const ey=Math.max(sy+1,Math.min(source.height,source.height-sy));
+    o.drawImage(source,sx,sy,Math.max(1,ex-sx),Math.max(1,ey-sy),0,0,width,height);
+    return out;
+  }
+
   function innerFeatureFromCanonical(source){
     return descriptorFromCanvas(innerRecognitionCanvas(source,96,144));
   }
 
   function inferenceFeatureViews(source,bleedInfo=null){
     const safe=bleedInfo||estimateBleedSafeShift(source,.12);
-    const center=Number.isFinite(safe.shiftX)?safe.shiftX:0;
-    // v71: keep the same five-view idea, but center all views on a seam-safe
-    // horizontal window first. This removes neighboring-tile bleed without
-    // changing the saved 24x36 feature schema.
-    const configs=[
-      [.12,.08,center,0],
-      [.10,.06,center,0],
-      [.14,.10,center,0],
-      [.12,.08,center-.025,0],
-      [.12,.08,center+.025,0]
+    const windows=[
+      {...safeInsetWindow(source,.12,safe,0,0),trimY:.08},
+      {...safeInsetWindow(source,.12,safe,-.015,0),trimY:.06},
+      {...safeInsetWindow(source,.12,safe,.018,0),trimY:.10},
+      {...safeInsetWindow(source,.12,safe,0,-.018),trimY:.08},
+      {...safeInsetWindow(source,.12,safe,0,.018),trimY:.08}
     ];
-    return configs.map(([tx,ty,sx,sy])=>descriptorFromCanvas(innerRecognitionCanvas(source,96,144,tx,ty,sx,sy)));
+    return windows.map(v=>descriptorFromCanvas(innerRecognitionWindowCanvas(source,96,144,v.left,v.right,v.trimY)));
   }
 
   function analyzeTileBox(ctx,b){
     const canonical=perspectiveFaceCanvas(ctx,b,96,144);
     const bleedInfo=estimateBleedSafeShift(canonical,.12);
-    const recognition=innerRecognitionCanvas(canonical,96,144,.12,.08,bleedInfo.shiftX||0,0);
+    const safeWindow=safeInsetWindow(canonical,.12,bleedInfo,0,0);
+    const recognition=innerRecognitionWindowCanvas(canonical,96,144,safeWindow.left,safeWindow.right,.08);
     const trainingImage=canonical.toDataURL('image/jpeg',.92);
     return {
       feature:descriptorFromCanvas(recognition),
@@ -932,6 +968,9 @@
       bleedShift:Number(bleedInfo.shiftX)||0,
       bleedSide:bleedInfo.side||'none',
       bleedConfidence:Number(bleedInfo.confidence)||0,
+      bleedInsetApplied:safeWindow.applied===true,
+      bleedTrimLeft:Number(safeWindow.left)||.12,
+      bleedTrimRight:Number(1-safeWindow.right)||.12,
       perspectiveUsed:canonical.__m7v46Perspective===true
     };
   }
@@ -1522,8 +1561,9 @@
       crops:tileData.map(x=>x.crop),
       trainingImages:tileData.map(x=>x.trainingImage),
       perspectiveCount:tileData.filter(x=>x.perspectiveUsed).length,
-      bleedSafeCount:tileData.filter(x=>Math.abs(x.bleedShift||0)>=.012).length,
+      bleedSafeCount:tileData.filter(x=>x.bleedInsetApplied===true).length,
       bleedShifts:tileData.map(x=>Number((x.bleedShift||0).toFixed(4))),
+      bleedInsets:tileData.map(x=>({left:Number((x.bleedTrimLeft||.12).toFixed(4)),right:Number((x.bleedTrimRight||.12).toFixed(4))})),
       gridUsed:false,
       gridCandidate:gridFit.used===true,
       gridFit:{
@@ -1584,7 +1624,7 @@
       if(note)note.textContent=features.length===14
         ?(firstCalibration
           ?'この保存領域には学習データがありません。今回だけ14枚を正しく指定してください。「この手牌で進む」を押した時に保存完了を確認してから次へ進みます。'
-          :`精度優先版です。隣牌が混ざる側を上下端の縦シームから検出してcropを安全側へ退避し、その後に高速5視点中央値合意＋Top4微調整を行います。高信頼候補 ${auto}枚。保留理由: ${confidenceReasonSummary()}。認識 ${Math.max(0,state.lastRecognitionMs||0)}ms / 境界退避 ${analysis.bleedSafeCount||0}/14 / 補助view ${state.lastAuxViewsUsed||0} / 微調整 ${state.lastMicroRefined||0}${state.lastAuxFallbackCount?' / 時間上限fallback':''}。`)
+          :`精度優先版です。隣牌が混ざる側は固定幅cropを横移動せず、その側だけ非対称に削ってから再拡大します。その後に高速5視点中央値合意＋Top4微調整を行います。高信頼候補 ${auto}枚。保留理由: ${confidenceReasonSummary()}。認識 ${Math.max(0,state.lastRecognitionMs||0)}ms / 境界除去 ${analysis.bleedSafeCount||0}/14 / 補助view ${state.lastAuxViewsUsed||0} / 微調整 ${state.lastMicroRefined||0}${state.lastAuxFallbackCount?' / 時間上限fallback':''}。`)
         :'白枠内から牌列を特定できませんでした。撮影画像を確認し、14枠を手動入力するか「読み取り直す」で再撮影してください。';
       const status=root.querySelector('.hand-result-status-m7v5');
       if(status&&auto<14)status.textContent=features.length===14
@@ -1757,6 +1797,6 @@
   },true);
 
   window.M7CameraV36=Object.freeze({
-    sourceRectForCover,locateTileRow,splitRow,fitGlobalRowGrid,splitRowBySeams,analyzeGuideCanvas,featureFromBox,tileFaceRect,descriptorFromCanvas,detectFaceGeometry,detectFaceQuad,canonicalizeCanvas,orientedFaceCanvas,perspectiveFaceCanvas,warpQuadToCanvas,trainingImageDataUrl,estimateBleedSafeShift,innerRecognitionCanvas,innerFeatureFromCanonical,inferenceFeatureViews,analyzeTileBox,loadTrainingSamples,rebuildLibraryFromTrainingImages,loadLibrary,activeLibrary,saveLibrary,saveLibraryDetailed,persistVerifiedHand,persistFailureText,loadLegacyLibrary,legacyLibraryKeys,convertLegacyDirectFeature,cropResampleFeatureMap,confidenceAssessment,confidentCandidate,confidenceReasonSummary,renderPickerPhoto,renderPickerSuggestions,pickerCurrentIndex,schedulePickerSuggestionSync,attachPickerSuggestionObserver
+    sourceRectForCover,locateTileRow,splitRow,fitGlobalRowGrid,splitRowBySeams,analyzeGuideCanvas,featureFromBox,tileFaceRect,descriptorFromCanvas,detectFaceGeometry,detectFaceQuad,canonicalizeCanvas,orientedFaceCanvas,perspectiveFaceCanvas,warpQuadToCanvas,trainingImageDataUrl,estimateBleedSafeShift,safeInsetWindow,innerRecognitionCanvas,innerRecognitionWindowCanvas,innerFeatureFromCanonical,inferenceFeatureViews,analyzeTileBox,loadTrainingSamples,rebuildLibraryFromTrainingImages,loadLibrary,activeLibrary,saveLibrary,saveLibraryDetailed,persistVerifiedHand,persistFailureText,loadLegacyLibrary,legacyLibraryKeys,convertLegacyDirectFeature,cropResampleFeatureMap,confidenceAssessment,confidentCandidate,confidenceReasonSummary,renderPickerPhoto,renderPickerSuggestions,pickerCurrentIndex,schedulePickerSuggestionSync,attachPickerSuggestionObserver
   });
 })();

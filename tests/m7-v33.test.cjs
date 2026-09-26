@@ -310,7 +310,7 @@ test('camera v36 is loaded before ui-fixes so verified clicks train the active c
   assert(index.indexOf('script.js')<index.indexOf('m7-recognition-core.js'));
   assert(index.indexOf('m7-recognition-core.js')<index.indexOf('m7-camera-v36.js'));
   assert(index.indexOf('m7-camera-v36.js')<index.indexOf('ui-fixes.js'));
-  assert(index.includes('M7 v71'));
+  assert(index.includes('M7 v72'));
 });
 
 test('legacy live detector and demo fill yield to the active camera owner',()=>{
@@ -327,7 +327,7 @@ test('v36 camera avoids fixed bright-white threshold and closes camera when hidd
   assert(camera.includes(".realtime-hand-cancel-m7v3')?.click()"));
 });
 
-test('v71 preserves stable learning, Top4 micro-shift, and bleed-safe crop shifts',()=>{
+test('v72 preserves stable learning, Top4 micro-shift, and asymmetric bleed-safe insets',()=>{
   const camera=fs.readFileSync(path.join(root,'m7-camera-v36.js'),'utf8');
   assert(camera.includes("MahjongScoreApp_tile_templates_stable1"));
   assert(camera.includes("MahjongScoreApp_tile_templates_stable1_backup"));
@@ -370,9 +370,13 @@ test('v71 preserves stable learning, Top4 micro-shift, and bleed-safe crop shift
   assert(camera.includes('confidenceReasonSummary'));
   assert(camera.includes('function inferenceFeatureViews'));
   assert(camera.includes('function estimateBleedSafeShift'));
+  assert(camera.includes('function safeInsetWindow'));
+  assert(camera.includes('function innerRecognitionWindowCanvas'));
   assert(camera.includes('const bleedInfo=estimateBleedSafeShift(canonical,.12)'));
   assert(camera.includes('bleedSafeCount:tileData.filter'));
-  assert(camera.includes('境界退避'));
+  assert(camera.includes('bleedInsetApplied:safeWindow.applied===true'));
+  assert(camera.includes('bleedInsets:tileData.map'));
+  assert(camera.includes('境界除去'));
   assert(camera.includes('core.rankLabelsFastDiscriminative(view,lib'));
   assert(camera.includes('core.combineViewRankings(rankings)'));
   assert(camera.includes('const TOTAL_BUDGET_MS=7500'));

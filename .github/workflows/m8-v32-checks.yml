@@ -49,6 +49,7 @@ on:
       - work/m7-v69-allfast-fiveview
       - work/m7-v70-microshift-refine
       - work/m7-v71-bleed-safe-crops
+      - work/m7-v72-asymmetric-safe-inset
   workflow_dispatch:
 
 jobs:
