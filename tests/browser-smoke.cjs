@@ -249,7 +249,7 @@ const server=http.createServer((req,res)=>{
       const cropStyle=firstCrop?getComputedStyle(firstCrop):null;
       const preview={backgroundSize:cropStyle?.backgroundSize||'',height:firstCrop?.getBoundingClientRect().height||0};
       const diag=window.M7V36LastDiagnostics||null;
-      let learned=0,rawSaved=0;
+      let learned=0,rawSaved=0,diagLearned=0;
       if(result){
         const resultTiles=[...result.querySelectorAll('.hand-result-tile-m7v5')];
         if(resultTiles[0]){
@@ -279,6 +279,8 @@ const server=http.createServer((req,res)=>{
             const lib=JSON.parse(localStorage.getItem('MahjongScoreApp_tile_templates_m7v48balanced24x36')||'{}');
             learned=Object.values(lib).reduce((n,list)=>n+(Array.isArray(list)&&list.length?1:0),0);
             rawSaved=(await window.M7CameraV36.loadTrainingSamples()).length;
+            const diagLib=await window.M7CameraV36.buildInnerDiagnosticLibrary();
+            diagLearned=Object.keys(diagLib).filter(label=>Array.isArray(diagLib[label])&&diagLib[label].length).length;
           }catch(_){}
         }
       }
@@ -287,16 +289,17 @@ const server=http.createServer((req,res)=>{
       const suggestionCount=window.__m7v39SuggestionCount||0;delete window.__m7v39SuggestionCount;
       const secondSuggestions=window.__m7v42SecondSuggestions||[];delete window.__m7v42SecondSuggestions;
       const ownerIndex=window.__m7v42OwnerIndex;delete window.__m7v42OwnerIndex;
-      return {overlap,tiles,crops,note,diag,preview,learned,rawSaved,suggestionCount,secondSuggestions,ownerIndex};
+      return {overlap,tiles,crops,note,diag,preview,learned,rawSaved,diagLearned,suggestionCount,secondSuggestions,ownerIndex};
     });
     assert.equal(shutter.overlap,false,'v36 shutter and cancel overlap '+JSON.stringify(shutter));
     assert.equal(shutter.tiles,14,'v36 shutter did not open 14 editable slots '+JSON.stringify(shutter));
     assert.equal(shutter.crops,14,'v36 did not use 14 high-resolution row crops '+JSON.stringify(shutter));
-    assert(shutter.note.includes('初回学習'),'v49 first calibration explanation missing '+JSON.stringify(shutter));
+    assert(shutter.note.includes('初回学習'),'v52 first calibration explanation missing '+JSON.stringify(shutter));
     assert.equal(shutter.preview.backgroundSize,'contain','tile preview must show the full crop '+JSON.stringify(shutter));
     assert(shutter.preview.height<190,'tile preview should not stretch through the whole result card '+JSON.stringify(shutter));
-    assert.equal(shutter.learned,14,'verified v49 calibration was not persisted before result close '+JSON.stringify(shutter));
+    assert.equal(shutter.learned,14,'verified v52 calibration was not persisted before result close '+JSON.stringify(shutter));
     assert(shutter.rawSaved>=14,'verified tile images were not persisted to IndexedDB '+JSON.stringify(shutter));
+    assert.equal(shutter.diagLearned,14,'v52 inner-crop diagnostic library did not rebuild from raw images '+JSON.stringify(shutter));
     assert.equal(shutter.suggestionCount,3,'top-3 quick suggestions missing '+JSON.stringify(shutter));
     assert.equal(shutter.ownerIndex,1,'continuous picker owner did not advance to tile 2 '+JSON.stringify(shutter));
     assert.deepEqual(shutter.secondSuggestions,['4筒','5筒','6筒'],'normal-grid advance kept stale suggestions '+JSON.stringify(shutter));
