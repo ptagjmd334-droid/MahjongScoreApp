@@ -161,7 +161,7 @@ test('camera v36 is loaded before ui-fixes so verified clicks train the active c
   assert(index.indexOf('script.js')<index.indexOf('m7-recognition-core.js'));
   assert(index.indexOf('m7-recognition-core.js')<index.indexOf('m7-camera-v36.js'));
   assert(index.indexOf('m7-camera-v36.js')<index.indexOf('ui-fixes.js'));
-  assert(index.includes('M7 v57'));
+  assert(index.includes('M7 v58'));
 });
 
 test('legacy live detector and demo fill yield to the active camera owner',()=>{
@@ -178,7 +178,7 @@ test('v36 camera avoids fixed bright-white threshold and closes camera when hidd
   assert(camera.includes(".realtime-hand-cancel-m7v3')?.click()"));
 });
 
-test('v57 keeps stable learning and shows the photographed calibration tile',()=>{
+test('v58 blocks result transition until verified learning is saved',()=>{
   const camera=fs.readFileSync(path.join(root,'m7-camera-v36.js'),'utf8');
   assert(camera.includes("MahjongScoreApp_tile_templates_stable1"));
   assert(camera.includes("MahjongScoreApp_tile_templates_stable1_backup"));
@@ -208,9 +208,16 @@ test('v57 keeps stable learning and shows the photographed calibration tile',()=
   assert(camera.includes("MahjongScoreApp_tile_learning_meta1"));
   assert(camera.includes('m7v57-photo-preview'));
   assert(camera.includes('renderPickerPhoto(index)'));
-  assert(camera.includes('撮影回数では学習されません'));
+  assert(camera.includes('保存完了を確認してから次へ進みます'));
+  assert(camera.includes('async function persistVerifiedHand'));
+  assert(camera.includes("reason:'stable-store-write-failed'"));
+  assert(camera.includes("status.textContent='学習データを保存中…'"));
   assert(camera.includes("localStorage.setItem(LIB_BACKUP_KEY,json)"));
   assert(camera.includes("},true);"));
+  const ui=fs.readFileSync(path.join(root,'ui-fixes.js'),'utf8');
+  assert(ui.includes("await window.M7CameraV36.persistVerifiedHand(root)"));
+  assert(ui.includes("学習データの保存に失敗しました"));
+  assert(ui.includes("if(!saved?.ok)"));
 });
 
 test('all published JavaScript entrypoints parse',()=>{
