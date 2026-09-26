@@ -34,7 +34,7 @@ const server=http.createServer((req,res)=>{
     const errors=[];page.on('pageerror',e=>errors.push(String(e)));
     await page.goto('http://127.0.0.1:'+port+'/',{waitUntil:'domcontentloaded',timeout:30000});
     await page.waitForSelector('#go-confirm-button',{timeout:12000});
-    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'M7 v60');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'M7 v61');
     // v36 analyzes one long row after the shutter instead of requiring 14 live connected components.
     const synthetic=await page.evaluate(()=>{
       const canvas=document.createElement('canvas');canvas.width=840;canvas.height=260;
@@ -46,14 +46,43 @@ const server=http.createServer((req,res)=>{
       }
       const row=window.M7CameraV36.locateTileRow(ctx);
       const boxes=window.M7CameraV36.splitRow(row,14);
+      const grid=window.M7CameraV36.fitGlobalRowGrid(ctx,row,14);
       const mapping=window.M7CameraV36.sourceRectForCover(1920,1080,932,430,{x:56,y:112,w:820,h:190});
-      return {row,boxes,mapping};
+      return {row,boxes,grid,mapping};
     });
     assert(synthetic.row,'fixed-frame row locator failed '+JSON.stringify(synthetic));
     assert.equal(synthetic.boxes.length,14,'fixed-frame row must split into 14 tiles '+JSON.stringify(synthetic));
     assert(synthetic.row.w>560&&synthetic.row.h>80,'unexpected row geometry '+JSON.stringify(synthetic));
+    if(synthetic.grid?.used){
+      assert(Math.abs(synthetic.grid.offsetPitch||0)<.08&&Math.abs((synthetic.grid.pitchScale||1)-1)<.025,
+        'v61 global grid chased repeated glyph edges instead of row geometry '+JSON.stringify(synthetic.grid));
+    }
     assert(synthetic.mapping&&synthetic.mapping.w>1500&&synthetic.mapping.h>300,
       'object-fit cover mapping lost high-resolution source area '+JSON.stringify(synthetic));
+
+    const globalGrid=await page.evaluate(()=>{
+      const canvas=document.createElement('canvas');canvas.width=840;canvas.height=260;
+      const ctx=canvas.getContext('2d');ctx.fillStyle='#70472b';ctx.fillRect(0,0,840,260);
+      const start=108,pitch=44;
+      for(let i=0;i<14;i++){
+        const x=start+i*pitch;
+        ctx.fillStyle='#d9d6cc';ctx.fillRect(x,76,pitch-2,112);
+        ctx.fillStyle='#222';ctx.fillRect(x+14,112+(i%3)*3,5,42);
+        ctx.fillRect(x+25,128,8,13);
+      }
+      const noisyRow={x:start-10,y:68,w:pitch*14+18,h:128};
+      const fit=window.M7CameraV36.fitGlobalRowGrid(ctx,noisyRow,14);
+      return {
+        used:fit.used,reason:fit.reason,
+        beforeX:Math.abs(noisyRow.x-start),afterX:Math.abs((fit.row?.x??noisyRow.x)-start),
+        beforePitch:Math.abs(noisyRow.w/14-pitch),afterPitch:Math.abs((fit.row?.w??noisyRow.w)/14-pitch),
+        gain:fit.gain??0
+      };
+    });
+    assert(globalGrid.used,'v61 global periodic grid did not engage '+JSON.stringify(globalGrid));
+    assert(globalGrid.afterX<globalGrid.beforeX,'v61 grid did not improve row phase '+JSON.stringify(globalGrid));
+    assert(globalGrid.afterPitch<globalGrid.beforePitch,'v61 grid did not improve pitch '+JSON.stringify(globalGrid));
+    assert(globalGrid.gain>.05,'v61 grid evidence gain too small '+JSON.stringify(globalGrid));
     const faceNorm=await page.evaluate(()=>{
       const canvas=document.createElement('canvas');canvas.width=140;canvas.height=180;
       const ctx=canvas.getContext('2d');ctx.fillStyle='#80542f';ctx.fillRect(0,0,140,180);
@@ -335,13 +364,18 @@ const server=http.createServer((req,res)=>{
     const confidence=await page.evaluate(()=>{
       const api=window.M7CameraV36;
       const clear=api.confidentCandidate([{label:'A',distance:.11},{label:'B',distance:.24}]);
-      const ambiguous=api.confidentCandidate([{label:'A',distance:.14},{label:'B',distance:.155}]);
-      const far=api.confidentCandidate([{label:'A',distance:.25},{label:'B',distance:.40}]);
-      return {clear:clear?.label||'',ambiguous:ambiguous?.label||'',far:far?.label||''};
+      const ambiguousAssessment=api.confidenceAssessment([{label:'A',distance:.09,family:'萬'},{label:'B',distance:.10,family:'萬'}]);
+      const ambiguous=ambiguousAssessment.candidate;
+      const farAssessment=api.confidenceAssessment([{label:'A',distance:.25},{label:'B',distance:.40}]);
+      const far=farAssessment.candidate;
+      return {clear:clear?.label||'',ambiguous:ambiguous?.label||'',far:far?.label||'',
+        ambiguousReason:ambiguousAssessment.reason,farReason:farAssessment.reason};
     });
     assert.equal(confidence.clear,'A','clear candidate should be accepted '+JSON.stringify(confidence));
     assert.equal(confidence.ambiguous,'','ambiguous candidate must be withheld '+JSON.stringify(confidence));
+    assert.equal(confidence.ambiguousReason,'same-family-margin','v61 must explain same-family ambiguity '+JSON.stringify(confidence));
     assert.equal(confidence.far,'','far candidate must be withheld '+JSON.stringify(confidence));
+    assert.equal(confidence.farReason,'absolute-distance','v61 must explain absolute-distance rejection '+JSON.stringify(confidence));
     assert(shutter.diag?.rowFound,'v36 diagnostics did not record the located row '+JSON.stringify(shutter));
     const innerApi=await page.evaluate(()=>{
       const c=document.createElement('canvas');c.width=100;c.height=100;

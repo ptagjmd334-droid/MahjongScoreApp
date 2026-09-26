@@ -24,7 +24,7 @@
   const FEATURE_KIND='perspective-direct-v1';
   const MAX_TEMPLATES=5;
   const MAX_IMAGES_PER_LABEL=10;
-  const state={overlay:null,captured:false,pendingFeatures:[],pendingCrops:[],pendingTrainingImages:[],diagnostics:null,predictionDebug:[],learnedLabelCount:0,librarySource:'',runtimeLibrary:null,storageDiagnostics:null};
+  const state={overlay:null,captured:false,pendingFeatures:[],pendingCrops:[],pendingTrainingImages:[],diagnostics:null,predictionDebug:[],confidenceReasons:[],learnedLabelCount:0,librarySource:'',runtimeLibrary:null,storageDiagnostics:null};
   const persistPromises=new WeakMap();
 
   const style=document.createElement('style');
@@ -906,47 +906,71 @@
     return perspectiveFaceCanvas(ctx,b,96,144).toDataURL('image/jpeg',.90);
   }
 
-  function confidentCandidate(ranked){
-    if(!Array.isArray(ranked)||!ranked.length)return null;
+  function confidenceAssessment(ranked){
+    if(!Array.isArray(ranked)||!ranked.length)return {candidate:null,reason:'no-candidate'};
     const best=ranked[0],second=ranked.find(x=>x.label!==best.label);
-    if(!best||!Number.isFinite(best.distance))return null;
-    // Family evidence may remain soft for Top1, but auto-confirm must not fight a
-    // clearly stronger family signal.
-    if(best.bestFamily&&best.family&&best.bestFamily!==best.family&&Number(best.familyGap)>.020)return null;
+    if(!best||!Number.isFinite(best.distance))return {candidate:null,reason:'invalid-distance'};
+    if(best.bestFamily&&best.family&&best.bestFamily!==best.family&&Number(best.familyGap)>.020){
+      return {candidate:null,reason:'family-conflict'};
+    }
 
     const bestRaw=Number.isFinite(best.bestDistance)?best.bestDistance:best.distance;
-    // Keep an absolute quality guard. v60 does not create "high confidence" by
-    // merely relaxing the old thresholds.
-    if(best.distance>.150||bestRaw>.125)return null;
+    if(best.distance>.150||bestRaw>.125)return {candidate:null,reason:'absolute-distance'};
 
     const spread=Math.max(0,Number.isFinite(best.templateSpread)?best.templateSpread:0);
     const sameFamily=ranked.find(x=>x.label!==best.label&&x.family===best.family&&Number.isFinite(x.distance));
     const localRunner=sameFamily||second;
     if(!localRunner||!Number.isFinite(localRunner.distance)){
-      return best.distance<=.105&&bestRaw<=.09&&spread<=.055?best:null;
+      const candidate=best.distance<=.105&&bestRaw<=.09&&spread<=.055?best:null;
+      return {candidate,reason:candidate?'accepted':'single-class-quality'};
     }
 
-    // A compact learned class can justify a smaller margin; a noisy class needs a
-    // wider lead over its closest same-family rival. This ties confidence to the
-    // actual learned-data spread rather than a display-only threshold.
     const runnerSpread=Math.max(0,Number.isFinite(localRunner.templateSpread)?localRunner.templateSpread:0);
     const localGap=localRunner.distance-best.distance;
     const localRatio=localRunner.distance>0?best.distance/localRunner.distance:1;
     const requiredLocalGap=Math.max(.010,Math.min(.026,.008+spread*.55+runnerSpread*.25));
-    if(localGap<requiredLocalGap||localRatio>.84)return null;
+    if(localGap<requiredLocalGap||localRatio>.84)return {candidate:null,reason:'same-family-margin'};
 
     if(second&&Number.isFinite(second.distance)){
       const globalGap=second.distance-best.distance;
       const globalRatio=second.distance>0?best.distance/second.distance:1;
-      if(globalGap<.010||globalRatio>.86)return null;
+      if(globalGap<.010||globalRatio>.86)return {candidate:null,reason:'global-margin'};
     }
-    if(Number.isFinite(best.sameFamilyGap)&&best.sameFamilyGap<requiredLocalGap)return null;
-    if(Number.isFinite(best.sameFamilyRatio)&&best.sameFamilyRatio>.84)return null;
-    return best;
+    if(Number.isFinite(best.sameFamilyGap)&&best.sameFamilyGap<requiredLocalGap){
+      return {candidate:null,reason:'same-family-margin'};
+    }
+    if(Number.isFinite(best.sameFamilyRatio)&&best.sameFamilyRatio>.84){
+      return {candidate:null,reason:'same-family-margin'};
+    }
+    return {candidate:best,reason:'accepted'};
+  }
+
+  function confidentCandidate(ranked){
+    return confidenceAssessment(ranked).candidate;
+  }
+
+  function confidenceReasonSummary(){
+    const counts={};
+    for(const reason of state.confidenceReasons||[]){
+      if(!reason||reason==='accepted')continue;
+      counts[reason]=(counts[reason]||0)+1;
+    }
+    const labels={
+      'absolute-distance':'距離',
+      'same-family-margin':'同系差',
+      'global-margin':'全体差',
+      'family-conflict':'family競合',
+      'single-class-quality':'単独品質',
+      'no-candidate':'候補なし',
+      'invalid-distance':'距離不正',
+      'label-limit':'枚数制限'
+    };
+    const parts=Object.entries(counts).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`${labels[k]||k}${v}`);
+    return parts.length?parts.join('・'):'なし';
   }
 
   function predict(features){
-    const lib=activeLibrary(),used={},debug=[];
+    const lib=activeLibrary(),used={},debug=[],reasons=[];
     state.learnedLabelCount=Object.keys(lib).filter(label=>Array.isArray(lib[label])&&lib[label].length).length;
     const labels=features.map((feature,index)=>{
       const ranked=core.rankLabelsFamilyDiscriminative(feature,lib,{blend:.84,labelBlend:.72,priorWeight:.26,maxPenalty:.016});
@@ -967,12 +991,16 @@
         familyGap:Number.isFinite(x.familyGap)?Number(x.familyGap.toFixed(4)):null
       }));
       const available=ranked.filter(x=>(used[x.label]||0)<4);
-      const accepted=confidentCandidate(available);
+      if(!available.length){reasons[index]='label-limit';return '';}
+      const assessment=confidenceAssessment(available);
+      reasons[index]=assessment.reason;
+      const accepted=assessment.candidate;
       if(!accepted)return '';
       used[accepted.label]=(used[accepted.label]||0)+1;
       return accepted.label;
     });
     state.predictionDebug=debug;
+    state.confidenceReasons=reasons;
     return labels;
   }
 
@@ -1180,6 +1208,94 @@
   }
 
 
+  function fitGlobalRowGrid(ctx,row,count=14){
+    if(!ctx||!row||!Number.isFinite(row.x)||!Number.isFinite(row.w)||row.w<=0||count<2){
+      return {row,used:false,reason:'invalid'};
+    }
+    const cw=ctx.canvas.width|0,ch=ctx.canvas.height|0;
+    const nominalPitch=row.w/count;
+    if(cw<40||ch<20||nominalPitch<6)return {row,used:false,reason:'small'};
+    const y0=Math.max(0,Math.floor(row.y)),y1=Math.min(ch,Math.ceil(row.y+row.h));
+    const h=Math.max(1,y1-y0);
+    const scanX0=Math.max(1,Math.floor(row.x-nominalPitch*.40));
+    const scanX1=Math.min(cw-2,Math.ceil(row.x+row.w+nominalPitch*.40));
+    if(scanX1-scanX0<count*5||h<10)return {row,used:false,reason:'range'};
+    const data=ctx.getImageData(0,0,cw,ch).data;
+    const evidence=new Float64Array(cw);
+    const bands=[
+      [Math.max(y0+1,Math.floor(y0+h*.08)),Math.min(y1-1,Math.ceil(y0+h*.30))],
+      [Math.max(y0+1,Math.floor(y0+h*.70)),Math.min(y1-1,Math.ceil(y0+h*.92))]
+    ];
+    for(let x=scanX0;x<=scanX1;x++){
+      let sum=0,n=0;
+      for(const [ya,yb] of bands){
+        for(let y=ya;y<yb;y++){
+          const il=(y*cw+x-1)*4,ir=(y*cw+x+1)*4;
+          const ll=(data[il]*3+data[il+1]*6+data[il+2])/10;
+          const lr=(data[ir]*3+data[ir+1]*6+data[ir+2])/10;
+          sum+=Math.abs(lr-ll);n++;
+        }
+      }
+      evidence[x]=n?sum/n:0;
+    }
+    const values=[];
+    for(let x=scanX0;x<=scanX1;x++)values.push(evidence[x]);
+    values.sort((a,b)=>a-b);
+    const q=(p)=>values[Math.max(0,Math.min(values.length-1,Math.floor((values.length-1)*p)))]||0;
+    const base=q(.50),hi=q(.92),span=Math.max(2,hi-base);
+    const normalized=new Float64Array(cw);
+    for(let x=scanX0;x<=scanX1;x++)normalized[x]=Math.max(0,Math.min(2,(evidence[x]-base)/span));
+    const supportAt=(x)=>{
+      const xi=Math.round(x);
+      let best=0;
+      for(let d=-2;d<=2;d++){
+        const xx=xi+d;
+        if(xx>=scanX0&&xx<=scanX1)best=Math.max(best,normalized[xx]||0);
+      }
+      return best;
+    };
+    const gridScore=(start,pitch)=>{
+      if(start<0||start+pitch*count>cw)return null;
+      const supports=[];
+      for(let i=1;i<count;i++)supports.push(supportAt(start+pitch*i));
+      if(!supports.length)return null;
+      const sorted=supports.slice().sort((a,b)=>a-b);
+      const mean=supports.reduce((s,v)=>s+v,0)/supports.length;
+      const median=sorted[Math.floor(sorted.length/2)]||0;
+      const lower=sorted[Math.floor(sorted.length*.30)]||0;
+      return {raw:mean*.46+median*.34+lower*.20,mean,median,lower};
+    };
+    const nominal=gridScore(row.x,nominalPitch)||{raw:0,mean:0,median:0,lower:0};
+    let best={start:row.x,pitch:nominalPitch,...nominal,score:nominal.raw};
+    for(let si=-8;si<=8;si++){
+      const scale=1+si*.005;
+      const pitch=nominalPitch*scale;
+      for(let oi=-10;oi<=10;oi++){
+        const offset=nominalPitch*(oi*.025);
+        const start=row.x+offset;
+        const g=gridScore(start,pitch);if(!g)continue;
+        const penalty=Math.abs(offset/nominalPitch)*.08+Math.abs(scale-1)*1.25;
+        const score=g.raw-penalty;
+        if(score>best.score)best={start,pitch,...g,score};
+      }
+    }
+    const gain=best.raw-nominal.raw;
+    const enoughSupport=best.median>=.34&&best.lower>=.10;
+    const meaningful=gain>=.055;
+    if(!enoughSupport||!meaningful){
+      return {row,used:false,reason:!enoughSupport?'weak-periodic-evidence':'no-gain',
+        nominalScore:nominal.raw,bestScore:best.raw,gain};
+    }
+    const refined={...row,x:best.start,w:best.pitch*count};
+    return {
+      row:refined,used:true,reason:'periodic-grid',
+      nominalScore:nominal.raw,bestScore:best.raw,gain,
+      offsetPitch:(best.start-row.x)/nominalPitch,pitchScale:best.pitch/nominalPitch,
+      medianSupport:best.median,lowerSupport:best.lower
+    };
+  }
+
+
   function splitRowBySeams(ctx,row,count=14){
     if(!ctx||!row||!Number.isFinite(row.x)||!Number.isFinite(row.w)||row.w<=0)return splitRow(row,count);
     const x0=Math.max(0,Math.round(row.x)),y0=Math.max(0,Math.round(row.y));
@@ -1240,9 +1356,14 @@
     const lowCtx=low.getContext('2d',{willReadFrequently:true});
     lowCtx.drawImage(highCanvas,0,0,low.width,low.height);
     const lowRow=locateTileRow(lowCtx);
-    if(!lowRow)return {row:null,boxes:[],features:[],crops:[],trainingImages:[],perspectiveCount:0,photo:highCanvas.toDataURL('image/jpeg',.80)};
+    if(!lowRow)return {row:null,boxes:[],features:[],crops:[],trainingImages:[],perspectiveCount:0,gridUsed:false,gridFit:null,photo:highCanvas.toDataURL('image/jpeg',.80)};
+    // v61: keep equal-width tiles, but refine the row with one global periodic
+    // phase/pitch fit. Unlike the old per-seam v37 approach, no individual
+    // boundary is allowed to chase a glyph edge.
+    const gridFit=fitGlobalRowGrid(lowCtx,lowRow,14);
+    const fittedLowRow=gridFit.used?gridFit.row:lowRow;
     const sx=highCanvas.width/low.width,sy=highCanvas.height/low.height;
-    const row={x:lowRow.x*sx,y:lowRow.y*sy,w:lowRow.w*sx,h:lowRow.h*sy};
+    const row={x:fittedLowRow.x*sx,y:fittedLowRow.y*sy,w:fittedLowRow.w*sx,h:fittedLowRow.h*sy};
     const boxes=splitRow(row,14);
     const tileData=boxes.map(b=>analyzeTileBox(highCtx,b));
     return {
@@ -1251,6 +1372,14 @@
       crops:tileData.map(x=>x.crop),
       trainingImages:tileData.map(x=>x.trainingImage),
       perspectiveCount:tileData.filter(x=>x.perspectiveUsed).length,
+      gridUsed:gridFit.used===true,
+      gridFit:{
+        reason:gridFit.reason||'',
+        gain:Number.isFinite(gridFit.gain)?Number(gridFit.gain.toFixed(4)):null,
+        offsetPitch:Number.isFinite(gridFit.offsetPitch)?Number(gridFit.offsetPitch.toFixed(4)):null,
+        pitchScale:Number.isFinite(gridFit.pitchScale)?Number(gridFit.pitchScale.toFixed(4)):null,
+        medianSupport:Number.isFinite(gridFit.medianSupport)?Number(gridFit.medianSupport.toFixed(4)):null
+      },
       photo:highCanvas.toDataURL('image/jpeg',.80)
     };
   }
@@ -1302,11 +1431,11 @@
       if(note)note.textContent=features.length===14
         ?(firstCalibration
           ?'この保存領域には学習データがありません。今回だけ14枚を正しく指定してください。「この手牌で進む」を押した時に保存完了を確認してから次へ進みます。'
-          :`精度優先版です。内側cropを維持しつつ、強すぎる台形補正は拒否して回転補正へ戻します。表示画像も実際に認識へ使った内側cropです。高信頼候補 ${auto}枚。`)
+          :`精度優先版です。14枚の境界は個別シームではなく列全体の周期だけで補正します。内側cropと強い台形拒否も維持します。高信頼候補 ${auto}枚。保留理由: ${confidenceReasonSummary()}。`)
         :'白枠内から牌列を特定できませんでした。撮影画像を確認し、14枠を手動入力するか「読み取り直す」で再撮影してください。';
       const status=root.querySelector('.hand-result-status-m7v5');
       if(status&&auto<14)status.textContent=features.length===14
-        ?(firstCalibration?'初回学習：14枚を指定してください':`学習済み ${learnedLabels}種類${state.librarySource?` / 元:${state.librarySource}`:''} / 安定保存 / 精度優先 / 射影採用 ${analysis.perspectiveCount||0}/14 / 高信頼 ${auto}枚`)
+        ?(firstCalibration?'初回学習：14枚を指定してください':`学習済み ${learnedLabels}種類${state.librarySource?` / 元:${state.librarySource}`:''} / 安定保存 / 精度優先${analysis.gridUsed?' / 全体格子補正':''} / 射影採用 ${analysis.perspectiveCount||0}/14 / 高信頼 ${auto}枚`)
         :'手動入力：0 / 14枚';
       if(features.length!==14&&analysis.photo){
         const img=document.createElement('img');img.className='m7v36-photo';img.alt='白枠内を撮影した画像';img.src=analysis.photo;
@@ -1343,7 +1472,8 @@
       const analysis=analyzeGuideCanvas(capture.canvas);
       state.diagnostics={
         sourceWidth:Math.round(capture.source.w),sourceHeight:Math.round(capture.source.h),
-        rowFound:!!analysis.row,row:analysis.row?{...analysis.row}:null
+        rowFound:!!analysis.row,row:analysis.row?{...analysis.row}:null,
+        gridUsed:analysis.gridUsed===true,gridFit:analysis.gridFit||null
       };
       window.M7V36LastDiagnostics=state.diagnostics;
       // Existing cancel owns the MediaStream and removes the camera overlay.
@@ -1474,6 +1604,6 @@
   },true);
 
   window.M7CameraV36=Object.freeze({
-    sourceRectForCover,locateTileRow,splitRow,splitRowBySeams,analyzeGuideCanvas,featureFromBox,tileFaceRect,descriptorFromCanvas,detectFaceGeometry,detectFaceQuad,canonicalizeCanvas,orientedFaceCanvas,perspectiveFaceCanvas,warpQuadToCanvas,trainingImageDataUrl,innerRecognitionCanvas,innerFeatureFromCanonical,analyzeTileBox,loadTrainingSamples,rebuildLibraryFromTrainingImages,loadLibrary,activeLibrary,saveLibrary,saveLibraryDetailed,persistVerifiedHand,persistFailureText,loadLegacyLibrary,legacyLibraryKeys,convertLegacyDirectFeature,cropResampleFeatureMap,confidentCandidate,renderPickerPhoto,renderPickerSuggestions,pickerCurrentIndex,schedulePickerSuggestionSync,attachPickerSuggestionObserver
+    sourceRectForCover,locateTileRow,splitRow,fitGlobalRowGrid,splitRowBySeams,analyzeGuideCanvas,featureFromBox,tileFaceRect,descriptorFromCanvas,detectFaceGeometry,detectFaceQuad,canonicalizeCanvas,orientedFaceCanvas,perspectiveFaceCanvas,warpQuadToCanvas,trainingImageDataUrl,innerRecognitionCanvas,innerFeatureFromCanonical,analyzeTileBox,loadTrainingSamples,rebuildLibraryFromTrainingImages,loadLibrary,activeLibrary,saveLibrary,saveLibraryDetailed,persistVerifiedHand,persistFailureText,loadLegacyLibrary,legacyLibraryKeys,convertLegacyDirectFeature,cropResampleFeatureMap,confidenceAssessment,confidentCandidate,confidenceReasonSummary,renderPickerPhoto,renderPickerSuggestions,pickerCurrentIndex,schedulePickerSuggestionSync,attachPickerSuggestionObserver
   });
 })();
