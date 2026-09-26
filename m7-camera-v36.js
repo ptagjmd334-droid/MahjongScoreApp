@@ -9,8 +9,9 @@
   const core=window.M7RecognitionCoreV33;
   if(!core)return;
 
-  const LIB_KEY='MahjongScoreApp_tile_templates_m7v47migration1';
+  const LIB_KEY='MahjongScoreApp_tile_templates_m7v48balanced24x36';
   const LEGACY_LIB_KEYS=[
+    'MahjongScoreApp_tile_templates_m7v47migration1',
     'MahjongScoreApp_tile_templates_m7v46perspective1',
     'MahjongScoreApp_tile_templates_m7v45oriented1',
     'MahjongScoreApp_tile_templates_m7v44direct1'
@@ -104,6 +105,33 @@
   }
 
 
+  function resampleFeatureMap(src,srcW,srcH,dstW,dstH){
+    if(!Array.isArray(src)||src.length!==srcW*srcH)return null;
+    const out=Array(dstW*dstH).fill(0);
+    for(let y=0;y<dstH;y++)for(let x=0;x<dstW;x++){
+      const sx=(x+.5)*srcW/dstW-.5,sy=(y+.5)*srcH/dstH-.5;
+      const x0=Math.max(0,Math.min(srcW-1,Math.floor(sx))),y0=Math.max(0,Math.min(srcH-1,Math.floor(sy)));
+      const x1=Math.max(0,Math.min(srcW-1,x0+1)),y1=Math.max(0,Math.min(srcH-1,y0+1));
+      const fx=Math.max(0,Math.min(1,sx-x0)),fy=Math.max(0,Math.min(1,sy-y0));
+      const a=Number(src[y0*srcW+x0])||0,b=Number(src[y0*srcW+x1])||0;
+      const d=Number(src[y1*srcW+x0])||0,e=Number(src[y1*srcW+x1])||0;
+      out[y*dstW+x]=(a*(1-fx)+b*fx)*(1-fy)+(d*(1-fx)+e*fx)*fy;
+    }
+    return out;
+  }
+
+  function convertLegacyDirectFeature(t){
+    if(!t||!Array.isArray(t.gray)||!Array.isArray(t.edge)||!Array.isArray(t.red)||!Array.isArray(t.green))return null;
+    const srcW=Number(t.width)||0,srcH=Number(t.height)||0,dstW=24,dstH=36;
+    if(srcW<2||srcH<2)return null;
+    const gray=resampleFeatureMap(t.gray,srcW,srcH,dstW,dstH);
+    const edge=resampleFeatureMap(t.edge,srcW,srcH,dstW,dstH);
+    const red=resampleFeatureMap(t.red,srcW,srcH,dstW,dstH);
+    const green=resampleFeatureMap(t.green,srcW,srcH,dstW,dstH);
+    if(!gray||!edge||!red||!green)return null;
+    return {kind:FEATURE_KIND,width:dstW,height:dstH,gray,edge,red,green};
+  }
+
   function loadLegacyLibrary(){
     for(const key of LEGACY_LIB_KEYS){
       try{
@@ -115,15 +143,15 @@
         for(const label of labels){
           const converted=[];
           for(const t of raw[label]){
-            if(!t||!Array.isArray(t.gray)||!Array.isArray(t.edge)||!Array.isArray(t.red)||!Array.isArray(t.green))continue;
-            if(Number(t.width)!==16||Number(t.height)!==24)continue;
-            converted.push({...t,kind:FEATURE_KIND});
+            const next=convertLegacyDirectFeature(t);
+            if(!next)continue;
+            converted.push(next);
             if(converted.length>=MAX_TEMPLATES)break;
           }
           if(converted.length)lib[label]=converted;
         }
         if(Object.keys(lib).length){
-          state.librarySource=key.includes('m7v46')?'v46':key.includes('m7v45')?'v45':'v44';
+          state.librarySource=key.includes('m7v47')?'v47':key.includes('m7v46')?'v46':key.includes('m7v45')?'v45':'v44';
           return lib;
         }
       }catch(_){}
@@ -521,7 +549,7 @@
   }
 
   function descriptorFromCanvas(source){
-    const width=16,height=24;
+    const width=24,height=36;
     const c=document.createElement('canvas');c.width=width;c.height=height;
     const ctx=c.getContext('2d',{willReadFrequently:true});
     ctx.fillStyle='#f4f1e8';ctx.fillRect(0,0,width,height);
@@ -648,7 +676,7 @@
     const lib=loadLibrary(),used={},debug=[];
     state.learnedLabelCount=Object.keys(lib).filter(label=>Array.isArray(lib[label])&&lib[label].length).length;
     const labels=features.map((feature,index)=>{
-      const ranked=core.rankLabelsRobust(feature,lib,{singlePenalty:.018,maxTemplates:3});
+      const ranked=core.rankLabelsBalanced(feature,lib);
       debug[index]=ranked.slice(0,3).map(x=>({label:x.label,distance:Number(x.distance.toFixed(4))}));
       const available=ranked.filter(x=>(used[x.label]||0)<4);
       const accepted=confidentCandidate(available);
@@ -969,12 +997,12 @@
       const note=root.querySelector('.hand-result-note-m7v5');
       if(note)note.textContent=features.length===14
         ?(firstCalibration
-          ?'保存済みの牌画像がないため、M7 v47の初回学習が必要です。14枚を正しく指定してください。確定後は牌画像も端末内に保存します。'
+          ?'保存済みの牌画像がないため、M7 v48の初回学習が必要です。14枚を正しく指定してください。確定後は牌画像も端末内に保存します。'
           :`白枠内の手牌列を14枚に分割しました。高信頼候補 ${auto}枚。各枠の下に1位候補を表示しています。精度評価はこの1位候補を基準にします。`)
         :'白枠内から牌列を特定できませんでした。撮影画像を確認し、14枠を手動入力するか「読み取り直す」で再撮影してください。';
       const status=root.querySelector('.hand-result-status-m7v5');
       if(status&&auto<14)status.textContent=features.length===14
-        ?(firstCalibration?'初回学習：14枚を指定してください':`学習済み ${learnedLabels}種類${state.librarySource?` / 元:${state.librarySource}`:''} / 射影 ${analysis.perspectiveCount||0}/14 / 高信頼 ${auto}枚`)
+        ?(firstCalibration?'初回学習：14枚を指定してください':`学習済み ${learnedLabels}種類${state.librarySource?` / 元:${state.librarySource}`:''} / 均等比較 / 射影 ${analysis.perspectiveCount||0}/14 / 高信頼 ${auto}枚`)
         :'手動入力：0 / 14枚';
       if(features.length!==14&&analysis.photo){
         const img=document.createElement('img');img.className='m7v36-photo';img.alt='白枠内を撮影した画像';img.src=analysis.photo;
@@ -1074,6 +1102,6 @@
   },true);
 
   window.M7CameraV36=Object.freeze({
-    sourceRectForCover,locateTileRow,splitRow,splitRowBySeams,analyzeGuideCanvas,featureFromBox,tileFaceRect,descriptorFromCanvas,detectFaceGeometry,detectFaceQuad,canonicalizeCanvas,orientedFaceCanvas,perspectiveFaceCanvas,warpQuadToCanvas,trainingImageDataUrl,analyzeTileBox,loadTrainingSamples,rebuildLibraryFromTrainingImages,loadLibrary,loadLegacyLibrary,confidentCandidate,renderPickerSuggestions,pickerCurrentIndex,schedulePickerSuggestionSync,attachPickerSuggestionObserver
+    sourceRectForCover,locateTileRow,splitRow,splitRowBySeams,analyzeGuideCanvas,featureFromBox,tileFaceRect,descriptorFromCanvas,detectFaceGeometry,detectFaceQuad,canonicalizeCanvas,orientedFaceCanvas,perspectiveFaceCanvas,warpQuadToCanvas,trainingImageDataUrl,analyzeTileBox,loadTrainingSamples,rebuildLibraryFromTrainingImages,loadLibrary,loadLegacyLibrary,convertLegacyDirectFeature,confidentCandidate,renderPickerSuggestions,pickerCurrentIndex,schedulePickerSuggestionSync,attachPickerSuggestionObserver
   });
 })();
