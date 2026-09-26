@@ -213,6 +213,25 @@ test('v65 multi-view rank consensus ignores one bad crop and tracks view votes',
   assert(Number.isFinite(combined[0].viewDistanceRange));
 });
 
+test('v66 fast view voting keeps expensive base distance and uses auxiliary majority',()=>{
+  const base=[
+    {label:'5筒',distance:.100,family:'筒'},
+    {label:'8筒',distance:.103,family:'筒'},
+    {label:'7筒',distance:.130,family:'筒'}
+  ];
+  const aux=[
+    [{label:'8筒',distance:.06,family:'筒'},{label:'5筒',distance:.08,family:'筒'}],
+    [{label:'8筒',distance:.05,family:'筒'},{label:'5筒',distance:.09,family:'筒'}],
+    [{label:'8筒',distance:.07,family:'筒'},{label:'5筒',distance:.08,family:'筒'}],
+    [{label:'5筒',distance:.06,family:'筒'},{label:'8筒',distance:.07,family:'筒'}]
+  ];
+  const ranked=core.applyViewVoteConsensus(base,aux,{candidateLimit:3,votePenalty:.006});
+  assert.equal(ranked[0].label,'8筒','four of five views should break a close base race');
+  assert.equal(ranked[0].viewTopVotes,3,'8筒 should receive three auxiliary top votes');
+  assert.equal(ranked[0].viewCount,5);
+  assert.equal(ranked[0].baseDistance,.103,'base calibrated distance must remain available');
+});
+
 test('tile family mapping covers suits, honors and red fives',()=>{
   assert.equal(core.tileFamily('3萬'),'萬');
   assert.equal(core.tileFamily('赤5筒'),'筒');
@@ -240,7 +259,7 @@ test('camera v36 is loaded before ui-fixes so verified clicks train the active c
   assert(index.indexOf('script.js')<index.indexOf('m7-recognition-core.js'));
   assert(index.indexOf('m7-recognition-core.js')<index.indexOf('m7-camera-v36.js'));
   assert(index.indexOf('m7-camera-v36.js')<index.indexOf('ui-fixes.js'));
-  assert(index.includes('M7 v65'));
+  assert(index.includes('M7 v66'));
 });
 
 test('legacy live detector and demo fill yield to the active camera owner',()=>{
@@ -257,7 +276,7 @@ test('v36 camera avoids fixed bright-white threshold and closes camera when hidd
   assert(camera.includes(".realtime-hand-cancel-m7v3')?.click()"));
 });
 
-test('v65 preserves stable learning and adds five-view crop consensus',()=>{
+test('v66 preserves stable learning and replaces five full rankings with fast top-6 rechecks',()=>{
   const camera=fs.readFileSync(path.join(root,'m7-camera-v36.js'),'utf8');
   assert(camera.includes("MahjongScoreApp_tile_templates_stable1"));
   assert(camera.includes("MahjongScoreApp_tile_templates_stable1_backup"));
@@ -278,6 +297,8 @@ test('v65 preserves stable learning and adds five-view crop consensus',()=>{
   assert(coreSource.includes('function structuralDistance'));
   assert(coreSource.includes('function templateStructuralConsensusDistance'));
   assert(coreSource.includes('function combineViewRankings'));
+  assert(coreSource.includes('function rankCandidateLabelsStructural'));
+  assert(coreSource.includes('function applyViewVoteConsensus'));
   assert(coreSource.includes('shapeBlend'));
   assert(coreSource.includes('representativeScore*(1-templateBlend)+consensusDistance*templateBlend'));
   assert(camera.includes('function fitGlobalRowGrid'));
@@ -286,7 +307,9 @@ test('v65 preserves stable learning and adds five-view crop consensus',()=>{
   assert(camera.includes("reason:'same-family-margin'"));
   assert(camera.includes('confidenceReasonSummary'));
   assert(camera.includes('function inferenceFeatureViews'));
-  assert(camera.includes('core.combineViewRankings(viewRankings)'));
+  assert(camera.includes('core.rankCandidateLabelsStructural(view,lib,candidateLabels)'));
+  assert(camera.includes('core.applyViewVoteConsensus(baseRanked,auxRankings'));
+  assert(!camera.includes('views.map(view=>core.rankLabelsFamilyDiscriminative'));
   assert(camera.includes("reason:'view-disagreement'"));
   assert(camera.includes("reason:'representative-distance'"));
   assert(camera.includes("reason:'template-consensus'"));
@@ -313,7 +336,7 @@ test('v65 preserves stable learning and adds five-view crop consensus',()=>{
   assert(camera.includes('warpQuadToCanvas'));
   assert(camera.includes('perspectiveFaceCanvas'));
   assert(camera.includes('const width=24,height=36'));
-  assert(camera.includes('core.rankLabelsFamilyDiscriminative(view,lib'));
+  assert(camera.includes('core.rankLabelsFamilyDiscriminative(views[0]||feature,lib'));
   assert(camera.includes("rawSaved=await saveTrainingBatch(raw)"));
   assert(camera.includes("MahjongScoreApp_tile_learning_meta1"));
   assert(camera.includes('m7v57-photo-preview'));

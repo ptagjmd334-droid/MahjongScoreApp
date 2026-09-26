@@ -24,7 +24,7 @@
   const FEATURE_KIND='perspective-direct-v1';
   const MAX_TEMPLATES=5;
   const MAX_IMAGES_PER_LABEL=10;
-  const state={overlay:null,captured:false,pendingFeatures:[],pendingCrops:[],pendingTrainingImages:[],diagnostics:null,predictionDebug:[],confidenceReasons:[],learnedLabelCount:0,librarySource:'',runtimeLibrary:null,storageDiagnostics:null};
+  const state={overlay:null,captured:false,pendingFeatures:[],pendingCrops:[],pendingTrainingImages:[],diagnostics:null,predictionDebug:[],confidenceReasons:[],learnedLabelCount:0,librarySource:'',runtimeLibrary:null,storageDiagnostics:null,lastRecognitionMs:0};
   const persistPromises=new WeakMap();
 
   const style=document.createElement('style');
@@ -1007,11 +1007,17 @@
 
   function predict(features,inferenceViews=[]){
     const lib=activeLibrary(),used={},debug=[],reasons=[];
+    const started=(typeof performance!=='undefined'&&performance.now)?performance.now():Date.now();
     state.learnedLabelCount=Object.keys(lib).filter(label=>Array.isArray(lib[label])&&lib[label].length).length;
     const labels=features.map((feature,index)=>{
       const views=Array.isArray(inferenceViews[index])&&inferenceViews[index].length?inferenceViews[index]:[feature];
-      const viewRankings=views.map(view=>core.rankLabelsFamilyDiscriminative(view,lib,{blend:.84,labelBlend:.72,templateBlend:.38,shapeBlend:.60,priorWeight:.26,maxPenalty:.016}));
-      const ranked=core.combineViewRankings(viewRankings);
+      // v66 performance fix: the expensive family-discriminative matcher runs
+      // only once on the standard crop. Nearby crops recheck only the base top-6
+      // with pooled structural distance, then vote to break close races.
+      const baseRanked=core.rankLabelsFamilyDiscriminative(views[0]||feature,lib,{blend:.84,labelBlend:.72,templateBlend:.38,shapeBlend:.60,priorWeight:.26,maxPenalty:.016});
+      const candidateLabels=baseRanked.slice(0,6).map(x=>x.label);
+      const auxRankings=views.slice(1).map(view=>core.rankCandidateLabelsStructural(view,lib,candidateLabels));
+      const ranked=core.applyViewVoteConsensus(baseRanked,auxRankings,{candidateLimit:6,votePenalty:.006});
       debug[index]=ranked.slice(0,3).map(x=>({
         label:x.label,
         family:x.family||core.tileFamily(x.label),
@@ -1036,7 +1042,7 @@
         familyGap:Number.isFinite(x.familyGap)?Number(x.familyGap.toFixed(4)):null,
         viewTopVotes:Number(x.viewTopVotes)||0,
         viewCount:Number(x.viewCount)||views.length,
-        viewDistanceRange:Number.isFinite(x.viewDistanceRange)?Number(x.viewDistanceRange.toFixed(4)):null
+        baseDistance:Number.isFinite(x.baseDistance)?Number(x.baseDistance.toFixed(4)):null
       }));
       const available=ranked.filter(x=>(used[x.label]||0)<4);
       if(!available.length){reasons[index]='label-limit';return '';}
@@ -1049,6 +1055,8 @@
     });
     state.predictionDebug=debug;
     state.confidenceReasons=reasons;
+    const ended=(typeof performance!=='undefined'&&performance.now)?performance.now():Date.now();
+    state.lastRecognitionMs=Math.max(0,Math.round(ended-started));
     return labels;
   }
 
@@ -1481,7 +1489,7 @@
       if(note)note.textContent=features.length===14
         ?(firstCalibration
           ?'この保存領域には学習データがありません。今回だけ14枚を正しく指定してください。「この手牌で進む」を押した時に保存完了を確認してから次へ進みます。'
-          :`精度優先版です。牌列14等分と保存形式は維持し、同じ1枚を5通りの近接cropで再評価して中央値で合意を取ります。高信頼候補 ${auto}枚。保留理由: ${confidenceReasonSummary()}。`)
+          :`精度優先版です。重い全候補比較は標準cropの1回だけに戻し、残り4cropはTop6だけを軽い形状比較で再確認します。高信頼候補 ${auto}枚。保留理由: ${confidenceReasonSummary()}。認識 ${Math.max(0,state.lastRecognitionMs||0)}ms。`)
         :'白枠内から牌列を特定できませんでした。撮影画像を確認し、14枠を手動入力するか「読み取り直す」で再撮影してください。';
       const status=root.querySelector('.hand-result-status-m7v5');
       if(status&&auto<14)status.textContent=features.length===14

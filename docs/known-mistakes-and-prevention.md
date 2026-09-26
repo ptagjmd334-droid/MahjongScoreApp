@@ -710,6 +710,16 @@
 **回帰テスト:** coreで5つのview中4つが同じラベルを支持する時に1つの外れviewを無視できること、iPhone相当Chromiumで5個のfeature viewが24×36の既存schemaを維持すること、過半数未満のview一致ではconfidenceが`view-disagreement`で止まることを確認する。  
 **確度:** 高信頼2→4、代表距離12→10、Top1変動は実機スクリーンショットで確定。数pxのcrop揺れが主因かは有力だが、v65の実機改善量は未確定。
 
+
+## M086: v65の5視点すべてで重い全候補比較を回しiPhoneで5分以上停止した
+**時期:** M7 v65→v66  
+**症状:** 実機で「撮影して読み取る」後、5分以上結果画面へ進まない。  
+**根本原因:** v65は14枚×5cropすべてで`rankLabelsFamilyDiscriminative`を実行していた。この関数は各牌種について複数template比較、family/label重み付き距離、±1px・±2度・±3%の複数transformを走らせるため、v64相当の重い処理をほぼ5倍にした。iPhoneでは同期JavaScriptが長時間メインスレッドを占有した。  
+**修正:** v66では重い全候補ランキングは各牌の標準cropで1回だけ実行する。残り4cropは標準結果のTop6候補だけをpooling済み形状距離で軽量再評価し、5視点の投票を近い候補の順位補正と高信頼判定にのみ使う。保存feature/schemaは変更しない。結果画面に認識処理時間(ms)を表示する。  
+**再発防止:** 精度改善で入力variantを増やす場合、重い分類器をvariant数だけ直列反復しない。まず候補絞り込み→軽量再評価の二段構成にし、実ブラウザで処理時間も回帰対象にする。  
+**回帰テスト:** source testで`views.map(...rankLabelsFamilyDiscriminative...)`が存在しないこと、重いrankingがbase viewのみで残りは`rankCandidateLabelsStructural`を使うこと、5視点投票がclose raceを補正することをunit/Chromiumで確認する。  
+**確度:** 5分以上停止は実機報告で確定。v65コード上で全5viewに重いrankingを繰り返していたことも確定。
+
 # 変更前に特に見る高頻度項目
 1. **古いパッチとの競合**（M001/M003/M004/M006/M007）
 2. **実DOMとCSS前提**（M011/M015/M017）
