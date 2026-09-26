@@ -90,6 +90,26 @@
     #tile-picker-m7v5 .m7v39-suggestions button{
       margin-right:6px;min-height:34px;padding:5px 10px;border:1px solid #9cc7eb;border-radius:8px;background:white;font-weight:800
     }
+    #tile-picker-m7v5 .m7v57-photo-preview{
+      display:flex;align-items:center;justify-content:center;gap:10px;min-height:74px;
+      margin:0;padding:6px 10px;border-radius:10px;background:#eee8db;border:1px solid #d8d1c3
+    }
+    #tile-picker-m7v5 .m7v57-photo-preview img{
+      width:58px;height:72px;object-fit:contain;border-radius:7px;background:#d9d3c7;
+      box-shadow:0 1px 4px rgba(0,0,0,.16)
+    }
+    #tile-picker-m7v5 .m7v57-photo-preview .m7v57-copy{
+      font-size:13px;font-weight:800;line-height:1.35;color:#24352e;text-align:left
+    }
+    #tile-picker-m7v5 .m7v57-photo-preview .m7v57-copy small{
+      display:block;margin-top:2px;font-size:11px;font-weight:700;color:#64706a
+    }
+    @media (orientation:landscape) and (max-height:500px){
+      #tile-picker-m7v5 .m7v57-photo-preview{min-height:54px;padding:3px 8px}
+      #tile-picker-m7v5 .m7v57-photo-preview img{width:42px;height:50px}
+      #tile-picker-m7v5 .m7v57-photo-preview .m7v57-copy{font-size:11px}
+      #tile-picker-m7v5 .m7v57-photo-preview .m7v57-copy small{font-size:9px}
+    }
     @media (orientation:landscape) and (max-height:500px){
       #realtime-hand-camera-m7v3 .realtime-hand-guide-box-m7v3{height:min(29vh,124px)!important}
       #realtime-hand-camera-m7v3 .m7v36-shutter{min-height:40px}
@@ -843,6 +863,21 @@
     return Number.isInteger(stored)&&stored>=0&&stored<14?stored:fallback;
   }
 
+  function renderPickerPhoto(index){
+    const picker=document.getElementById('tile-picker-m7v5');
+    const grid=picker?.querySelector('.tile-picker-grid-m7v5');
+    if(!picker||!grid||!Number.isInteger(index)||index<0||index>=14)return;
+    picker.querySelector('.m7v57-photo-preview')?.remove();
+    const url=state.pendingCrops[index];
+    if(!url)return;
+    const box=document.createElement('div');box.className='m7v57-photo-preview';box.dataset.m7v57Index=String(index);
+    const img=document.createElement('img');img.src=url;img.alt=`撮影した${index+1}枚目`;
+    const copy=document.createElement('div');copy.className='m7v57-copy';
+    copy.innerHTML=`撮影した ${index+1} 枚目<small>この画像を見ながら牌を選んでください</small>`;
+    box.append(img,copy);
+    grid.insertAdjacentElement('beforebegin',box);
+  }
+
   function renderPickerSuggestions(index){
     const picker=document.getElementById('tile-picker-m7v5');
     const grid=picker?.querySelector('.tile-picker-grid-m7v5');
@@ -850,6 +885,7 @@
     picker.dataset.m7v40Index=String(index);
     picker.dataset.m7v41RenderedIndex=String(index);
     picker.querySelector('.m7v39-suggestions')?.remove();
+    renderPickerPhoto(index);
     const suggestions=suggestionsForResultIndex(index);
     if(!suggestions.length)return;
     const box=document.createElement('div');box.className='m7v39-suggestions';box.dataset.m7v41Index=String(index);
@@ -1117,7 +1153,7 @@
       const note=root.querySelector('.hand-result-note-m7v5');
       if(note)note.textContent=features.length===14
         ?(firstCalibration
-          ?'この保存領域には学習データがありません。今回だけ14枚を正しく指定してください。確定すると安定保存キー＋バックアップへ保存し、次版以降も同じ学習データを使います。'
+          ?'この保存領域には学習データがありません。撮影回数では学習されません。今回だけ14枚を正しく指定して「この手牌で進む」まで確定してください。確定後は安定保存キー＋バックアップへ保存します。'
           :`精度優先版です。内側cropを維持しつつ、強すぎる台形補正は拒否して回転補正へ戻します。表示画像も実際に認識へ使った内側cropです。高信頼候補 ${auto}枚。`)
         :'白枠内から牌列を特定できませんでした。撮影画像を確認し、14枠を手動入力するか「読み取り直す」で再撮影してください。';
       const status=root.querySelector('.hand-result-status-m7v5');
@@ -1222,6 +1258,6 @@
   },true);
 
   window.M7CameraV36=Object.freeze({
-    sourceRectForCover,locateTileRow,splitRow,splitRowBySeams,analyzeGuideCanvas,featureFromBox,tileFaceRect,descriptorFromCanvas,detectFaceGeometry,detectFaceQuad,canonicalizeCanvas,orientedFaceCanvas,perspectiveFaceCanvas,warpQuadToCanvas,trainingImageDataUrl,innerRecognitionCanvas,innerFeatureFromCanonical,analyzeTileBox,loadTrainingSamples,rebuildLibraryFromTrainingImages,loadLibrary,saveLibrary,loadLegacyLibrary,legacyLibraryKeys,convertLegacyDirectFeature,cropResampleFeatureMap,confidentCandidate,renderPickerSuggestions,pickerCurrentIndex,schedulePickerSuggestionSync,attachPickerSuggestionObserver
+    sourceRectForCover,locateTileRow,splitRow,splitRowBySeams,analyzeGuideCanvas,featureFromBox,tileFaceRect,descriptorFromCanvas,detectFaceGeometry,detectFaceQuad,canonicalizeCanvas,orientedFaceCanvas,perspectiveFaceCanvas,warpQuadToCanvas,trainingImageDataUrl,innerRecognitionCanvas,innerFeatureFromCanonical,analyzeTileBox,loadTrainingSamples,rebuildLibraryFromTrainingImages,loadLibrary,saveLibrary,loadLegacyLibrary,legacyLibraryKeys,convertLegacyDirectFeature,cropResampleFeatureMap,confidentCandidate,renderPickerPhoto,renderPickerSuggestions,pickerCurrentIndex,schedulePickerSuggestionSync,attachPickerSuggestionObserver
   });
 })();
