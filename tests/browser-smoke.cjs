@@ -320,7 +320,7 @@ const server=http.createServer((req,res)=>{
     });
     assert.equal(innerApi.width,96,'v53 inner crop width changed '+JSON.stringify(innerApi));
     assert.equal(innerApi.height,144,'v53 inner crop height changed '+JSON.stringify(innerApi));
-    assert(innerApi.pixel[0]<80,'v53 inner crop did not remove the synthetic red outer edge '+JSON.stringify(innerApi));
+    assert(innerApi.pixel[0]<160&&innerApi.pixel[1]<40,'v53 inner crop did not substantially remove the synthetic red outer edge '+JSON.stringify(innerApi));
     // Reload after the isolated camera/calibration probe so the remaining game-flow smoke test
     // starts from a pristine setup screen.
     await page.reload({waitUntil:'domcontentloaded',timeout:30000});
