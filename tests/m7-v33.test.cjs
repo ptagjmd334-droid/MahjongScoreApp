@@ -204,7 +204,7 @@ test('v58 blocks result transition until verified learning is saved',()=>{
   assert(camera.includes('perspectiveFaceCanvas'));
   assert(camera.includes('const width=24,height=36'));
   assert(camera.includes('core.rankLabelsFamilyDiscriminative(feature,lib'));
-  assert(camera.includes("if(raw.length)saveTrainingBatch(raw).catch(()=>{})"));
+  assert(camera.includes("rawSaved=await saveTrainingBatch(raw)"));
   assert(camera.includes("MahjongScoreApp_tile_learning_meta1"));
   assert(camera.includes('m7v57-photo-preview'));
   assert(camera.includes('renderPickerPhoto(index)'));
