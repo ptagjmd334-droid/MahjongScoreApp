@@ -11,6 +11,8 @@
 
   const LIB_KEY='MahjongScoreApp_tile_templates_m7v53innercrop1';
   const LEGACY_LIB_KEYS=[
+    'MahjongScoreApp_tile_templates_m7v53innercrop1',
+    'MahjongScoreApp_tile_templates_m7v48balanced24x36',
     'MahjongScoreApp_tile_templates_m7v47migration1',
     'MahjongScoreApp_tile_templates_m7v46perspective1',
     'MahjongScoreApp_tile_templates_m7v45oriented1',
@@ -120,30 +122,68 @@
     return out;
   }
 
-  function convertLegacyDirectFeature(t){
+  function cropResampleFeatureMap(src,srcW,srcH,dstW,dstH,trimX=.12,trimY=.08){
+    if(!Array.isArray(src)||src.length!==srcW*srcH)return null;
+    const out=Array(dstW*dstH).fill(0);
+    const x0=srcW*trimX,y0=srcH*trimY;
+    const spanW=srcW*(1-trimX*2),spanH=srcH*(1-trimY*2);
+    for(let y=0;y<dstH;y++)for(let x=0;x<dstW;x++){
+      const sx=x0+(x+.5)*spanW/dstW-.5;
+      const sy=y0+(y+.5)*spanH/dstH-.5;
+      const ax=Math.max(0,Math.min(srcW-1,Math.floor(sx))),ay=Math.max(0,Math.min(srcH-1,Math.floor(sy)));
+      const bx=Math.max(0,Math.min(srcW-1,ax+1)),by=Math.max(0,Math.min(srcH-1,ay+1));
+      const fx=Math.max(0,Math.min(1,sx-ax)),fy=Math.max(0,Math.min(1,sy-ay));
+      const p00=Number(src[ay*srcW+ax])||0,p10=Number(src[ay*srcW+bx])||0;
+      const p01=Number(src[by*srcW+ax])||0,p11=Number(src[by*srcW+bx])||0;
+      out[y*dstW+x]=(p00*(1-fx)+p10*fx)*(1-fy)+(p01*(1-fx)+p11*fx)*fy;
+    }
+    return out;
+  }
+
+  function convertLegacyDirectFeature(t,applyInnerCrop=false){
     if(!t||!Array.isArray(t.gray)||!Array.isArray(t.edge)||!Array.isArray(t.red)||!Array.isArray(t.green))return null;
     const srcW=Number(t.width)||0,srcH=Number(t.height)||0,dstW=24,dstH=36;
     if(srcW<2||srcH<2)return null;
-    const gray=resampleFeatureMap(t.gray,srcW,srcH,dstW,dstH);
-    const edge=resampleFeatureMap(t.edge,srcW,srcH,dstW,dstH);
-    const red=resampleFeatureMap(t.red,srcW,srcH,dstW,dstH);
-    const green=resampleFeatureMap(t.green,srcW,srcH,dstW,dstH);
+    const map=applyInnerCrop?cropResampleFeatureMap:resampleFeatureMap;
+    const gray=map(t.gray,srcW,srcH,dstW,dstH);
+    const edge=map(t.edge,srcW,srcH,dstW,dstH);
+    const red=map(t.red,srcW,srcH,dstW,dstH);
+    const green=map(t.green,srcW,srcH,dstW,dstH);
     if(!gray||!edge||!red||!green)return null;
     return {kind:FEATURE_KIND,width:dstW,height:dstH,gray,edge,red,green};
   }
 
+  function legacyLibraryKeys(){
+    const keys=LEGACY_LIB_KEYS.slice();
+    try{
+      for(let i=0;i<localStorage.length;i++){
+        const key=localStorage.key(i);
+        if(!key||key===LIB_KEY||!key.startsWith('MahjongScoreApp_tile_templates_'))continue;
+        if(!keys.includes(key))keys.push(key);
+      }
+    }catch(_){}
+    return keys;
+  }
+
+  function librarySourceName(key){
+    const m=String(key||'').match(/m7v(\d+)/i);
+    return m?('v'+m[1]):'legacy';
+  }
+
   function loadLegacyLibrary(){
-    for(const key of LEGACY_LIB_KEYS){
+    for(const key of legacyLibraryKeys()){
+      if(key===LIB_KEY)continue;
       try{
         const raw=JSON.parse(localStorage.getItem(key)||'{}');
         if(!raw||typeof raw!=='object')continue;
         const labels=Object.keys(raw).filter(label=>Array.isArray(raw[label])&&raw[label].length);
         if(!labels.length)continue;
+        const applyInnerCrop=!key.includes('m7v53innercrop');
         const lib={};
         for(const label of labels){
           const converted=[];
           for(const t of raw[label]){
-            const next=convertLegacyDirectFeature(t);
+            const next=convertLegacyDirectFeature(t,applyInnerCrop);
             if(!next)continue;
             converted.push(next);
             if(converted.length>=MAX_TEMPLATES)break;
@@ -151,7 +191,7 @@
           if(converted.length)lib[label]=converted;
         }
         if(Object.keys(lib).length){
-          state.librarySource=key.includes('m7v47')?'v47':key.includes('m7v46')?'v46':key.includes('m7v45')?'v45':'v44';
+          state.librarySource=librarySourceName(key)+(applyInnerCrop?'-inner換算':'');
           return lib;
         }
       }catch(_){}
@@ -1032,8 +1072,8 @@
       const note=root.querySelector('.hand-result-note-m7v5');
       if(note)note.textContent=features.length===14
         ?(firstCalibration
-          ?'保存済みの牌画像がないため、M7 v53の初回学習が必要です。14枚を正しく指定してください。確定後は牌画像も端末内に保存します。'
-          :`v52診断で通常crop 6/14に対して内側crop 11/14だったため、外周を除いた内側cropを本番認識に採用しました。高信頼候補 ${auto}枚。`)
+          ?'保存済みの牌画像がないため、M7 v54の初回学習が必要です。14枚を正しく指定してください。確定後は牌画像も端末内に保存します。'
+          :`v52診断で通常crop 9/14に対して内側crop 12/14だったため、外周を除いた内側cropを本番認識に採用しています。高信頼候補 ${auto}枚。`)
         :'白枠内から牌列を特定できませんでした。撮影画像を確認し、14枠を手動入力するか「読み取り直す」で再撮影してください。';
       const status=root.querySelector('.hand-result-status-m7v5');
       if(status&&auto<14)status.textContent=features.length===14
@@ -1137,6 +1177,6 @@
   },true);
 
   window.M7CameraV36=Object.freeze({
-    sourceRectForCover,locateTileRow,splitRow,splitRowBySeams,analyzeGuideCanvas,featureFromBox,tileFaceRect,descriptorFromCanvas,detectFaceGeometry,detectFaceQuad,canonicalizeCanvas,orientedFaceCanvas,perspectiveFaceCanvas,warpQuadToCanvas,trainingImageDataUrl,innerRecognitionCanvas,innerFeatureFromCanonical,analyzeTileBox,loadTrainingSamples,rebuildLibraryFromTrainingImages,loadLibrary,loadLegacyLibrary,convertLegacyDirectFeature,confidentCandidate,renderPickerSuggestions,pickerCurrentIndex,schedulePickerSuggestionSync,attachPickerSuggestionObserver
+    sourceRectForCover,locateTileRow,splitRow,splitRowBySeams,analyzeGuideCanvas,featureFromBox,tileFaceRect,descriptorFromCanvas,detectFaceGeometry,detectFaceQuad,canonicalizeCanvas,orientedFaceCanvas,perspectiveFaceCanvas,warpQuadToCanvas,trainingImageDataUrl,innerRecognitionCanvas,innerFeatureFromCanonical,analyzeTileBox,loadTrainingSamples,rebuildLibraryFromTrainingImages,loadLibrary,loadLegacyLibrary,legacyLibraryKeys,convertLegacyDirectFeature,cropResampleFeatureMap,confidentCandidate,renderPickerSuggestions,pickerCurrentIndex,schedulePickerSuggestionSync,attachPickerSuggestionObserver
   });
 })();

@@ -579,6 +579,16 @@
 **回帰テスト:** v53で診断用second library/second rankingがコードから消えていること、inner cropが本番featureとraw再構築の両方へ適用されること、raw移行が各ラベル上限5枚かつ並列処理であることを確認する。
 **確度:** 通常9/14・内側12/14・約15秒は実機スクリーンショットとユーザー報告で確定。15秒の全てがraw診断library構築由来かは実機プロファイラ未実施のため未確定だが、v52コード上で重複処理が存在したことは確定。
 
+## M073: v53でv52の実際のlibrary keyを移行対象から漏らし、再び初回学習へ戻った
+**時期:** M7 v53→v54
+**症状:** v52では学習済み11種類を使えていたのに、v53ではiPhone実機の1回目・2回目とも「初回学習：14枚を指定してください」となった。結果表示自体はこれまでで最速だった。
+**根本原因:** v52/v51の`LIB_KEY`は`MahjongScoreApp_tile_templates_m7v48balanced24x36`を継続利用していた。一方v53の`LEGACY_LIB_KEYS`はv47/v46/v45/v44しか列挙せず、実際に端末へ残っているv48 keyを探索しなかった。raw IndexedDB再構築が使えない端末ではfallbackも0件になった。
+**修正:** v54ではv48 keyを明示追加し、さらに`MahjongScoreApp_tile_templates_` prefixのlocalStorage keyを自動探索して将来版も拾う。通常crop時代のfeatureは左右12%・上下8%相当をfeature-map上でcrop-resampleしてinner-crop形式へ近似変換する。v53 inner-crop featureは二重cropしない。
+**速度上の注意:** v53が最速だったという実機報告は有益だが、その2回はlibrary 0件で本番rankingを実行していないため、認識込みの速度改善としては未確定。v54で学習libraryを復旧した状態の速度を再測定する。
+**再発防止:** 新版で保存keyを変更するときは、直前版の表示version名ではなく**実際のLIB_KEY文字列**を履歴から確認する。可能な限り保存schemaをversion表示と分離し、互換schemaならkeyを変えない。legacy migrationはprefix探索の回帰テストを持つ。
+**回帰テスト:** v48 keyだけがlocalStorageに存在する状態をChromiumで作り、v54の`loadLegacyLibrary()`がラベルを復旧し24×36の`perspective-direct-v1`へ変換できることを確認。
+**確度:** v53のlegacy key漏れはコード上確定。v53の速度が最速だったことはユーザー実機報告で確定。ただし認識込み速度は未確定。
+
 # 変更前に特に見る高頻度項目
 1. **古いパッチとの競合**（M001/M003/M004/M006/M007）
 2. **実DOMとCSS前提**（M011/M015/M017）

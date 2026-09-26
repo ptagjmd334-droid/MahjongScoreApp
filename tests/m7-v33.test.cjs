@@ -161,7 +161,7 @@ test('camera v36 is loaded before ui-fixes so verified clicks train the active c
   assert(index.indexOf('script.js')<index.indexOf('m7-recognition-core.js'));
   assert(index.indexOf('m7-recognition-core.js')<index.indexOf('m7-camera-v36.js'));
   assert(index.indexOf('m7-camera-v36.js')<index.indexOf('ui-fixes.js'));
-  assert(index.includes('M7 v53'));
+  assert(index.includes('M7 v54'));
 });
 
 test('legacy live detector and demo fill yield to the active camera owner',()=>{
@@ -178,9 +178,13 @@ test('v36 camera avoids fixed bright-white threshold and closes camera when hidd
   assert(camera.includes(".realtime-hand-cancel-m7v3')?.click()"));
 });
 
-test('v53 promotes inner crop to production and removes the duplicate diagnostic pass',()=>{
+test('v54 keeps inner crop production and recovers v48/v52 learning',()=>{
   const camera=fs.readFileSync(path.join(root,'m7-camera-v36.js'),'utf8');
   assert(camera.includes("MahjongScoreApp_tile_templates_m7v53innercrop1"));
+  assert(camera.includes("MahjongScoreApp_tile_templates_m7v48balanced24x36"));
+  assert(camera.includes('legacyLibraryKeys'));
+  assert(camera.includes('cropResampleFeatureMap'));
+  assert(camera.includes("applyInnerCrop=!key.includes('m7v53innercrop')"));
   assert(camera.includes("badge.className='m7v53-top1'"));
   assert(camera.includes('innerRecognitionCanvas'));
   assert(camera.includes('innerFeatureFromCanonical'));

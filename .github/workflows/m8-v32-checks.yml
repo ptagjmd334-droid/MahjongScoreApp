@@ -31,6 +31,7 @@ on:
       - work/m7-v51-family-discriminative
       - work/m7-v52-crop-diagnostic
       - work/m7-v53-inner-crop-production
+      - work/m7-v54-inner-library-migration
   workflow_dispatch:
 
 jobs:
