@@ -24,7 +24,7 @@
   const FEATURE_KIND='perspective-direct-v1';
   const MAX_TEMPLATES=5;
   const MAX_IMAGES_PER_LABEL=10;
-  const state={overlay:null,captured:false,pendingFeatures:[],pendingCrops:[],pendingTrainingImages:[],diagnostics:null,predictionDebug:[],learnedLabelCount:0,librarySource:'',runtimeLibrary:null,storageDiagnostics:null};
+  const state={overlay:null,captured:false,pendingFeatures:[],pendingCrops:[],pendingTrainingImages:[],diagnostics:null,predictionDebug:[],confidenceReasons:[],learnedLabelCount:0,librarySource:'',runtimeLibrary:null,storageDiagnostics:null};
   const persistPromises=new WeakMap();
 
   const style=document.createElement('style');
@@ -906,47 +906,71 @@
     return perspectiveFaceCanvas(ctx,b,96,144).toDataURL('image/jpeg',.90);
   }
 
-  function confidentCandidate(ranked){
-    if(!Array.isArray(ranked)||!ranked.length)return null;
+  function confidenceAssessment(ranked){
+    if(!Array.isArray(ranked)||!ranked.length)return {candidate:null,reason:'no-candidate'};
     const best=ranked[0],second=ranked.find(x=>x.label!==best.label);
-    if(!best||!Number.isFinite(best.distance))return null;
-    // Family evidence may remain soft for Top1, but auto-confirm must not fight a
-    // clearly stronger family signal.
-    if(best.bestFamily&&best.family&&best.bestFamily!==best.family&&Number(best.familyGap)>.020)return null;
+    if(!best||!Number.isFinite(best.distance))return {candidate:null,reason:'invalid-distance'};
+    if(best.bestFamily&&best.family&&best.bestFamily!==best.family&&Number(best.familyGap)>.020){
+      return {candidate:null,reason:'family-conflict'};
+    }
 
     const bestRaw=Number.isFinite(best.bestDistance)?best.bestDistance:best.distance;
-    // Keep an absolute quality guard. v60 does not create "high confidence" by
-    // merely relaxing the old thresholds.
-    if(best.distance>.150||bestRaw>.125)return null;
+    if(best.distance>.150||bestRaw>.125)return {candidate:null,reason:'absolute-distance'};
 
     const spread=Math.max(0,Number.isFinite(best.templateSpread)?best.templateSpread:0);
     const sameFamily=ranked.find(x=>x.label!==best.label&&x.family===best.family&&Number.isFinite(x.distance));
     const localRunner=sameFamily||second;
     if(!localRunner||!Number.isFinite(localRunner.distance)){
-      return best.distance<=.105&&bestRaw<=.09&&spread<=.055?best:null;
+      const candidate=best.distance<=.105&&bestRaw<=.09&&spread<=.055?best:null;
+      return {candidate,reason:candidate?'accepted':'single-class-quality'};
     }
 
-    // A compact learned class can justify a smaller margin; a noisy class needs a
-    // wider lead over its closest same-family rival. This ties confidence to the
-    // actual learned-data spread rather than a display-only threshold.
     const runnerSpread=Math.max(0,Number.isFinite(localRunner.templateSpread)?localRunner.templateSpread:0);
     const localGap=localRunner.distance-best.distance;
     const localRatio=localRunner.distance>0?best.distance/localRunner.distance:1;
     const requiredLocalGap=Math.max(.010,Math.min(.026,.008+spread*.55+runnerSpread*.25));
-    if(localGap<requiredLocalGap||localRatio>.84)return null;
+    if(localGap<requiredLocalGap||localRatio>.84)return {candidate:null,reason:'same-family-margin'};
 
     if(second&&Number.isFinite(second.distance)){
       const globalGap=second.distance-best.distance;
       const globalRatio=second.distance>0?best.distance/second.distance:1;
-      if(globalGap<.010||globalRatio>.86)return null;
+      if(globalGap<.010||globalRatio>.86)return {candidate:null,reason:'global-margin'};
     }
-    if(Number.isFinite(best.sameFamilyGap)&&best.sameFamilyGap<requiredLocalGap)return null;
-    if(Number.isFinite(best.sameFamilyRatio)&&best.sameFamilyRatio>.84)return null;
-    return best;
+    if(Number.isFinite(best.sameFamilyGap)&&best.sameFamilyGap<requiredLocalGap){
+      return {candidate:null,reason:'same-family-margin'};
+    }
+    if(Number.isFinite(best.sameFamilyRatio)&&best.sameFamilyRatio>.84){
+      return {candidate:null,reason:'same-family-margin'};
+    }
+    return {candidate:best,reason:'accepted'};
+  }
+
+  function confidentCandidate(ranked){
+    return confidenceAssessment(ranked).candidate;
+  }
+
+  function confidenceReasonSummary(){
+    const counts={};
+    for(const reason of state.confidenceReasons||[]){
+      if(!reason||reason==='accepted')continue;
+      counts[reason]=(counts[reason]||0)+1;
+    }
+    const labels={
+      'absolute-distance':'距離',
+      'same-family-margin':'同系差',
+      'global-margin':'全体差',
+      'family-conflict':'family競合',
+      'single-class-quality':'単独品質',
+      'no-candidate':'候補なし',
+      'invalid-distance':'距離不正',
+      'label-limit':'枚数制限'
+    };
+    const parts=Object.entries(counts).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`${labels[k]||k}${v}`);
+    return parts.length?parts.join('・'):'なし';
   }
 
   function predict(features){
-    const lib=activeLibrary(),used={},debug=[];
+    const lib=activeLibrary(),used={},debug=[],reasons=[];
     state.learnedLabelCount=Object.keys(lib).filter(label=>Array.isArray(lib[label])&&lib[label].length).length;
     const labels=features.map((feature,index)=>{
       const ranked=core.rankLabelsFamilyDiscriminative(feature,lib,{blend:.84,labelBlend:.72,priorWeight:.26,maxPenalty:.016});
@@ -967,12 +991,16 @@
         familyGap:Number.isFinite(x.familyGap)?Number(x.familyGap.toFixed(4)):null
       }));
       const available=ranked.filter(x=>(used[x.label]||0)<4);
-      const accepted=confidentCandidate(available);
+      if(!available.length){reasons[index]='label-limit';return '';}
+      const assessment=confidenceAssessment(available);
+      reasons[index]=assessment.reason;
+      const accepted=assessment.candidate;
       if(!accepted)return '';
       used[accepted.label]=(used[accepted.label]||0)+1;
       return accepted.label;
     });
     state.predictionDebug=debug;
+    state.confidenceReasons=reasons;
     return labels;
   }
 
@@ -1403,7 +1431,7 @@
       if(note)note.textContent=features.length===14
         ?(firstCalibration
           ?'この保存領域には学習データがありません。今回だけ14枚を正しく指定してください。「この手牌で進む」を押した時に保存完了を確認してから次へ進みます。'
-          :`精度優先版です。14枚の境界は個別シームではなく列全体の周期だけで補正します。内側cropと強い台形拒否も維持します。高信頼候補 ${auto}枚。`)
+          :`精度優先版です。14枚の境界は個別シームではなく列全体の周期だけで補正します。内側cropと強い台形拒否も維持します。高信頼候補 ${auto}枚。保留理由: ${confidenceReasonSummary()}。`)
         :'白枠内から牌列を特定できませんでした。撮影画像を確認し、14枠を手動入力するか「読み取り直す」で再撮影してください。';
       const status=root.querySelector('.hand-result-status-m7v5');
       if(status&&auto<14)status.textContent=features.length===14
@@ -1576,6 +1604,6 @@
   },true);
 
   window.M7CameraV36=Object.freeze({
-    sourceRectForCover,locateTileRow,splitRow,fitGlobalRowGrid,splitRowBySeams,analyzeGuideCanvas,featureFromBox,tileFaceRect,descriptorFromCanvas,detectFaceGeometry,detectFaceQuad,canonicalizeCanvas,orientedFaceCanvas,perspectiveFaceCanvas,warpQuadToCanvas,trainingImageDataUrl,innerRecognitionCanvas,innerFeatureFromCanonical,analyzeTileBox,loadTrainingSamples,rebuildLibraryFromTrainingImages,loadLibrary,activeLibrary,saveLibrary,saveLibraryDetailed,persistVerifiedHand,persistFailureText,loadLegacyLibrary,legacyLibraryKeys,convertLegacyDirectFeature,cropResampleFeatureMap,confidentCandidate,renderPickerPhoto,renderPickerSuggestions,pickerCurrentIndex,schedulePickerSuggestionSync,attachPickerSuggestionObserver
+    sourceRectForCover,locateTileRow,splitRow,fitGlobalRowGrid,splitRowBySeams,analyzeGuideCanvas,featureFromBox,tileFaceRect,descriptorFromCanvas,detectFaceGeometry,detectFaceQuad,canonicalizeCanvas,orientedFaceCanvas,perspectiveFaceCanvas,warpQuadToCanvas,trainingImageDataUrl,innerRecognitionCanvas,innerFeatureFromCanonical,analyzeTileBox,loadTrainingSamples,rebuildLibraryFromTrainingImages,loadLibrary,activeLibrary,saveLibrary,saveLibraryDetailed,persistVerifiedHand,persistFailureText,loadLegacyLibrary,legacyLibraryKeys,convertLegacyDirectFeature,cropResampleFeatureMap,confidenceAssessment,confidentCandidate,confidenceReasonSummary,renderPickerPhoto,renderPickerSuggestions,pickerCurrentIndex,schedulePickerSuggestionSync,attachPickerSuggestionObserver
   });
 })();
