@@ -347,7 +347,7 @@ test('v68 preserves stable learning and restores full-label five-view votes with
   assert(camera.includes("reason:'same-family-margin'"));
   assert(camera.includes('confidenceReasonSummary'));
   assert(camera.includes('function inferenceFeatureViews'));
-  assert(camera.includes('core.rankCandidateLabelsStructural(view,lib,candidateLabels)'));
+  assert(camera.includes('core.rankLabelsFastDiscriminative(view,lib'));
   assert(camera.includes('core.applyViewVoteConsensus(baseRanked,auxRankings'));
   assert(camera.includes('const AUX_BUDGET_MS=2500'));
   assert(!camera.includes('baseGap<.030||baseRatio>.80'));
