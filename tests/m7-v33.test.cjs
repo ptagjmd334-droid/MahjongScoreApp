@@ -93,7 +93,7 @@ test('camera v36 is loaded before ui-fixes so verified clicks train the active c
   assert(index.indexOf('script.js')<index.indexOf('m7-recognition-core.js'));
   assert(index.indexOf('m7-recognition-core.js')<index.indexOf('m7-camera-v36.js'));
   assert(index.indexOf('m7-camera-v36.js')<index.indexOf('ui-fixes.js'));
-  assert(index.includes('M7 v46'));
+  assert(index.includes('M7 v47'));
 });
 
 test('legacy live detector and demo fill yield to the active camera owner',()=>{
@@ -110,7 +110,7 @@ test('v36 camera avoids fixed bright-white threshold and closes camera when hidd
   assert(camera.includes(".realtime-hand-cancel-m7v3')?.click()"));
 });
 
-test('v46 exposes rank1 and perspective-normalizes before matching',()=>{
+test('v47 preserves perspective matching and legacy learning migration',()=>{
   const camera=fs.readFileSync(path.join(root,'m7-camera-v36.js'),'utf8');
   assert(camera.includes("badge.className='m7v45-top1'"));
   assert(camera.includes("position:absolute;right:3px;top:3px"));
@@ -118,7 +118,11 @@ test('v46 exposes rank1 and perspective-normalizes before matching',()=>{
   assert(camera.includes('detectFaceQuad'));
   assert(camera.includes('warpQuadToCanvas'));
   assert(camera.includes('perspectiveFaceCanvas'));
-  assert(camera.includes("MahjongScoreApp_tile_templates_m7v46perspective1"));
+  assert(camera.includes("MahjongScoreApp_tile_templates_m7v47migration1"));
+  assert(camera.includes("MahjongScoreApp_tile_templates_m7v45oriented1"));
+  assert(camera.includes('loadLegacyLibrary'));
+  assert(camera.includes("if(raw.length)saveTrainingBatch(raw).catch(()=>{})"));
+  assert(camera.includes("},true);"));
 });
 
 test('all published JavaScript entrypoints parse',()=>{
