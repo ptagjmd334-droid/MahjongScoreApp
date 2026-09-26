@@ -616,6 +616,15 @@
 **回帰テスト:** Chromiumで1枚目pickerを開いた時にdata URL画像が表示され、通常グリッドから1枚選んで2枚目へ進んだ後にpreview srcが変わることを確認。
 **確度:** UX問題は実機スクリーンショットとユーザー報告で確定。
 
+## M077: 学習保存をfire-and-forgetし、実機で保存失敗しても次画面へ進めていた
+**時期:** M7 v56〜v57→v58
+**症状:** ユーザーはv56で14枚を手動指定して「この手牌で進む」まで実施したが、確認用のv57再撮影でも初回学習のままだった。
+**根本原因:** M7保存処理はdocument capture listenerで発火するだけで、ui-fixesの結果遷移は保存結果を待たずにrootをremoveして次へ進んでいた。`saveLibrary()`も例外をcatchして黙って0を返す設計だったため、実機保存が失敗してもユーザーには成功したように見えた。テストも最終localStorage値だけを見ており、実UI遷移が保存成功を待つことを保証していなかった。
+**修正:** v58で`persistVerifiedHand(root)`をidempotentなPromise APIとして実装。14ラベル/featureを検証→primary+backup保存→read-back検証→raw IndexedDB保存の順で処理し、ui-fixes側がawaitする。失敗時は遷移を止めて入力済み14枚を残す。
+**再発防止:** 重要な保存を行うボタンは、保存完了・read-back検証前に画面を閉じない。保存APIは成功/失敗を戻し、UI側がその結果で遷移を決める。catchして無言で続行しない。
+**回帰テスト:** source testでui-fixesが`await window.M7CameraV36.persistVerifiedHand(root)`を呼ぶことを確認。browser smokeで実際の「この手牌で進む」クリック後にstable keyへ14ラベルが保存されることを確認。
+**確度:** v57再撮影でも初回学習だったことはユーザー実機で確定。旧UIが保存完了を待たず遷移する構造はコード上確定。
+
 # 変更前に特に見る高頻度項目
 1. **古いパッチとの競合**（M001/M003/M004/M006/M007）
 2. **実DOMとCSS前提**（M011/M015/M017）
