@@ -25,6 +25,7 @@
   const MAX_TEMPLATES=5;
   const MAX_IMAGES_PER_LABEL=10;
   const state={overlay:null,captured:false,pendingFeatures:[],pendingCrops:[],pendingTrainingImages:[],diagnostics:null,predictionDebug:[],learnedLabelCount:0,librarySource:''};
+  const persistPromises=new WeakMap();
 
   const style=document.createElement('style');
   style.textContent=`
@@ -1153,7 +1154,7 @@
       const note=root.querySelector('.hand-result-note-m7v5');
       if(note)note.textContent=features.length===14
         ?(firstCalibration
-          ?'この保存領域には学習データがありません。撮影回数では学習されません。今回だけ14枚を正しく指定して「この手牌で進む」まで確定してください。確定後は安定保存キー＋バックアップへ保存します。'
+          ?'この保存領域には学習データがありません。今回だけ14枚を正しく指定してください。「この手牌で進む」を押した時に保存完了を確認してから次へ進みます。'
           :`精度優先版です。内側cropを維持しつつ、強すぎる台形補正は拒否して回転補正へ戻します。表示画像も実際に認識へ使った内側cropです。高信頼候補 ${auto}枚。`)
         :'白枠内から牌列を特定できませんでした。撮影画像を確認し、14枠を手動入力するか「読み取り直す」で再撮影してください。';
       const status=root.querySelector('.hand-result-status-m7v5');
@@ -1237,27 +1238,64 @@
     }
   });
 
-  // Learn only after all 14 labels were explicitly verified.
+  async function persistVerifiedHand(root=document.getElementById('hand-result-overlay-m7v5')){
+    if(!root)return {ok:false,reason:'result-missing',learned:0,rawSaved:false};
+    if(persistPromises.has(root))return persistPromises.get(root);
+    const promise=(async()=>{
+      const buttons=[...root.querySelectorAll('.hand-result-tile-m7v5')];
+      const labels=buttons.map(b=>b.dataset.tile||'');
+      if(buttons.length!==14||labels.some(x=>!x))return {ok:false,reason:'labels-incomplete',learned:0,rawSaved:false};
+      if(state.pendingFeatures.length!==14)return {ok:false,reason:'features-missing',learned:0,rawSaved:false};
+
+      const lib=loadLibrary(),raw=[];
+      for(let i=0;i<14;i++){
+        const label=labels[i],feature=state.pendingFeatures[i],imageDataUrl=state.pendingTrainingImages[i];
+        if(!feature||feature.kind!==FEATURE_KIND)return {ok:false,reason:'feature-invalid',learned:0,rawSaved:false};
+        const list=Array.isArray(lib[label])?lib[label]:[];
+        if(!list.some(t=>core.featureDistance(feature,t)<.012)){
+          list.unshift(feature);lib[label]=list.slice(0,MAX_TEMPLATES);
+        }
+        if(imageDataUrl)raw.push({label,imageDataUrl});
+      }
+
+      const written=saveLibrary(lib);
+      const verify=loadLibrary();
+      const learned=Object.keys(verify).filter(label=>Array.isArray(verify[label])&&verify[label].length).length;
+      const allLabelsPresent=[...new Set(labels)].every(label=>Array.isArray(verify[label])&&verify[label].length);
+      if(!written||!learned||!allLabelsPresent){
+        return {ok:false,reason:'stable-store-write-failed',learned,rawSaved:false};
+      }
+
+      let rawSaved=false;
+      if(raw.length){
+        try{rawSaved=await saveTrainingBatch(raw);}catch(_){rawSaved=false;}
+      }
+      root.dataset.m7v58Persisted='1';
+      state.librarySource='stable';
+      state.learnedLabelCount=learned;
+      return {ok:true,reason:'',learned,rawSaved};
+    })();
+    persistPromises.set(root,promise);
+    return promise;
+  }
+
+  // Start persistence as soon as the verified-hand button is pressed.
+  // ui-fixes waits for this exact promise before leaving the result screen.
   document.addEventListener('click',e=>{
     const ok=e.target.closest?.('.hand-result-ok-m7v5');if(!ok)return;
     const root=document.getElementById('hand-result-overlay-m7v5');if(!root)return;
-    const buttons=[...root.querySelectorAll('.hand-result-tile-m7v5')];
-    if(state.pendingFeatures.length!==14)return;
-    const lib=loadLibrary(),raw=[];
-    buttons.forEach((b,i)=>{
-      const label=b.dataset.tile,feature=state.pendingFeatures[i],imageDataUrl=state.pendingTrainingImages[i];
-      if(!label||!feature||feature.kind!==FEATURE_KIND)return;
-      const list=Array.isArray(lib[label])?lib[label]:[];
-      if(!list.some(t=>core.featureDistance(feature,t)<.012)){
-        list.unshift(feature);lib[label]=list.slice(0,MAX_TEMPLATES);
+    const status=root.querySelector('.hand-result-status-m7v5');
+    if(status)status.textContent='学習データを保存中…';
+    persistVerifiedHand(root).then(result=>{
+      if(!result.ok&&root.isConnected){
+        if(status)status.textContent='学習データの保存に失敗しました';
+        const note=root.querySelector('.hand-result-note-m7v5');
+        if(note)note.textContent='保存に失敗したため、この画面を閉じません。もう一度入力する必要はありません。この画面をそのまま送ってください。';
       }
-      if(imageDataUrl)raw.push({label,imageDataUrl});
     });
-    saveLibrary(lib);
-    if(raw.length)saveTrainingBatch(raw).catch(()=>{});
   },true);
 
   window.M7CameraV36=Object.freeze({
-    sourceRectForCover,locateTileRow,splitRow,splitRowBySeams,analyzeGuideCanvas,featureFromBox,tileFaceRect,descriptorFromCanvas,detectFaceGeometry,detectFaceQuad,canonicalizeCanvas,orientedFaceCanvas,perspectiveFaceCanvas,warpQuadToCanvas,trainingImageDataUrl,innerRecognitionCanvas,innerFeatureFromCanonical,analyzeTileBox,loadTrainingSamples,rebuildLibraryFromTrainingImages,loadLibrary,saveLibrary,loadLegacyLibrary,legacyLibraryKeys,convertLegacyDirectFeature,cropResampleFeatureMap,confidentCandidate,renderPickerPhoto,renderPickerSuggestions,pickerCurrentIndex,schedulePickerSuggestionSync,attachPickerSuggestionObserver
+    sourceRectForCover,locateTileRow,splitRow,splitRowBySeams,analyzeGuideCanvas,featureFromBox,tileFaceRect,descriptorFromCanvas,detectFaceGeometry,detectFaceQuad,canonicalizeCanvas,orientedFaceCanvas,perspectiveFaceCanvas,warpQuadToCanvas,trainingImageDataUrl,innerRecognitionCanvas,innerFeatureFromCanonical,analyzeTileBox,loadTrainingSamples,rebuildLibraryFromTrainingImages,loadLibrary,saveLibrary,persistVerifiedHand,loadLegacyLibrary,legacyLibraryKeys,convertLegacyDirectFeature,cropResampleFeatureMap,confidentCandidate,renderPickerPhoto,renderPickerSuggestions,pickerCurrentIndex,schedulePickerSuggestionSync,attachPickerSuggestionObserver
   });
 })();
