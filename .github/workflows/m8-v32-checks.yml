@@ -38,6 +38,7 @@ on:
       - work/m7-v58-blocking-learning-save
       - work/m7-v59-idb-learning-fallback
       - work/m7-v60-picker-precision
+      - work/m7-v61-global-grid-alignment
   workflow_dispatch:
 
 jobs:
