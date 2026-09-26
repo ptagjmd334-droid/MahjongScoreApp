@@ -34,7 +34,7 @@ const server=http.createServer((req,res)=>{
     const errors=[];page.on('pageerror',e=>errors.push(String(e)));
     await page.goto('http://127.0.0.1:'+port+'/',{waitUntil:'domcontentloaded',timeout:30000});
     await page.waitForSelector('#go-confirm-button',{timeout:12000});
-    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'M7 v52');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'M7 v53');
     // v36 analyzes one long row after the shutter instead of requiring 14 live connected components.
     const synthetic=await page.evaluate(()=>{
       const canvas=document.createElement('canvas');canvas.width=840;canvas.height=260;
@@ -249,7 +249,7 @@ const server=http.createServer((req,res)=>{
       const cropStyle=firstCrop?getComputedStyle(firstCrop):null;
       const preview={backgroundSize:cropStyle?.backgroundSize||'',height:firstCrop?.getBoundingClientRect().height||0};
       const diag=window.M7V36LastDiagnostics||null;
-      let learned=0,rawSaved=0,diagLearned=0;
+      let learned=0,rawSaved=0;
       if(result){
         const resultTiles=[...result.querySelectorAll('.hand-result-tile-m7v5')];
         if(resultTiles[0]){
@@ -276,30 +276,27 @@ const server=http.createServer((req,res)=>{
           ok.click();
           await new Promise(resolve=>setTimeout(resolve,180));
           try{
-            const lib=JSON.parse(localStorage.getItem('MahjongScoreApp_tile_templates_m7v48balanced24x36')||'{}');
+            const lib=JSON.parse(localStorage.getItem('MahjongScoreApp_tile_templates_m7v53innercrop1')||'{}');
             learned=Object.values(lib).reduce((n,list)=>n+(Array.isArray(list)&&list.length?1:0),0);
             rawSaved=(await window.M7CameraV36.loadTrainingSamples()).length;
-            const diagLib=await window.M7CameraV36.buildInnerDiagnosticLibrary();
-            diagLearned=Object.keys(diagLib).filter(label=>Array.isArray(diagLib[label])&&diagLib[label].length).length;
           }catch(_){}
         }
       }
       result?.remove();fake.remove();
-      localStorage.removeItem('MahjongScoreApp_tile_templates_m7v48balanced24x36');
+      localStorage.removeItem('MahjongScoreApp_tile_templates_m7v53innercrop1');
       const suggestionCount=window.__m7v39SuggestionCount||0;delete window.__m7v39SuggestionCount;
       const secondSuggestions=window.__m7v42SecondSuggestions||[];delete window.__m7v42SecondSuggestions;
       const ownerIndex=window.__m7v42OwnerIndex;delete window.__m7v42OwnerIndex;
-      return {overlap,tiles,crops,note,diag,preview,learned,rawSaved,diagLearned,suggestionCount,secondSuggestions,ownerIndex};
+      return {overlap,tiles,crops,note,diag,preview,learned,rawSaved,suggestionCount,secondSuggestions,ownerIndex};
     });
     assert.equal(shutter.overlap,false,'v36 shutter and cancel overlap '+JSON.stringify(shutter));
     assert.equal(shutter.tiles,14,'v36 shutter did not open 14 editable slots '+JSON.stringify(shutter));
     assert.equal(shutter.crops,14,'v36 did not use 14 high-resolution row crops '+JSON.stringify(shutter));
-    assert(shutter.note.includes('初回学習'),'v52 first calibration explanation missing '+JSON.stringify(shutter));
+    assert(shutter.note.includes('初回学習'),'v53 first calibration explanation missing '+JSON.stringify(shutter));
     assert.equal(shutter.preview.backgroundSize,'contain','tile preview must show the full crop '+JSON.stringify(shutter));
     assert(shutter.preview.height<190,'tile preview should not stretch through the whole result card '+JSON.stringify(shutter));
-    assert.equal(shutter.learned,14,'verified v52 calibration was not persisted before result close '+JSON.stringify(shutter));
+    assert.equal(shutter.learned,14,'verified v53 calibration was not persisted before result close '+JSON.stringify(shutter));
     assert(shutter.rawSaved>=14,'verified tile images were not persisted to IndexedDB '+JSON.stringify(shutter));
-    assert.equal(shutter.diagLearned,14,'v52 inner-crop diagnostic library did not rebuild from raw images '+JSON.stringify(shutter));
     assert.equal(shutter.suggestionCount,3,'top-3 quick suggestions missing '+JSON.stringify(shutter));
     assert.equal(shutter.ownerIndex,1,'continuous picker owner did not advance to tile 2 '+JSON.stringify(shutter));
     assert.deepEqual(shutter.secondSuggestions,['4筒','5筒','6筒'],'normal-grid advance kept stale suggestions '+JSON.stringify(shutter));
@@ -314,6 +311,16 @@ const server=http.createServer((req,res)=>{
     assert.equal(confidence.ambiguous,'','ambiguous candidate must be withheld '+JSON.stringify(confidence));
     assert.equal(confidence.far,'','far candidate must be withheld '+JSON.stringify(confidence));
     assert(shutter.diag?.rowFound,'v36 diagnostics did not record the located row '+JSON.stringify(shutter));
+    const innerApi=await page.evaluate(()=>{
+      const c=document.createElement('canvas');c.width=100;c.height=100;
+      const x=c.getContext('2d');x.fillStyle='#f00';x.fillRect(0,0,100,100);x.fillStyle='#111';x.fillRect(12,8,76,84);
+      const out=window.M7CameraV36.innerRecognitionCanvas(c,96,144);
+      const p=out.getContext('2d').getImageData(0,0,1,1).data;
+      return {width:out.width,height:out.height,pixel:[p[0],p[1],p[2]]};
+    });
+    assert.equal(innerApi.width,96,'v53 inner crop width changed '+JSON.stringify(innerApi));
+    assert.equal(innerApi.height,144,'v53 inner crop height changed '+JSON.stringify(innerApi));
+    assert(innerApi.pixel[0]<160&&innerApi.pixel[1]<40,'v53 inner crop did not substantially remove the synthetic red outer edge '+JSON.stringify(innerApi));
     // Reload after the isolated camera/calibration probe so the remaining game-flow smoke test
     // starts from a pristine setup screen.
     await page.reload({waitUntil:'domcontentloaded',timeout:30000});
