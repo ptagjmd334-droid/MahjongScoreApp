@@ -529,6 +529,60 @@
     return sorted;
   }
 
+  function medianFinite(values){
+    const a=(values||[]).filter(Number.isFinite).sort((x,y)=>x-y);
+    if(!a.length)return Infinity;
+    const m=Math.floor(a.length/2);
+    return a.length%2?a[m]:(a[m-1]+a[m])/2;
+  }
+
+  function combineViewRankings(viewRankings){
+    const views=(viewRankings||[]).filter(v=>Array.isArray(v)&&v.length);
+    if(!views.length)return [];
+    if(views.length===1)return views[0].map(x=>({...x,viewTopVotes:1,viewCount:1,viewDistanceRange:0}));
+    const labels=[...new Set(views.flatMap(v=>v.map(x=>x.label).filter(Boolean)))];
+    const topVotes={};
+    for(const v of views){
+      const label=v[0]?.label;
+      if(label)topVotes[label]=(topVotes[label]||0)+1;
+    }
+    const numericKeys=[
+      'bestDistance','representativeDistance','templateConsensusDistance','representativeScore','directScore',
+      'structuralRepresentativeDistance','structuralConsensusDistance','structuralScore',
+      'globalDistance','discriminativeDistance','labelWeightedDistance','familyWeightedDistance',
+      'templateSpread','familyDistance','familyPenalty','familyRunnerUpDistance','familyGap','familyRatio'
+    ];
+    const combined=[];
+    for(const label of labels){
+      const entries=views.map(v=>v.find(x=>x.label===label)).filter(Boolean);
+      if(!entries.length)continue;
+      const distances=entries.map(x=>x.distance).filter(Number.isFinite).sort((a,b)=>a-b);
+      if(!distances.length)continue;
+      const mid=medianFinite(distances);
+      const range=distances[distances.length-1]-distances[0];
+      const base=entries.slice().sort((a,b)=>Math.abs((a.distance??mid)-mid)-Math.abs((b.distance??mid)-mid))[0];
+      const out={...base};
+      out.distance=mid+Math.min(.018,range*.10);
+      for(const key of numericKeys){
+        const m=medianFinite(entries.map(x=>x[key]));
+        if(Number.isFinite(m))out[key]=m;
+      }
+      out.viewTopVotes=topVotes[label]||0;
+      out.viewCount=views.length;
+      out.viewDistanceMedian=mid;
+      out.viewDistanceRange=range;
+      combined.push(out);
+    }
+    combined.sort((a,b)=>a.distance-b.distance);
+    for(const x of combined){
+      const sameRunner=combined.find(y=>y.label!==x.label&&y.family===x.family);
+      x.sameFamilyRunnerDistance=sameRunner?.distance??Infinity;
+      x.sameFamilyGap=sameRunner&&Number.isFinite(sameRunner.distance)?sameRunner.distance-x.distance:Infinity;
+      x.sameFamilyRatio=sameRunner&&sameRunner.distance>0?x.distance/sameRunner.distance:0;
+    }
+    return combined;
+  }
+
   function rankLabelsSoftHierarchical(feature,library,options={}){
     if(!feature||!library||typeof library!=='object')return [];
     const labels=rankLabelsBalanced(feature,library);
@@ -593,7 +647,7 @@
     }
     return shift/current.length<=maxShift;
   }
-  const api=Object.freeze({rmsDistance,shiftedRmsDistance,shiftedGroupedRmsDistance,structuredFeatureDistance,directImageDistance,featureDistance,prototypeFeature,pooledChannel,structuralDistance,templateStructuralConsensusDistance,medoidFeature,templateConsensusDistance,rankLabels,rankLabelsRobust,rankLabelsBalanced,tileFamily,buildFamilyLibrary,rankFamiliesBalanced,rankLabelsHierarchical,rankLabelsSoftHierarchical,familyDiscriminativeWeights,labelDiscriminativeWeights,templateSpread,weightedDirectImageDistance,rankLabelsFamilyDiscriminative,classify,stableEnough});
+  const api=Object.freeze({rmsDistance,shiftedRmsDistance,shiftedGroupedRmsDistance,structuredFeatureDistance,directImageDistance,featureDistance,prototypeFeature,pooledChannel,structuralDistance,templateStructuralConsensusDistance,medoidFeature,templateConsensusDistance,medianFinite,combineViewRankings,rankLabels,rankLabelsRobust,rankLabelsBalanced,tileFamily,buildFamilyLibrary,rankFamiliesBalanced,rankLabelsHierarchical,rankLabelsSoftHierarchical,familyDiscriminativeWeights,labelDiscriminativeWeights,templateSpread,weightedDirectImageDistance,rankLabelsFamilyDiscriminative,classify,stableEnough});
   root.M7RecognitionCoreV33=api;
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })(typeof window!=='undefined'?window:globalThis);
