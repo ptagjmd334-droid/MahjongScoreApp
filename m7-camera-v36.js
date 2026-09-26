@@ -23,7 +23,7 @@
   const FEATURE_KIND='perspective-direct-v1';
   const MAX_TEMPLATES=5;
   const MAX_IMAGES_PER_LABEL=10;
-  const state={overlay:null,captured:false,pendingFeatures:[],pendingCrops:[],pendingTrainingImages:[],diagnostics:null,predictionDebug:[],learnedLabelCount:0,librarySource:''};
+  const state={overlay:null,captured:false,pendingFeatures:[],pendingCrops:[],pendingTrainingImages:[],diagnostics:null,predictionDebug:[],learnedLabelCount:0,librarySource:'',activeLibrary:{}};
 
   const style=document.createElement('style');
   style.textContent=`
@@ -527,6 +527,33 @@
     return solveLinearSystem(A,b);
   }
 
+
+  function stablePerspectiveQuad(quad){
+    if(!Array.isArray(quad)||quad.length!==4)return false;
+    const deg=r=>Math.abs(r*180/Math.PI);
+    const angle=(a,b)=>Math.atan2(b.y-a.y,b.x-a.x);
+    const norm180=a=>{
+      let d=a*180/Math.PI;
+      while(d>90)d-=180;
+      while(d<-90)d+=180;
+      return d;
+    };
+    const top=norm180(angle(quad[0],quad[1]));
+    const bottom=norm180(angle(quad[3],quad[2]));
+    const left=norm180(angle(quad[0],quad[3]))-90;
+    const right=norm180(angle(quad[1],quad[2]))-90;
+    const dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
+    const wt=dist(quad[0],quad[1]),wb=dist(quad[3],quad[2]);
+    const hl=dist(quad[0],quad[3]),hr=dist(quad[1],quad[2]);
+    const wr=Math.max(wt,wb)/Math.max(1,Math.min(wt,wb));
+    const hrRatio=Math.max(hl,hr)/Math.max(1,Math.min(hl,hr));
+    // Accuracy-first: a physical hand row should not have each tile independently
+    // rotated by a large amount. Reject unstable quads instead of forcing a warp.
+    return Math.abs(top)<=8&&Math.abs(bottom)<=8&&
+      Math.abs(top-bottom)<=5&&Math.abs(left)<=8&&Math.abs(right)<=8&&
+      wr<=1.22&&hrRatio<=1.22;
+  }
+
   function warpQuadToCanvas(source,quad,width=64,height=96){
     if(!Array.isArray(quad)||quad.length!==4)return null;
     const mx=Math.max(1,width*.035),my=Math.max(1,height*.035);
@@ -570,11 +597,14 @@
     const src=document.createElement('canvas');src.width=sw;src.height=sh;
     src.getContext('2d',{willReadFrequently:true}).drawImage(ctx.canvas,x0,y0,sw,sh,0,0,sw,sh);
     const quad=detectFaceQuad(src);
-    const warped=quad?warpQuadToCanvas(src,quad,width,height):null;
+    const stable=quad&&stablePerspectiveQuad(quad);
+    const warped=stable?warpQuadToCanvas(src,quad,width,height):null;
     if(warped)return warped;
-    const oriented=canonicalizeCanvas(src,width,height);
-    if(oriented){oriented.__m7v46Perspective=false;return oriented;}
-    const fallback=normalizedFaceCanvas(ctx,b,width,height);fallback.__m7v46Perspective=false;return fallback;
+    // Do not rotate each tile independently when the quad is unstable.
+    // Keeping the physical row orientation is safer than introducing artificial tilt.
+    const fallback=normalizedFaceCanvas(ctx,b,width,height);
+    fallback.__m7v46Perspective=false;
+    return fallback;
   }
 
   function orientedFaceCanvas(ctx,b,width=64,height=96){
@@ -698,6 +728,7 @@
       if(Object.keys(lib).length){
         state.librarySource='raw';
         saveLibrary(lib);
+    state.activeLibrary=lib;
         return lib;
       }
     }
@@ -710,7 +741,7 @@
     return existing;
   }
 
-  const trainingReadyPromise=rebuildLibraryFromTrainingImages().catch(()=>loadLibrary());
+  const trainingReadyPromise=rebuildLibraryFromTrainingImages().catch(()=>loadLibrary()).then(lib=>{state.activeLibrary=lib||{};return state.activeLibrary;});
 
   function cropDataUrl(ctx,b){
     return perspectiveFaceCanvas(ctx,b,96,144).toDataURL('image/jpeg',.90);
@@ -738,7 +769,7 @@
   }
 
   function predict(features){
-    const lib=loadLibrary(),used={},debug=[];
+    const lib=(state.activeLibrary&&Object.keys(state.activeLibrary).length)?state.activeLibrary:loadLibrary(),used={},debug=[];
     state.learnedLabelCount=Object.keys(lib).filter(label=>Array.isArray(lib[label])&&lib[label].length).length;
     const labels=features.map((feature,index)=>{
       const ranked=core.rankLabelsFamilyDiscriminative(feature,lib,{blend:.84,priorWeight:.26,maxPenalty:.016});
@@ -1067,17 +1098,18 @@
         }
       });
       const auto=predicted.filter(Boolean).length;
-      const learnedLabels=Object.keys(loadLibrary()).filter(label=>Array.isArray(loadLibrary()[label])&&loadLibrary()[label].length).length;
+      const active=(state.activeLibrary&&Object.keys(state.activeLibrary).length)?state.activeLibrary:loadLibrary();
+      const learnedLabels=Object.keys(active).filter(label=>Array.isArray(active[label])&&active[label].length).length;
       const firstCalibration=features.length===14&&learnedLabels===0;
       const note=root.querySelector('.hand-result-note-m7v5');
       if(note)note.textContent=features.length===14
         ?(firstCalibration
-          ?'保存済みの牌画像がないため、M7 v54の初回学習が必要です。14枚を正しく指定してください。確定後は牌画像も端末内に保存します。'
+          ?'保存済みの牌画像がないため、M7 v55の初回学習が必要です。14枚を正しく指定してください。確定後は牌画像も端末内に保存します。'
           :`v52診断で通常crop 9/14に対して内側crop 12/14だったため、外周を除いた内側cropを本番認識に採用しています。高信頼候補 ${auto}枚。`)
         :'白枠内から牌列を特定できませんでした。撮影画像を確認し、14枠を手動入力するか「読み取り直す」で再撮影してください。';
       const status=root.querySelector('.hand-result-status-m7v5');
       if(status&&auto<14)status.textContent=features.length===14
-        ?(firstCalibration?'初回学習：14枚を指定してください':`学習済み ${learnedLabels}種類${state.librarySource?` / 元:${state.librarySource}`:''} / 内側crop / 射影 ${analysis.perspectiveCount||0}/14 / 高信頼 ${auto}枚`)
+        ?(firstCalibration?'初回学習：14枚を指定してください':`学習済み ${learnedLabels}種類${state.librarySource?` / 元:${state.librarySource}`:''} / 内側crop / 安定射影 ${analysis.perspectiveCount||0}/14 / 高信頼 ${auto}枚`)
         :'手動入力：0 / 14枚';
       if(features.length!==14&&analysis.photo){
         const img=document.createElement('img');img.className='m7v36-photo';img.alt='白枠内を撮影した画像';img.src=analysis.photo;
@@ -1177,6 +1209,6 @@
   },true);
 
   window.M7CameraV36=Object.freeze({
-    sourceRectForCover,locateTileRow,splitRow,splitRowBySeams,analyzeGuideCanvas,featureFromBox,tileFaceRect,descriptorFromCanvas,detectFaceGeometry,detectFaceQuad,canonicalizeCanvas,orientedFaceCanvas,perspectiveFaceCanvas,warpQuadToCanvas,trainingImageDataUrl,innerRecognitionCanvas,innerFeatureFromCanonical,analyzeTileBox,loadTrainingSamples,rebuildLibraryFromTrainingImages,loadLibrary,loadLegacyLibrary,legacyLibraryKeys,convertLegacyDirectFeature,cropResampleFeatureMap,confidentCandidate,renderPickerSuggestions,pickerCurrentIndex,schedulePickerSuggestionSync,attachPickerSuggestionObserver
+    sourceRectForCover,locateTileRow,splitRow,splitRowBySeams,analyzeGuideCanvas,featureFromBox,tileFaceRect,descriptorFromCanvas,detectFaceGeometry,detectFaceQuad,canonicalizeCanvas,orientedFaceCanvas,perspectiveFaceCanvas,warpQuadToCanvas,trainingImageDataUrl,innerRecognitionCanvas,innerFeatureFromCanonical,analyzeTileBox,loadTrainingSamples,rebuildLibraryFromTrainingImages,loadLibrary,loadLegacyLibrary,legacyLibraryKeys,convertLegacyDirectFeature,cropResampleFeatureMap,stablePerspectiveQuad,confidentCandidate,renderPickerSuggestions,pickerCurrentIndex,schedulePickerSuggestionSync,attachPickerSuggestionObserver
   });
 })();
