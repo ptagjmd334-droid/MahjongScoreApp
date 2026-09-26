@@ -264,6 +264,25 @@ test('v68 fast full-label auxiliary ranking preserves suit discrimination withou
   assert(Number.isFinite(core.alignedDirectImageDistance(make('a'),make('b'))));
 });
 
+test('v70 micro-shift refinement fixes a one-pixel candidate offset without full transform search',()=>{
+  const w=24,h=36,n=w*h;
+  const mk=(offset)=>{
+    const gray=Array(n).fill(0),edge=Array(n).fill(0),red=Array(n).fill(0),green=Array(n).fill(0);
+    for(let y=8;y<28;y++){
+      const x=8+offset;
+      if(x>=0&&x<w){gray[y*w+x]=1;edge[y*w+x]=1;}
+    }
+    return {kind:'perspective-direct-v1',width:w,height:h,gray,edge,red,green};
+  };
+  const lib={'5索':[mk(0),mk(0)],'6索':[mk(3),mk(3)]};
+  const q=mk(1);
+  const aligned5=core.alignedDirectImageDistance(q,lib['5索'][0]);
+  const shifted5=core.integerShiftDirectImageDistance(q,lib['5索'][0]);
+  assert(shifted5<aligned5,'integer shift should improve a harmless 1px offset');
+  const ranked=core.rankCandidateLabelsMicroShift(q,lib,['5索','6索'],{});
+  assert.equal(ranked[0].label,'5索');
+});
+
 test('tile family mapping covers suits, honors and red fives',()=>{
   assert.equal(core.tileFamily('3萬'),'萬');
   assert.equal(core.tileFamily('赤5筒'),'筒');
@@ -291,7 +310,7 @@ test('camera v36 is loaded before ui-fixes so verified clicks train the active c
   assert(index.indexOf('script.js')<index.indexOf('m7-recognition-core.js'));
   assert(index.indexOf('m7-recognition-core.js')<index.indexOf('m7-camera-v36.js'));
   assert(index.indexOf('m7-camera-v36.js')<index.indexOf('ui-fixes.js'));
-  assert(index.includes('M7 v69'));
+  assert(index.includes('M7 v70'));
 });
 
 test('legacy live detector and demo fill yield to the active camera owner',()=>{
@@ -308,7 +327,7 @@ test('v36 camera avoids fixed bright-white threshold and closes camera when hidd
   assert(camera.includes(".realtime-hand-cancel-m7v3')?.click()"));
 });
 
-test('v69 preserves stable learning and uses all-fast five-view median consensus',()=>{
+test('v70 preserves stable learning and adds Top4 micro-shift refinement',()=>{
   const camera=fs.readFileSync(path.join(root,'m7-camera-v36.js'),'utf8');
   assert(camera.includes("MahjongScoreApp_tile_templates_stable1"));
   assert(camera.includes("MahjongScoreApp_tile_templates_stable1_backup"));
@@ -333,6 +352,9 @@ test('v69 preserves stable learning and uses all-fast five-view median consensus
   assert(coreSource.includes('function alignedDirectImageDistance'));
   assert(coreSource.includes('function alignedTemplateConsensusDistance'));
   assert(coreSource.includes('function rankLabelsFastDiscriminative'));
+  assert(coreSource.includes('function integerShiftDirectImageDistance'));
+  assert(coreSource.includes('function rankCandidateLabelsMicroShift'));
+  assert(coreSource.includes('function mergeCandidateRefinement'));
   assert(coreSource.includes('function applyViewVoteConsensus'));
   assert(coreSource.includes('const MEDOID_CACHE=new WeakMap()'));
   assert(coreSource.includes('const STRUCTURAL_SIGNATURE_CACHE=new WeakMap()'));
@@ -349,7 +371,11 @@ test('v69 preserves stable learning and uses all-fast five-view median consensus
   assert(camera.includes('function inferenceFeatureViews'));
   assert(camera.includes('core.rankLabelsFastDiscriminative(view,lib'));
   assert(camera.includes('core.combineViewRankings(rankings)'));
-  assert(camera.includes('const TOTAL_BUDGET_MS=5000'));
+  assert(camera.includes('const TOTAL_BUDGET_MS=7500'));
+  assert(camera.includes('ranked.slice(0,4).map'));
+  assert(camera.includes('core.rankCandidateLabelsMicroShift'));
+  assert(camera.includes('core.mergeCandidateRefinement'));
+  assert(camera.includes('lastMicroRefined'));
   assert(!camera.includes('baseGap<.030||baseRatio>.80'));
   assert(!camera.includes('baseRanked.slice(0,4)'));
   assert(camera.includes('core.rankLabelsFastDiscriminative(view,lib'));

@@ -47,6 +47,7 @@ on:
       - work/m7-v67-cached-budgeted-multiview
       - work/m7-v68-fast-fullview-consensus
       - work/m7-v69-allfast-fiveview
+      - work/m7-v70-microshift-refine
   workflow_dispatch:
 
 jobs:
