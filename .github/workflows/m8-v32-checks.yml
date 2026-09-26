@@ -35,6 +35,7 @@ on:
       - work/m7-v55-precision-geometry-guard
       - work/m7-v56-stable-learning-storage
       - work/m7-v57-calibration-photo-preview
+      - work/m7-v58-blocking-learning-save
   workflow_dispatch:
 
 jobs:
