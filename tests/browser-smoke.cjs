@@ -34,7 +34,7 @@ const server=http.createServer((req,res)=>{
     const errors=[];page.on('pageerror',e=>errors.push(String(e)));
     await page.goto('http://127.0.0.1:'+port+'/',{waitUntil:'domcontentloaded',timeout:30000});
     await page.waitForSelector('#go-confirm-button',{timeout:12000});
-    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'M7 v75');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'M7 v76');
     // v36 analyzes one long row after the shutter instead of requiring 14 live connected components.
     const synthetic=await page.evaluate(()=>{
       const canvas=document.createElement('canvas');canvas.width=840;canvas.height=260;
@@ -80,9 +80,16 @@ const server=http.createServer((req,res)=>{
         pitchScale:fit.pitchScale??null
       };
     });
-    assert(outerEdge.used,'v75 outer-edge fit did not engage '+JSON.stringify(outerEdge));
-    assert(outerEdge.afterLeft<outerEdge.beforeLeft,'v75 outer-edge fit did not improve row start '+JSON.stringify(outerEdge));
-    assert(outerEdge.afterPitch<outerEdge.beforePitch,'v75 outer-edge fit did not improve row pitch '+JSON.stringify(outerEdge));
+    assert(outerEdge.used,'v76 outer-edge fit did not engage '+JSON.stringify(outerEdge));
+    assert(outerEdge.afterLeft<outerEdge.beforeLeft,'v76 outer-edge fit did not improve row start '+JSON.stringify(outerEdge));
+    assert(outerEdge.afterPitch<outerEdge.beforePitch,'v76 outer-edge fit did not improve row pitch '+JSON.stringify(outerEdge));
+
+    const boundarySignalApi=await page.evaluate(()=>({
+      fn:typeof window.M7CameraV36?.boundaryLikelihoodDiagnostics,
+      analyze:String(window.M7CameraV36?.analyzeGuideCanvas||'').includes('boundarySignal')
+    }));
+    assert.equal(boundarySignalApi.fn,'function','v76 boundary diagnostic helper missing '+JSON.stringify(boundarySignalApi));
+    assert.equal(boundarySignalApi.analyze,true,'v76 analyzeGuideCanvas is not wired to boundary diagnostic '+JSON.stringify(boundarySignalApi));
 
     const cropQuality=await page.evaluate(()=>{
       const canvas=document.createElement('canvas');canvas.width=220;canvas.height=150;
@@ -94,9 +101,9 @@ const server=http.createServer((req,res)=>{
       return {good,bad};
     });
     assert(cropQuality.good.score>cropQuality.bad.score+.20,
-      'v75 crop quality does not prefer a tile face over table '+JSON.stringify(cropQuality));
-    assert.equal(cropQuality.good.broken,false,'v75 marked synthetic tile as broken '+JSON.stringify(cropQuality));
-    assert.equal(cropQuality.bad.broken,true,'v75 failed to reject table-only crop '+JSON.stringify(cropQuality));
+      'v76 crop quality does not prefer a tile face over table '+JSON.stringify(cropQuality));
+    assert.equal(cropQuality.good.broken,false,'v76 marked synthetic tile as broken '+JSON.stringify(cropQuality));
+    assert.equal(cropQuality.bad.broken,true,'v76 failed to reject table-only crop '+JSON.stringify(cropQuality));
 
     const trimQuality=await page.evaluate(()=>{
       const api=window.M7CameraV36;
@@ -118,10 +125,10 @@ const server=http.createServer((req,res)=>{
       };
     });
     assert(trimQuality.left.used&&trimQuality.left.lt>0&&trimQuality.left.after<trimQuality.left.before,
-      'v75 left neighbor bleed was not removed by a quality-improving trim '+JSON.stringify(trimQuality));
+      'v76 left neighbor bleed was not removed by a quality-improving trim '+JSON.stringify(trimQuality));
     assert(trimQuality.right.used&&trimQuality.right.rt>0&&trimQuality.right.after<trimQuality.right.before,
-      'v75 right neighbor bleed was not removed by a quality-improving trim '+JSON.stringify(trimQuality));
-    assert.equal(trimQuality.normal.used,false,'v75 trimmed a clean crop without quality evidence '+JSON.stringify(trimQuality));
+      'v76 right neighbor bleed was not removed by a quality-improving trim '+JSON.stringify(trimQuality));
+    assert.equal(trimQuality.normal.used,false,'v76 trimmed a clean crop without quality evidence '+JSON.stringify(trimQuality));
 
     const localBoundary=await page.evaluate(()=>{
       const api=window.M7CameraV36;
@@ -140,9 +147,9 @@ const server=http.createServer((req,res)=>{
     });
     if(localBoundary.used){
       assert(localBoundary.after.brokenCount<=localBoundary.before.brokenCount,
-        'v75 local boundary rescue increased broken neighbors '+JSON.stringify(localBoundary));
+        'v76 local boundary rescue increased broken neighbors '+JSON.stringify(localBoundary));
       assert(localBoundary.after.score>=localBoundary.before.score-.012,
-        'v75 local boundary rescue damaged triplet quality '+JSON.stringify(localBoundary));
+        'v76 local boundary rescue damaged triplet quality '+JSON.stringify(localBoundary));
     }
 
     const weakFallback=await page.evaluate(()=>{
@@ -152,7 +159,7 @@ const server=http.createServer((req,res)=>{
       const selected=window.M7CameraV36.selectRowByCropQuality(x,row,null,null,14);
       return {used:selected.used,start:selected.startDeltaPitch,pitch:selected.pitchScale};
     });
-    assert.equal(weakFallback.used,false,'v75 changed a clean row without evidence '+JSON.stringify(weakFallback));
+    assert.equal(weakFallback.used,false,'v76 changed a clean row without evidence '+JSON.stringify(weakFallback));
 
     const qualityRow=await page.evaluate(()=>{
       const canvas=document.createElement('canvas');canvas.width=840;canvas.height=260;
@@ -173,9 +180,9 @@ const server=http.createServer((req,res)=>{
       };
     });
     assert(qualityRow.after>=qualityRow.before-.012,
-      'v75 selected a lower-quality row without broken-count benefit '+JSON.stringify(qualityRow));
+      'v76 selected a lower-quality row without broken-count benefit '+JSON.stringify(qualityRow));
     assert(qualityRow.brokenAfter<=qualityRow.brokenBefore,
-      'v75 row quality selection increased broken crops '+JSON.stringify(qualityRow));
+      'v76 row quality selection increased broken crops '+JSON.stringify(qualityRow));
 
     const globalGrid=await page.evaluate(()=>{
       const canvas=document.createElement('canvas');canvas.width=840;canvas.height=260;

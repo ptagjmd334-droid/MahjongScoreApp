@@ -310,7 +310,7 @@ test('camera v36 is loaded before ui-fixes so verified clicks train the active c
   assert(index.indexOf('script.js')<index.indexOf('m7-recognition-core.js'));
   assert(index.indexOf('m7-recognition-core.js')<index.indexOf('m7-camera-v36.js'));
   assert(index.indexOf('m7-camera-v36.js')<index.indexOf('ui-fixes.js'));
-  assert(index.includes('M7 v75'));
+  assert(index.includes('M7 v76'));
 });
 
 test('legacy live detector and demo fill yield to the active camera owner',()=>{
@@ -383,6 +383,9 @@ test('v75 preserves stable learning and crop-quality-gated geometry',()=>{
   assert(camera.includes('function selectRowByCropQuality'));
   assert(camera.includes('function rescueBrokenBox'));
   assert(camera.includes('function rescueLocalBoundaries'));
+  assert(camera.includes('function boundaryLikelihoodDiagnostics'));
+  assert(camera.includes('boundaryDiagnosticImage'));
+  assert(camera.includes('境界signal診断'));
   assert(camera.includes('function chooseRecognitionWindow'));
   assert(camera.includes('const qualityRow=selectRowByCropQuality(lowCtx,lowRow,outerFit,gridFit,14)'));
   assert(camera.includes('const productionLowRow=qualityRow.row||lowRow'));
