@@ -1652,7 +1652,7 @@
   }
 
 
-  function refineRowOuterEdges(ctx,row,count=14){function refineRowOuterEdges(ctx,row,count=14){
+  function refineRowOuterEdges(ctx,row,count=14){
     if(!ctx||!row||!Number.isFinite(row.x)||!Number.isFinite(row.w)||row.w<=0||count<2){
       return {row,used:false,reason:'invalid'};
     }
