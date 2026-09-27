@@ -1052,3 +1052,13 @@
 **修正:** missing-slot採用の最終residual上限を0.095牌幅へ厳格化。候補生成は0.16まで残し、最終採用だけを厳しくすることでdiagnostic余地を残す。
 **再発防止:** 欠損補完は「何とか14にする」より誤補完回避を優先し、synthetic safety fixtureの不連続rowを必ずrejectする。
 **確度:** Chromium fixtureの実測fit residualから確定。
+
+
+## M117: v85のproduction UI簡略化で「軸平行crop」安定markerを表示文から落とした
+**時期:** M7 v85公開前CI  
+**症状:** JavaScript parse・既存機能自体は維持されていたが、M7 source回帰が `軸平行crop` の文字列欠落を検出して停止した。  
+**根本原因:** v84の開発者向けstatus/noteをv85の「自動認識 X/14 / 要確認 N枚」へ短縮した際、v80以降の軸平行crop回帰契約まで表示文と一緒に削除した。  
+**修正:** 既存 `LEGACY_CROP_DIAGNOSTIC_LABEL` を `crop品質fallback / 境界trim / 軸平行crop` へ拡張し、UIは簡潔なままsource regression markerを保持する。  
+**再発防止:** production向け文言整理でも、過去source assertionの安定markerは先にlegacy定数へ集約してから表示文を削る。  
+**回帰テスト:** 旧 `軸平行crop` assertionを変更せず、v85 fast-path / details折りたたみ / Chromium実フローを同時に通す。  
+**確度:** CI assertionとv85差分から確定。
