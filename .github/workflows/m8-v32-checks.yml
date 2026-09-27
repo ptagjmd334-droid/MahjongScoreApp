@@ -53,6 +53,7 @@ on:
       - work/m7-v73-outer-edge-pitch
       - work/m7-v74-crop-quality-gating
       - work/m7-v75-lowfreedom-crop-stabilization
+      - work/m7-v76-boundary-signal-diagnostic
   workflow_dispatch:
 
 jobs:
