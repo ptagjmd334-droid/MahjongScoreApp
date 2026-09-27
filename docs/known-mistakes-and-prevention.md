@@ -934,3 +934,5 @@
 **再発防止:** 過去バージョンのsource regression markerは、新mode追加時に置換せずlegacy定数として保持する。  
 **回帰テスト:** v78 diagnostic markerとv79 production markerの両方を同時にassertし、Chromium実フローまで通す。  
 **確度:** CI assertionとv79差分から確定。
+
+**M104追記:** 回帰assertionは単独のmode値ではなく `detectorMode:'yolo11n-diagnostic'` 完全文字列を要求していたため、legacy定数もこの完全markerを保持する形へ修正した。
