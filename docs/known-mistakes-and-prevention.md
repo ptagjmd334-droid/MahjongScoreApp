@@ -936,3 +936,13 @@
 **確度:** CI assertionとv79差分から確定。
 
 **M104追記:** 回帰assertionは単独のmode値ではなく `detectorMode:'yolo11n-diagnostic'` 完全文字列を要求していたため、legacy定数もこの完全markerを保持する形へ修正した。
+
+
+## M105: v79はYOLO分割成功後に旧幾何補正を再適用し、正しい牌cropを斜めにした
+**時期:** M7 v79→v80  
+**実機結果:** v79でYOLO牌分割は `採用14個 / 信頼度25%以上14個 / 4視点 / 1334ms` と成功した一方、結果下段のcropには複数の斜め・台形・回転した牌が発生し、高信頼自動認識は0枚。ヘッダ上の射影採用は2/14。  
+**根本原因:** v79はYOLO box採用後も各boxへ既存 `analyzeTileBox()` を適用し、その中で `perspectiveFaceCanvas()` → `detectFaceQuad()`、quad不採用時も `canonicalizeCanvas()` を実行していた。YOLOがすでに1牌へ分離した後の画像で、牌内部の文字・筒・索のedgeを再び牌の幾何として解釈し、正しいboxに不要な回転/射影を加え得る二重補正になっていた。  
+**修正:** v80はYOLO採用box専用の `axisAlignedYoloFaceCanvas()` / `analyzeYoloTileBox()` を追加。YOLO boxを軸平行のまま96×144へresizeし、`detectFaceQuad` と `canonicalizeCanvas` を完全に迂回する。認識window、descriptor、既存学習ライブラリ、confidence gateは維持し、変更変数を幾何補正の有無だけに限定する。YOLO不採用時のv75 fallbackでは従来幾何処理を変更しない。  
+**再発防止:** object detectorが対象物を個別box化した後は、同じ対象の輪郭を別の古典CVで再推定しない。追加幾何補正は実画像で必要性が確認された場合のみ明示的に導入する。  
+**回帰テスト:** synthetic box内の左赤・右青パターンをaxis-aligned cropへ通し、左右が保存されること、perspective markerがfalseであること、production pathが `analyzeYoloTileBox` を使うことを確認。既存v78/v79 source markerもlegacy保持する。  
+**確度:** v79スクリーンショットのYOLO 14/14と斜めcrop、コード上のproduction path→analyzeTileBox→perspectiveFaceCanvas/canonicalizeCanvasから確定に近い。
