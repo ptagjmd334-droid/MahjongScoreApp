@@ -31,6 +31,7 @@
   const LEGACY_YOLO_DIAGNOSTIC_MODE="detectorMode:'yolo11n-diagnostic'"; // exact v78 source-regression marker; v79 production mode is separate.
   const LEGACY_YOLO_AXIS_MODE="detectorMode:'yolo11n-production-axis-aligned-crops'"; // exact v80/v81 source-regression marker; v82 adds subset selection.
   const LEGACY_YOLO_SUBSET_MODE="detectorMode:'yolo11n-production-axis-aligned-subset-crops'"; // exact v82 source-regression marker; v83 adds YOLO class recognition.
+  const LEGACY_SUBSET_REASON_MARKER="reason:subsetUsed?'subset-'"; // exact v82 15→14 selector source-regression marker.
   const LEGACY_YOLO_PRIMARY_CLASS_MODE="detectorMode:'yolo11n-primary-class-hybrid'"; // exact v83 source-regression marker; v84 adds safe 13→14 recovery.
   const YOLO_CLASS_USE_THRESHOLD=.15;
   const LEGACY_YOLO_PRODUCTION_MODE="detectorMode:'yolo11n-production-crops'"; // exact v79 source-regression marker; v80 uses axis-aligned crops.
