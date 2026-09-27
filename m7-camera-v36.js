@@ -2314,10 +2314,19 @@
       const candidate=sorted.concat(synthetic).sort((a,b)=>(a.x+a.w/2)-(b.x+b.w/2));
       const evaluated=detectorGeometryEvaluation(candidate,row,count);
       if(!evaluated.valid)continue;
+      let edgeResidualPitch=0;
+      if(row?.w&&row?.h){
+        const rowPitch=row.w/count;
+        const cc=evaluated.boxes.map(b=>b.x+b.w/2).sort((a,b)=>a-b);
+        const expectedFirst=row.x+rowPitch*.5,expectedLast=row.x+row.w-rowPitch*.5;
+        edgeResidualPitch=(Math.abs(cc[0]-expectedFirst)+Math.abs(cc[cc.length-1]-expectedLast))/(2*Math.max(1,rowPitch));
+        if(edgeResidualPitch>.45)continue;
+      }
       fits.push({
         type:'missing-slot',missingIndex:missing,fitResidualPitch:fit.fitResidualPitch,
-        score:evaluated.score+fit.fitResidualPitch*1.8+.035,
-        boxes:evaluated.boxes,stats:{...evaluated.stats,missingIndex:missing,fitResidualPitch13:Number(fit.fitResidualPitch.toFixed(4))}
+        edgeResidualPitch,
+        score:evaluated.score+fit.fitResidualPitch*1.8+edgeResidualPitch*1.55+.035,
+        boxes:evaluated.boxes,stats:{...evaluated.stats,missingIndex:missing,fitResidualPitch13:Number(fit.fitResidualPitch.toFixed(4)),edgeResidualPitch:Number(edgeResidualPitch.toFixed(4))}
       });
     }
     fits.sort((a,b)=>a.score-b.score);
