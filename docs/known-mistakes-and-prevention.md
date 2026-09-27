@@ -892,3 +892,13 @@
 **再発防止:** 観測signalが実機で2世代連続して目標未達ならthreshold調整を続けず、問題表現そのものを変える。外部モデルは明示ライセンス確認・commit pin・フォールバック保持を必須にする。  
 **回帰テスト:** synthetic YOLO出力で [1,41,N] decode、低confidence除外、重複boxのclass-agnostic NMS、横長rowに対するfull+3 overlap windowを確認。既存カメラ・保存・採点フローはモデルネットワークに依存せずCIを通す。  
 **確度:** v77の2/13・6/13・-0.121牌はユーザー実機スクリーンショットで確定。Mahjong-YOLOのMIT、YOLO11n ONNX約10.6MB、公開precision/recallは上流repositoryで確認。
+
+
+## M101: v78へのUI切替でM099と同型の境界診断prefix回帰を繰り返した
+**時期:** M7 v78公開前CI  
+**症状:** 採点テストは成功したがM7 source testが再び `境界signal診断` の欠落を検出し停止した。v78では旧境界診断UIをYOLO診断UIへ置換した直後に発生。  
+**根本原因:** M099で「安定prefixを残す」と記録していたにもかかわらず、v78のUIブロックを丸ごと削除する変更時にlegacy表示契約まで削除対象に含めた。変更前チェックでM099を読んだだけで、置換対象文字列がその回帰条件に該当するかを実装差分へ反映できていなかった。  
+**修正:** `LEGACY_BOUNDARY_DIAGNOSTIC_LABEL='境界signal診断'` をlegacy互換定数として残す。v78 UIでは表示しないが、過去診断名の安定契約と回帰assertionを維持する。  
+**再発防止:** 既知ミスに「安定prefix/markerを残す」がある場合、UI置換・機能廃止でも該当markerをlegacy constant/commentとして先に退避してから旧ブロックを削除する。既存assertionを消す・弱めることで通さない。  
+**回帰テスト:** 既存 `境界signal診断` assertionを変更せず、v78 YOLO wiring assertionとChromium実フローを同時に通す。  
+**確度:** CIログ、M099、v78差分から確定。
