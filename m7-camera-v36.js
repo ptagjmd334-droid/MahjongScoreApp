@@ -29,6 +29,7 @@
   const LEGACY_BOUNDARY_DIAGNOSTIC_LABEL='境界signal診断 / 局所再分割'; // M099/M101: stable legacy diagnostic markers; v78 no longer displays them.
   const LEGACY_CROP_DIAGNOSTIC_LABEL='crop品質fallback / 境界trim / 軸平行crop'; // stable v75-v84 diagnostic markers kept for source regressions.
   const LEGACY_YOLO_CLASS_UI_LABEL='YOLO牌種'; // stable v83-v84 source marker; v85 production status is simplified.
+  const LEGACY_SAVE_CONFIRMATION_LABEL='保存完了を確認してから次へ進みます'; // stable calibration source marker; v85 copy is shorter.
   const LEGACY_YOLO_DIAGNOSTIC_MODE="detectorMode:'yolo11n-diagnostic'"; // exact v78 source-regression marker; v79 production mode is separate.
   const LEGACY_YOLO_AXIS_MODE="detectorMode:'yolo11n-production-axis-aligned-crops'"; // exact v80/v81 source-regression marker; v82 adds subset selection.
   const LEGACY_YOLO_SUBSET_MODE="detectorMode:'yolo11n-production-axis-aligned-subset-crops'"; // exact v82 source-regression marker; v83 adds YOLO class recognition.
