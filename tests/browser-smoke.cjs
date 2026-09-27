@@ -182,7 +182,7 @@ const server=http.createServer((req,res)=>{
       const extra={x:82+6*60+40,y:58,w:15,h:122,score:.19,label:'5s'};
       const fifteen=real.concat(extra).sort((a,b)=>(a.x+a.w/2)-(b.x+b.w/2));
       const selected=api.selectDetectorProductionBoxes({ok:true,boxes:fifteen},canvas,row,14);
-      const ambiguousExtra={x:82+6*60+30,y:55,w:56,h:128,score:.75,label:'7s'};
+      const ambiguousExtra={...real[6],x:real[6].x+1,score:real[6].score+.002,label:'7s'};
       const ambiguous=api.selectDetectorProductionBoxes({ok:true,boxes:real.concat(ambiguousExtra).sort((a,b)=>(a.x+a.w/2)-(b.x+b.w/2))},canvas,row,14);
       return {
         accepted:selected.accepted,reason:selected.reason,count:selected.boxes.length,
