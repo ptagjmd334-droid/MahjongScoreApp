@@ -34,7 +34,7 @@ const server=http.createServer((req,res)=>{
     const errors=[];page.on('pageerror',e=>errors.push(String(e)));
     await page.goto('http://127.0.0.1:'+port+'/',{waitUntil:'domcontentloaded',timeout:30000});
     await page.waitForSelector('#go-confirm-button',{timeout:12000});
-    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'M7 v74');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'M7 v75');
     // v36 analyzes one long row after the shutter instead of requiring 14 live connected components.
     const synthetic=await page.evaluate(()=>{
       const canvas=document.createElement('canvas');canvas.width=840;canvas.height=260;
@@ -80,9 +80,9 @@ const server=http.createServer((req,res)=>{
         pitchScale:fit.pitchScale??null
       };
     });
-    assert(outerEdge.used,'v74 outer-edge fit did not engage '+JSON.stringify(outerEdge));
-    assert(outerEdge.afterLeft<outerEdge.beforeLeft,'v74 outer-edge fit did not improve row start '+JSON.stringify(outerEdge));
-    assert(outerEdge.afterPitch<outerEdge.beforePitch,'v74 outer-edge fit did not improve row pitch '+JSON.stringify(outerEdge));
+    assert(outerEdge.used,'v75 outer-edge fit did not engage '+JSON.stringify(outerEdge));
+    assert(outerEdge.afterLeft<outerEdge.beforeLeft,'v75 outer-edge fit did not improve row start '+JSON.stringify(outerEdge));
+    assert(outerEdge.afterPitch<outerEdge.beforePitch,'v75 outer-edge fit did not improve row pitch '+JSON.stringify(outerEdge));
 
     const cropQuality=await page.evaluate(()=>{
       const canvas=document.createElement('canvas');canvas.width=220;canvas.height=150;
@@ -94,9 +94,65 @@ const server=http.createServer((req,res)=>{
       return {good,bad};
     });
     assert(cropQuality.good.score>cropQuality.bad.score+.20,
-      'v74 crop quality does not prefer a tile face over table '+JSON.stringify(cropQuality));
-    assert.equal(cropQuality.good.broken,false,'v74 marked synthetic tile as broken '+JSON.stringify(cropQuality));
-    assert.equal(cropQuality.bad.broken,true,'v74 failed to reject table-only crop '+JSON.stringify(cropQuality));
+      'v75 crop quality does not prefer a tile face over table '+JSON.stringify(cropQuality));
+    assert.equal(cropQuality.good.broken,false,'v75 marked synthetic tile as broken '+JSON.stringify(cropQuality));
+    assert.equal(cropQuality.bad.broken,true,'v75 failed to reject table-only crop '+JSON.stringify(cropQuality));
+
+    const trimQuality=await page.evaluate(()=>{
+      const api=window.M7CameraV36;
+      const make=(side)=>{
+        const c=document.createElement('canvas');c.width=96;c.height=144;
+        const x=c.getContext('2d');x.fillStyle='#dedbd2';x.fillRect(0,0,96,144);
+        x.fillStyle='#171717';x.fillRect(43,42,9,62);
+        if(side==='left'){x.fillStyle='#7b4d2f';x.fillRect(0,0,24,144);}
+        if(side==='right'){x.fillStyle='#7b4d2f';x.fillRect(72,0,24,144);}
+        return c;
+      };
+      const left=api.chooseRecognitionWindow(make('left'),6,14);
+      const right=api.chooseRecognitionWindow(make('right'),6,14);
+      const normal=api.chooseRecognitionWindow(make('none'),6,14);
+      return {
+        left:{used:left.used,lt:left.trimLeft,rt:left.trimRight,before:left.beforeQuality.edgeContamination,after:left.quality.edgeContamination},
+        right:{used:right.used,lt:right.trimLeft,rt:right.trimRight,before:right.beforeQuality.edgeContamination,after:right.quality.edgeContamination},
+        normal:{used:normal.used,lt:normal.trimLeft,rt:normal.trimRight}
+      };
+    });
+    assert(trimQuality.left.used&&trimQuality.left.lt>0&&trimQuality.left.after<trimQuality.left.before,
+      'v75 left neighbor bleed was not removed by a quality-improving trim '+JSON.stringify(trimQuality));
+    assert(trimQuality.right.used&&trimQuality.right.rt>0&&trimQuality.right.after<trimQuality.right.before,
+      'v75 right neighbor bleed was not removed by a quality-improving trim '+JSON.stringify(trimQuality));
+    assert.equal(trimQuality.normal.used,false,'v75 trimmed a clean crop without quality evidence '+JSON.stringify(trimQuality));
+
+    const localBoundary=await page.evaluate(()=>{
+      const api=window.M7CameraV36;
+      const c=document.createElement('canvas');c.width=220;c.height=150;
+      const x=c.getContext('2d');x.fillStyle='#74482c';x.fillRect(0,0,220,150);
+      x.fillStyle='#dedbd2';x.fillRect(20,18,180,114);
+      x.fillStyle='#171717';x.fillRect(48,54,6,44);x.fillRect(108,54,6,44);x.fillRect(168,54,6,44);
+      // A narrow wood strip just inside the middle tile's left edge makes only
+      // that local boundary suspicious.
+      x.fillStyle='#74482c';x.fillRect(75,18,5,114);
+      const boxes=[{x:20,y:18,w:60,h:114},{x:80,y:18,w:60,h:114},{x:140,y:18,w:60,h:114}];
+      const before=api.tripletCropQuality(x,boxes,1);
+      const rescue=api.rescueLocalBoundaries(x,boxes);
+      const after=api.tripletCropQuality(x,rescue.boxes,1);
+      return {used:rescue.adoptedCount,before,after,debug:rescue.debug};
+    });
+    if(localBoundary.used){
+      assert(localBoundary.after.brokenCount<=localBoundary.before.brokenCount,
+        'v75 local boundary rescue increased broken neighbors '+JSON.stringify(localBoundary));
+      assert(localBoundary.after.score>=localBoundary.before.score-.012,
+        'v75 local boundary rescue damaged triplet quality '+JSON.stringify(localBoundary));
+    }
+
+    const weakFallback=await page.evaluate(()=>{
+      const c=document.createElement('canvas');c.width=840;c.height=260;
+      const x=c.getContext('2d');x.fillStyle='#d9d6cc';x.fillRect(100,75,602,112);
+      const row={x:100,y:75,w:602,h:112};
+      const selected=window.M7CameraV36.selectRowByCropQuality(x,row,null,null,14);
+      return {used:selected.used,start:selected.startDeltaPitch,pitch:selected.pitchScale};
+    });
+    assert.equal(weakFallback.used,false,'v75 changed a clean row without evidence '+JSON.stringify(weakFallback));
 
     const qualityRow=await page.evaluate(()=>{
       const canvas=document.createElement('canvas');canvas.width=840;canvas.height=260;
@@ -107,7 +163,8 @@ const server=http.createServer((req,res)=>{
       for(let i=0;i<14;i++)ctx.fillRect(start+i*pitch+18,110,5,38);
       const noisy={x:start-5,y:68,w:pitch*14+18,h:128};
       const outer=window.M7CameraV36.refineRowOuterEdges(ctx,noisy,14);
-      const selected=window.M7CameraV36.selectRowByCropQuality(ctx,noisy,outer,14);
+      const grid=window.M7CameraV36.fitGlobalRowGrid(ctx,noisy,14);
+      const selected=window.M7CameraV36.selectRowByCropQuality(ctx,noisy,outer,grid,14);
       return {
         used:selected.used,reason:selected.reason,
         before:selected.base?.score,after:selected.best?.score,
@@ -116,9 +173,9 @@ const server=http.createServer((req,res)=>{
       };
     });
     assert(qualityRow.after>=qualityRow.before-.012,
-      'v74 selected a lower-quality row without broken-count benefit '+JSON.stringify(qualityRow));
+      'v75 selected a lower-quality row without broken-count benefit '+JSON.stringify(qualityRow));
     assert(qualityRow.brokenAfter<=qualityRow.brokenBefore,
-      'v74 row quality selection increased broken crops '+JSON.stringify(qualityRow));
+      'v75 row quality selection increased broken crops '+JSON.stringify(qualityRow));
 
     const globalGrid=await page.evaluate(()=>{
       const canvas=document.createElement('canvas');canvas.width=840;canvas.height=260;
