@@ -1036,3 +1036,11 @@
 **修正:** `LEGACY_SUBSET_REASON_MARKER="reason:subsetUsed?'subset-'"` を保持し、v82の15→14回帰契約とv84の13→14回復を共存させる。  
 **再発防止:** 既存挙動へ新しい外側分岐を追加する際も、過去source testが完全文字列を契約化している場合はlegacy markerを先に保持する。  
 **確度:** CI assertionとselector差分から確定。
+
+## M115: 13個が等間隔の時、中心fitだけでは左端欠落と右端欠落を区別できない
+**時期:** M7 v84公開前Chromium CI
+**症状:** cleanな13box（14番目だけ欠落）fixtureが `recover-13-no-valid`。内部missing-slot fit自体は成立するが、missing=0とmissing=13がほぼ同等になり、unique-margin guardが採用を拒否した。
+**根本原因:** 13個の等間隔点だけを見れば、14slotへの対応は「左端1slot欠落」と「右端1slot欠落」で平行移動対称になり、center residualだけでは一意化できない。
+**修正:** 既存rowの左右端をpriorとして使い、復元後の先頭/末尾centerを `row.x + rowPitch/2` / `row.right - rowPitch/2` と比較。平均edge residualが0.45牌幅を超える候補を除外し、残りのscoreにもedge residual penaltyを追加する。
+**再発防止:** 欠損補完の一意性判定は内部間隔だけでなく、利用可能な外部anchor（今回は撮影rowの左右端）も含める。
+**確度:** Chromium fixtureと線形fitの平行移動対称性から確定。
