@@ -57,6 +57,7 @@ on:
       - work/m7-v77-dualband-boundary-signal
       - work/m7-v78-yolo-tile-detector-diagnostic
       - work/m7-v79-yolo-production-crops
+      - work/m7-v80-yolo-axis-aligned-crops
   workflow_dispatch:
 
 jobs:
