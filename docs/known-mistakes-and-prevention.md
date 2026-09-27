@@ -1006,3 +1006,15 @@
 **再発防止:** note/statusの全面置換前に既存source assertionの安定marker一覧を機械的に確認し、表示から外す場合でもlegacy定数へ退避してから変更する。  
 **回帰テスト:** 旧marker assertionを弱めず、v83 YOLO class mapping/hybrid回帰とChromium実フローを同時に通す。  
 **確度:** CI assertionとv83差分から確定。
+
+
+## M112: v83の未使用牌種テストでYOLO classは有望だが13box不足で全体fallbackした
+**時期:** M7 v83→v84  
+**実機結果:** 未使用牌種を多く含むバラ14枚で、v83は `YOLO牌種0/14 / 旧分類fallback0/14 / 未確定14/14 / YOLO分割fallback / 軸平行crop0/14`。検出診断は `13個 / confidence 0.25以上13個 / 4視点 / 1499ms / count-13`。画像上では右側に通常牌より明確に横長なboxがあり、隣接2牌を1boxにまとめた可能性が高い。  
+**判断:** v83のclass主認識が失敗したのではなく、production selectorが13box不足を安全rejectしたためclass認識まで進まなかった。v82で15→14の余分box除外を実装済みなので、対称的に13→14の「不足1boxだけ」の安全復元を追加する価値がある。  
+**修正:** v84はraw13box時のみ二系統の回復候補を生成する。(A) median幅の1.48倍以上かつ2.45倍以下の明確な横長boxを2等分し、14box幾何評価を通す。(B) 13中心を14個の整数slotへ線形fitし、fit residual <=0.12かつ次点との差>=0.055で一意に決まる空き1slotへmedianサイズboxを補完する。いずれも最終14boxを既存 `detectorGeometryEvaluation` に再投入し、曖昧/不自然なら採用しない。  
+**認識安全策:** 補完・分割で新しく作ったboxにはYOLO classを推測して付与しない。label空欄・score0として扱い、既存分類器へfallbackし、それも未確定なら手動修正する。既存13個のYOLO classはそのまま維持する。  
+**UI:** 採用時は `13→14個 / 不足1box補完(空きslot|横長box分割)` を表示し、診断画像も復元後14boxを描画する。診断画像内の古い `v82 YOLO tile detector` 表示もv84へ更新する。  
+**再発防止:** object detectorのraw count完全一致を目的化せず、1個の過剰(v82)・1個の不足(v84)は幾何的に一意な場合だけ修復する。2個以上不足、fit曖昧、row geometry不良では引き続きfallbackする。  
+**回帰テスト:** 13枚検出で中央1slot欠落→14へ補完、末尾2牌を1つのdouble-width boxに統合→2分割、幾何を崩した13box→reject。既存15→14 subset、YOLO class mapping、axis-aligned crop、保存・採点回帰も継続。  
+**確度:** count-13とfallbackはユーザー実機スクリーンショットで確定。横長boxがmerge由来という解釈は画像形状に基づく高確度推定。
