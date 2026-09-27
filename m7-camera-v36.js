@@ -2253,15 +2253,15 @@
       if(note)note.textContent=features.length===14
         ?(firstCalibration
           ?'この保存領域には学習データがありません。今回だけ14枚を正しく指定してください。「この手牌で進む」を押した時に保存完了を確認してから次へ進みます。'
-          :`v77は境界signal v2診断版です。14cropの位置はv75のまま変更せず、上帯と下帯の両方で同じxにedgeが出ること＋縦方向の連続性を要求します。赤線=現在の13境界、青線=両帯一致したsignal peak、緑線=boundary likelihood。±5%内の明確なsignal ${analysis.boundarySignal?.clearNearCount||0}/13、広め探索で強いsignal ${analysis.boundarySignal?.strongWideCount||0}/13、共通ずれ ${Number(analysis.boundarySignal?.commonOffsetPitch||0).toFixed(3)}牌。分類器・学習保存・trim・局所補正はv75を維持。高信頼候補 ${auto}枚。保留理由: ${confidenceReasonSummary()}。認識 ${Math.max(0,state.lastRecognitionMs||0)}ms / row補正 ${analysis.rowCorrectionUsed?'ON':'OFF'} / 開始 ${Number(analysis.rowStartDeltaPitch||0).toFixed(3)}牌 / pitch ${Number(analysis.rowPitchScale||1).toFixed(4)} / 境界trim ${analysis.boundaryTrimCount||0}/14 / 局所再分割 ${analysis.resplitAdoptedCount||0}/14 / crop異常 ${analysis.cropAbnormalCount||0}/14 / crop品質fallback ${analysis.cropQualityFallbackCount||0}/14。`)
+          :`v77は境界signal診断 v2版です。14cropの位置はv75のまま変更せず、上帯と下帯の両方で同じxにedgeが出ること＋縦方向の連続性を要求します。赤線=現在の13境界、青線=両帯一致したsignal peak、緑線=boundary likelihood。±5%内の明確なsignal ${analysis.boundarySignal?.clearNearCount||0}/13、広め探索で強いsignal ${analysis.boundarySignal?.strongWideCount||0}/13、共通ずれ ${Number(analysis.boundarySignal?.commonOffsetPitch||0).toFixed(3)}牌。分類器・学習保存・trim・局所補正はv75を維持。高信頼候補 ${auto}枚。保留理由: ${confidenceReasonSummary()}。認識 ${Math.max(0,state.lastRecognitionMs||0)}ms / row補正 ${analysis.rowCorrectionUsed?'ON':'OFF'} / 開始 ${Number(analysis.rowStartDeltaPitch||0).toFixed(3)}牌 / pitch ${Number(analysis.rowPitchScale||1).toFixed(4)} / 境界trim ${analysis.boundaryTrimCount||0}/14 / 局所再分割 ${analysis.resplitAdoptedCount||0}/14 / crop異常 ${analysis.cropAbnormalCount||0}/14 / crop品質fallback ${analysis.cropQualityFallbackCount||0}/14。`)
         :'白枠内から牌列を特定できませんでした。撮影画像を確認し、14枠を手動入力するか「読み取り直す」で再撮影してください。';
       if(analysis.boundaryDiagnosticImage){
         const old=root.querySelector('.m7v76-boundary-diagnostic');if(old)old.remove();
         const wrap=document.createElement('div');wrap.className='m7v76-boundary-diagnostic';
         wrap.style.cssText='margin:4px 8px 6px;padding:4px 6px;border:1px solid rgba(0,0,0,.18);border-radius:8px;background:#fff;color:#222;font:700 10px/1.25 -apple-system,BlinkMacSystemFont,sans-serif;';
         const label=document.createElement('div');
-        label.textContent=`境界signal v2診断：±5% ${analysis.boundarySignal?.clearNearCount||0}/13　広め ${analysis.boundarySignal?.strongWideCount||0}/13　共通ずれ ${Number(analysis.boundarySignal?.commonOffsetPitch||0).toFixed(3)}牌（赤=現在境界 / 青=signal peak / 緑=likelihood）`;
-        const img=document.createElement('img');img.src=analysis.boundaryDiagnosticImage;img.alt='M7 v77 境界signal v2診断';img.style.cssText='display:block;width:100%;max-height:86px;object-fit:contain;margin-top:3px;background:#111;';
+        label.textContent=`境界signal診断 v2：±5% ${analysis.boundarySignal?.clearNearCount||0}/13　広め ${analysis.boundarySignal?.strongWideCount||0}/13　共通ずれ ${Number(analysis.boundarySignal?.commonOffsetPitch||0).toFixed(3)}牌（赤=現在境界 / 青=signal peak / 緑=likelihood）`;
+        const img=document.createElement('img');img.src=analysis.boundaryDiagnosticImage;img.alt='M7 v77 境界signal診断 v2';img.style.cssText='display:block;width:100%;max-height:86px;object-fit:contain;margin-top:3px;background:#111;';
         wrap.append(label,img);
         root.querySelector('.hand-result-head-m7v5')?.insertAdjacentElement('afterend',wrap);
       }
