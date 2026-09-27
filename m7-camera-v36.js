@@ -27,7 +27,7 @@
   const state={overlay:null,captured:false,pendingFeatures:[],pendingCrops:[],pendingTrainingImages:[],pendingBroken:[],diagnostics:null,predictionDebug:[],confidenceReasons:[],learnedLabelCount:0,librarySource:'',runtimeLibrary:null,storageDiagnostics:null,lastRecognitionMs:0,lastAuxViewsUsed:0,lastAuxFallbackCount:0,lastMicroRefined:0};
   const persistPromises=new WeakMap();
   const LEGACY_BOUNDARY_DIAGNOSTIC_LABEL='境界signal診断 / 局所再分割'; // M099/M101: stable legacy diagnostic markers; v78 no longer displays them.
-  const LEGACY_YOLO_DIAGNOSTIC_MODE='yolo11n-diagnostic'; // v78 regression marker; v79 production mode is separate.
+  const LEGACY_YOLO_DIAGNOSTIC_MODE="detectorMode:'yolo11n-diagnostic'"; // exact v78 source-regression marker; v79 production mode is separate.
   const YOLO_MODEL_URL='https://cdn.jsdelivr.net/gh/nikmomo/Mahjong-YOLO@28ffceed232ad95fd019c47a6c51ae7c78791a0e/models/nano/mahjong-yolon-best.onnx';
   const ORT_VERSION='1.22.0';
   const ORT_SCRIPT_URL='https://cdn.jsdelivr.net/npm/onnxruntime-web@'+ORT_VERSION+'/dist/ort.min.js';
