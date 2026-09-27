@@ -34,7 +34,7 @@ const server=http.createServer((req,res)=>{
     const errors=[];page.on('pageerror',e=>errors.push(String(e)));
     await page.goto('http://127.0.0.1:'+port+'/',{waitUntil:'domcontentloaded',timeout:30000});
     await page.waitForSelector('#go-confirm-button',{timeout:12000});
-    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'M7 v79');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'M7 v80');
     // v36 analyzes one long row after the shutter instead of requiring 14 live connected components.
     const synthetic=await page.evaluate(()=>{
       const canvas=document.createElement('canvas');canvas.width=840;canvas.height=260;
@@ -146,6 +146,32 @@ const server=http.createServer((req,res)=>{
     assert.equal(v79ProductionGuard.goodCount,14,'v79 accepted crop count mismatch '+JSON.stringify(v79ProductionGuard));
     assert.equal(v79ProductionGuard.missing,false,'v79 must reject 13 detections '+JSON.stringify(v79ProductionGuard));
     assert.equal(v79ProductionGuard.bad,false,'v79 must reject duplicated/chaotic spacing '+JSON.stringify(v79ProductionGuard));
+
+    const v80AxisAligned=await page.evaluate(()=>{
+      const api=window.M7CameraV36;
+      const c=document.createElement('canvas');c.width=120;c.height=180;
+      const x=c.getContext('2d',{willReadFrequently:true});
+      x.fillStyle='rgb(245,245,235)';x.fillRect(0,0,120,180);
+      x.fillStyle='rgb(230,20,20)';x.fillRect(10,15,18,150);
+      x.fillStyle='rgb(20,40,230)';x.fillRect(92,15,18,150);
+      const out=api.axisAlignedYoloFaceCanvas(x,{x:10,y:15,w:100,h:150},96,144);
+      const o=out.getContext('2d').getImageData(0,0,96,144).data;
+      const avg=(xa,xb,ch)=>{
+        let sum=0,n=0;
+        for(let y=12;y<132;y++)for(let xx=xa;xx<xb;xx++){sum+=o[(y*96+xx)*4+ch];n++;}
+        return sum/n;
+      };
+      return {
+        leftRed:avg(0,16,0),leftBlue:avg(0,16,2),
+        rightRed:avg(80,96,0),rightBlue:avg(80,96,2),
+        axis:out.__m7v80YoloAxisAligned===true,
+        perspective:out.__m7v46Perspective===true
+      };
+    });
+    assert.equal(v80AxisAligned.axis,true,'v80 axis-aligned marker missing '+JSON.stringify(v80AxisAligned));
+    assert.equal(v80AxisAligned.perspective,false,'v80 YOLO crop must not mark perspective '+JSON.stringify(v80AxisAligned));
+    assert(v80AxisAligned.leftRed>v80AxisAligned.leftBlue+80,'v80 left/right orientation changed '+JSON.stringify(v80AxisAligned));
+    assert(v80AxisAligned.rightBlue>v80AxisAligned.rightRed+80,'v80 right/left orientation changed '+JSON.stringify(v80AxisAligned));
 
     const cropQuality=await page.evaluate(()=>{
       const canvas=document.createElement('canvas');canvas.width=220;canvas.height=150;
