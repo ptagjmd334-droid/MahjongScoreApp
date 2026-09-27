@@ -2333,7 +2333,7 @@
     if(fits.length){
       const best=fits[0],second=fits[1]||null;
       const margin=second?second.score-best.score:Infinity;
-      if(best.fitResidualPitch<=.12&&(!second||margin>=.055)){
+      if(best.fitResidualPitch<=.095&&(!second||margin>=.055)){
         best.stats={...best.stats,recoveryMargin:Number.isFinite(margin)?Number(margin.toFixed(4)):null};
         out.push(best);
       }
