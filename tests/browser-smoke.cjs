@@ -34,7 +34,34 @@ const server=http.createServer((req,res)=>{
     const errors=[];page.on('pageerror',e=>errors.push(String(e)));
     await page.goto('http://127.0.0.1:'+port+'/',{waitUntil:'domcontentloaded',timeout:30000});
     await page.waitForSelector('#go-confirm-button',{timeout:12000});
-    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'M7 v80');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'M7 v81');
+    const v81HeaderLayout=await page.evaluate(()=>{
+      window.showHandResultM7V5?.(Array(14).fill(''));
+      const root=document.getElementById('hand-result-overlay-m7v5');
+      const card=root?.querySelector('.hand-result-card-m7v5');
+      const head=root?.querySelector('.hand-result-head-m7v5');
+      const left=head?.querySelector(':scope > div');
+      const title=left?.querySelector('b');
+      const status=root?.querySelector('.hand-result-status-m7v5');
+      if(status)status.textContent='学習済み 11種類 / 元:stable / 安定保存 / 精度優先 / YOLO分割 採用 / 軸平行crop 14/14 / 射影採用 0/14 / 高信頼 0枚';
+      const cr=card?.getBoundingClientRect(),hr=head?.getBoundingClientRect(),lr=left?.getBoundingClientRect(),tr=title?.getBoundingClientRect(),sr=status?.getBoundingClientRect();
+      const css=status?getComputedStyle(status):null;
+      root?.remove();
+      return {
+        cardLeft:cr?.left??0,cardRight:cr?.right??0,
+        headHeight:hr?.height??999,
+        leftWidth:lr?.width??0,titleWidth:tr?.width??0,
+        statusLeft:sr?.left??0,statusRight:sr?.right??999,statusWidth:sr?.width??0,
+        whiteSpace:css?.whiteSpace||''
+      };
+    });
+    assert(v81HeaderLayout.leftWidth>=175,'v81 title column collapsed '+JSON.stringify(v81HeaderLayout));
+    assert(v81HeaderLayout.titleWidth>=150,'v81 Japanese title became near-vertical '+JSON.stringify(v81HeaderLayout));
+    assert(v81HeaderLayout.statusWidth>=300,'v81 diagnostics status did not receive remaining width '+JSON.stringify(v81HeaderLayout));
+    assert(v81HeaderLayout.statusRight<=v81HeaderLayout.cardRight+2,'v81 diagnostics overflowed result card '+JSON.stringify(v81HeaderLayout));
+    assert(v81HeaderLayout.headHeight<90,'v81 header wrapped into excessive height '+JSON.stringify(v81HeaderLayout));
+    assert.notEqual(v81HeaderLayout.whiteSpace,'nowrap','v81 diagnostics still force nowrap '+JSON.stringify(v81HeaderLayout));
+
     // v36 analyzes one long row after the shutter instead of requiring 14 live connected components.
     const synthetic=await page.evaluate(()=>{
       const canvas=document.createElement('canvas');canvas.width=840;canvas.height=260;
