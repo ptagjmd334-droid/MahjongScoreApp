@@ -3001,7 +3001,7 @@
       const note=root.querySelector('.hand-result-note-m7v5');
       if(note)note.textContent=features.length===14
         ?(firstCalibration
-          ?'この保存領域には学習データがありません。14枚を正しく指定してください。「この手牌で進む」を押すと、今後のfallback用学習データとして保存します。'
+          ?'この保存領域には学習データがありません。14枚を正しく指定してください。「この手牌で進む」を押した後、保存完了を確認してから次へ進みます。'
           :(primary.unresolved===0
             ?'14枚を自動認識しました。間違っている牌があれば、その牌をタップして修正してください。'
             :`自動認識できなかった牌が ${primary.unresolved} 枚あります。該当する牌をタップして確認・修正してください。`))
