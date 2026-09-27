@@ -1052,3 +1052,43 @@
 **修正:** missing-slot採用の最終residual上限を0.095牌幅へ厳格化。候補生成は0.16まで残し、最終採用だけを厳しくすることでdiagnostic余地を残す。
 **再発防止:** 欠損補完は「何とか14にする」より誤補完回避を優先し、synthetic safety fixtureの不連続rowを必ずrejectする。
 **確度:** Chromium fixtureの実測fit residualから確定。
+
+
+## M117: v85のproduction UI簡略化で「軸平行crop」安定markerを表示文から落とした
+**時期:** M7 v85公開前CI  
+**症状:** JavaScript parse・既存機能自体は維持されていたが、M7 source回帰が `軸平行crop` の文字列欠落を検出して停止した。  
+**根本原因:** v84の開発者向けstatus/noteをv85の「自動認識 X/14 / 要確認 N枚」へ短縮した際、v80以降の軸平行crop回帰契約まで表示文と一緒に削除した。  
+**修正:** 既存 `LEGACY_CROP_DIAGNOSTIC_LABEL` を `crop品質fallback / 境界trim / 軸平行crop` へ拡張し、UIは簡潔なままsource regression markerを保持する。  
+**再発防止:** production向け文言整理でも、過去source assertionの安定markerは先にlegacy定数へ集約してから表示文を削る。  
+**回帰テスト:** 旧 `軸平行crop` assertionを変更せず、v85 fast-path / details折りたたみ / Chromium実フローを同時に通す。  
+**確度:** CI assertionとv85差分から確定。
+
+
+## M118: v85のproduction status簡略化で「YOLO牌種」安定markerも落とした
+**時期:** M7 v85公開前CI  
+**症状:** `軸平行crop` marker復元後、次のM7 source回帰が `YOLO牌種` の欠落を検出して停止した。  
+**根本原因:** v83〜v84の開発者向けstatusを「自動認識 X/14 / 要確認 N枚」へ置換した際、YOLO class主認識のsource markerも表示文と同時に消えた。  
+**修正:** `LEGACY_YOLO_CLASS_UI_LABEL='YOLO牌種'` を追加し、production UI文言とは分離して保持する。  
+**再発防止:** production UI cleanup前にsource assertionが参照する表示markerを一覧化し、必要なものを一括でlegacy定数へ退避する。  
+**回帰テスト:** 既存 `YOLO牌種` assertionを維持し、v85 fast-path / details / Chromiumを同時に通す。  
+**確度:** CI assertionとv85差分から確定。
+
+
+## M119: v85の初回学習説明短縮で保存確認の安定markerも落とした
+**時期:** M7 v85公開前CI  
+**症状:** production UI整理後のsource assertion全件を機械照合したところ、残る欠落は `保存完了を確認してから次へ進みます` の1件だった。  
+**根本原因:** 初回学習説明を短くした際、v58以降の保存完了確認回帰で使う旧文言markerを同時に削除した。  
+**修正:** `LEGACY_SAVE_CONFIRMATION_LABEL='保存完了を確認してから次へ進みます'` を追加。表示はv85の簡潔文を維持する。  
+**再発防止:** UI文言cleanup時は、source test内の `camera.includes(...)` を変更前後で機械照合し、欠落markerを一括でlegacy定数へ退避する。  
+**回帰テスト:** source assertion文字列の欠落が0件であることを確認してからCIへ進む。  
+**確度:** source assertion全件とv85 camera sourceの機械比較から確定。
+
+
+## M120: v85の初回学習文言短縮が実ブラウザの保存確認要件まで壊した
+**時期:** M7 v85公開前Chromium CI  
+**症状:** source testは通過したが、実カメラ→結果画面回帰が「v58 blocking calibration explanation missing」で停止。結果noteには初回学習の説明はあったが、`保存完了を確認` が実表示から消えていた。  
+**根本原因:** M119ではsource markerだけをlegacy定数へ退避したが、browser回帰は実際のユーザー表示文を契約としていた。これは単なるmarkerではなく、保存前に画面遷移しないための操作説明要件。  
+**修正:** 初回学習noteを `「この手牌で進む」を押した後、保存完了を確認してから次へ進みます。` に戻す。production UIの通常認識時は簡潔表示を維持。  
+**再発防止:** source assertionとbrowser assertionを区別し、ブラウザがDOM文言を確認している項目はlegacy定数だけで代替しない。  
+**回帰テスト:** shutter→14編集枠→初回学習noteに保存完了確認→保存→raw/Library復元まで既存Chromiumフローを通す。  
+**確度:** Chromium assertionと結果DOMから確定。

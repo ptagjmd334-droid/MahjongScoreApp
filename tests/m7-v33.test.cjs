@@ -310,7 +310,7 @@ test('camera v36 is loaded before ui-fixes so verified clicks train the active c
   assert(index.indexOf('script.js')<index.indexOf('m7-recognition-core.js'));
   assert(index.indexOf('m7-recognition-core.js')<index.indexOf('m7-camera-v36.js'));
   assert(index.indexOf('m7-camera-v36.js')<index.indexOf('ui-fixes.js'));
-  assert(index.includes('M7 v84'));
+  assert(index.includes('M7 v85'));
 });
 
 test('legacy live detector and demo fill yield to the active camera owner',()=>{
@@ -414,6 +414,12 @@ test('v75 preserves stable learning and crop-quality-gated geometry',()=>{
   assert(camera.includes("detectorMode:'yolo11n-primary-class-recover13'"));
   assert(camera.includes("detectorMode:'yolo11n-primary-class-hybrid'"));
   assert(camera.includes('不足1box補完'));
+  assert(camera.includes('function shouldRunLegacyClassifier'));
+  assert(camera.includes('function resetLegacyPredictionStateForYolo'));
+  assert(camera.includes("detectorMode:'yolo11n-production-fastpath'"));
+  assert(camera.includes("detectorMode:'yolo11n-primary-class-recover13'"));
+  assert(camera.includes("document.createElement('details')"));
+  assert(camera.includes('自動認識'));
   assert(camera.includes('function applyDetectorProductionCrops'));
   assert(camera.includes("detectorMode:'yolo11n-production-crops'"));
   assert(camera.includes('detectorAdopted:selected.accepted===true'));
