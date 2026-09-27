@@ -942,53 +942,97 @@
     return descriptorFromCanvas(innerRecognitionCanvas(source,96,144));
   }
 
-  function inferenceFeatureViews(source,bleedInfo=null,useSafe=true){
-    if(useSafe){
-      const safe=bleedInfo||estimateBleedSafeShift(source,.12);
-      const windows=[
-        {...safeInsetWindow(source,.12,safe,0,0),trimY:.08},
-        {...safeInsetWindow(source,.12,safe,-.015,0),trimY:.06},
-        {...safeInsetWindow(source,.12,safe,.018,0),trimY:.10},
-        {...safeInsetWindow(source,.12,safe,0,-.018),trimY:.08},
-        {...safeInsetWindow(source,.12,safe,0,.018),trimY:.08}
-      ];
-      return windows.map(v=>descriptorFromCanvas(innerRecognitionWindowCanvas(source,96,144,v.left,v.right,v.trimY)));
+  function chooseRecognitionWindow(source,index=1,count=14,bleedInfo=null){
+    const base={left:.12,right:.88,trimY:.08,reason:'base'};
+    const candidates=[base];
+    const seen=new Set(['.120:.880']);
+    const canTrimLeft=index>0;
+    const canTrimRight=index<count-1;
+    const add=(left,right,reason)=>{
+      left=Math.max(.08,Math.min(.30,left));
+      right=Math.max(.70,Math.min(.92,right));
+      if(right-left<.54)return;
+      const key=`${left.toFixed(3)}:${right.toFixed(3)}`;if(seen.has(key))return;
+      seen.add(key);candidates.push({left,right,trimY:.08,reason});
+    };
+    for(const extra of [.02,.04,.06]){
+      if(canTrimLeft)add(.12+extra,.88,`left-${Math.round(extra*100)}`);
+      if(canTrimRight)add(.12,.88-extra,`right-${Math.round(extra*100)}`);
     }
-    const configs=[
-      [.12,.08,0,0],[.10,.06,0,0],[.14,.10,0,0],[.12,.08,-.025,0],[.12,.08,.025,0]
-    ];
-    return configs.map(([tx,ty,sx,sy])=>descriptorFromCanvas(innerRecognitionCanvas(source,96,144,tx,ty,sx,sy)));
+    if(canTrimLeft&&canTrimRight){
+      add(.14,.86,'both-2');
+      add(.16,.84,'both-4');
+    }
+
+    const safe=bleedInfo||estimateBleedSafeShift(source,.12);
+    const seam=safeInsetWindow(source,.12,safe,0,0);
+    let seamLeft=canTrimLeft?seam.left:.12;
+    let seamRight=canTrimRight?seam.right:.88;
+    if(seam.applied)add(seamLeft,seamRight,'seam-safe');
+
+    const evaluate=win=>{
+      const canvas=innerRecognitionWindowCanvas(source,96,144,win.left,win.right,win.trimY);
+      return {win,canvas,quality:canvasCropQuality(canvas)};
+    };
+    const baseEval=evaluate(base);
+    let best=baseEval;
+    for(const win of candidates.slice(1)){
+      const cand=evaluate(win),bq=baseEval.quality,q=cand.quality;
+      const fixesBroken=bq.broken&&!q.broken&&q.score>=bq.score-.015;
+      const bleedBetter=(q.edgeContamination||0)<=(bq.edgeContamination||0)-.10&&q.score>=bq.score-.015&&!q.broken;
+      const scoreBetter=q.score>=bq.score+.018&&!q.broken&&(q.edgeContamination||0)<=(bq.edgeContamination||0)+.02;
+      if(!(fixesBroken||bleedBetter||scoreBetter))continue;
+      const rank=q.score-(q.edgeContamination||0)*.08-(q.broken?.25:0);
+      const bestRank=best.quality.score-(best.quality.edgeContamination||0)*.08-(best.quality.broken?.25:0);
+      if(best===baseEval||rank>bestRank+.004)best=cand;
+    }
+    const used=best!==baseEval;
+    return {
+      window:best.win,canvas:best.canvas,quality:best.quality,beforeQuality:baseEval.quality,
+      used,fallback:candidates.length>1&&!used,reason:best.win.reason,
+      trimLeft:Math.max(0,best.win.left-.12),trimRight:Math.max(0,.88-best.win.right),
+      candidateCount:candidates.length
+    };
   }
 
-  function analyzeTileBox(ctx,b){
+  function inferenceFeatureViews(source,selectedWindow=null){
+    const base=selectedWindow||{left:.12,right:.88,trimY:.08};
+    const width=base.right-base.left;
+    const inset=Math.min(.015,Math.max(0,(width-.56)/4));
+    const windows=[
+      {left:base.left,right:base.right,trimY:.08},
+      {left:base.left,right:base.right,trimY:.06},
+      {left:base.left,right:base.right,trimY:.10},
+      {left:base.left+inset,right:base.right,trimY:.08},
+      {left:base.left,right:base.right-inset,trimY:.08}
+    ];
+    return windows.map(v=>descriptorFromCanvas(innerRecognitionWindowCanvas(source,96,144,v.left,v.right,v.trimY)));
+  }
+
+  function analyzeTileBox(ctx,b,index=1,count=14){
     const canonical=perspectiveFaceCanvas(ctx,b,96,144);
     const bleedInfo=estimateBleedSafeShift(canonical,.12);
-    const safeWindow=safeInsetWindow(canonical,.12,bleedInfo,0,0);
-    const baseRecognition=innerRecognitionWindowCanvas(canonical,96,144,.12,.88,.08);
-    const safeRecognition=innerRecognitionWindowCanvas(canonical,96,144,safeWindow.left,safeWindow.right,.08);
-    const baseQuality=canvasCropQuality(baseRecognition);
-    const safeQuality=canvasCropQuality(safeRecognition);
-    const safeImproves=safeWindow.applied===true&&(
-      (baseQuality.broken&&!safeQuality.broken&&safeQuality.score>=baseQuality.score-.01)||
-      (safeQuality.score>=baseQuality.score+.018&&!safeQuality.broken)
-    );
-    const recognition=safeImproves?safeRecognition:baseRecognition;
-    const quality=safeImproves?safeQuality:baseQuality;
+    const chosen=chooseRecognitionWindow(canonical,index,count,bleedInfo);
+    const recognition=chosen.canvas;
+    const quality=chosen.quality;
     const trainingImage=canonical.toDataURL('image/jpeg',.92);
     return {
       feature:descriptorFromCanvas(recognition),
-      inferenceFeatures:inferenceFeatureViews(canonical,bleedInfo,safeImproves),
+      inferenceFeatures:inferenceFeatureViews(canonical,chosen.window),
       crop:recognition.toDataURL('image/jpeg',.92),
       trainingImage,
       quality,
+      qualityBefore:chosen.beforeQuality,
       cropBroken:quality.broken===true,
-      qualityFallback:safeWindow.applied===true&&!safeImproves,
+      qualityFallback:chosen.fallback===true,
       bleedShift:Number(bleedInfo.shiftX)||0,
       bleedSide:bleedInfo.side||'none',
       bleedConfidence:Number(bleedInfo.confidence)||0,
-      bleedInsetApplied:safeImproves,
-      bleedTrimLeft:safeImproves?(Number(safeWindow.left)||.12):.12,
-      bleedTrimRight:safeImproves?(Number(1-safeWindow.right)||.12):.12,
+      bleedInsetApplied:chosen.used===true,
+      bleedTrimLeft:Number(chosen.trimLeft)||0,
+      bleedTrimRight:Number(chosen.trimRight)||0,
+      cropTrimReason:chosen.reason||'base',
+      cropCandidateCount:chosen.candidateCount||1,
       perspectiveUsed:canonical.__m7v46Perspective===true
     };
   }
@@ -1416,15 +1460,16 @@
   }
 
   function boxCropQuality(ctx,b){
-    if(!ctx||!b)return {score:0,broken:true,tileRatio:0,centerRatio:0,sideMin:0,woodRatio:1};
+    if(!ctx||!b)return {score:0,broken:true,tileRatio:0,centerRatio:0,sideMin:0,woodRatio:1,edgeContamination:1};
     const cw=ctx.canvas.width|0,ch=ctx.canvas.height|0;
     const x0=Math.max(0,Math.floor(b.x)),y0=Math.max(0,Math.floor(b.y));
     const x1=Math.min(cw,Math.ceil(b.x+b.w)),y1=Math.min(ch,Math.ceil(b.y+b.h));
     const w=Math.max(1,x1-x0),h=Math.max(1,y1-y0);
-    if(w<4||h<8)return {score:0,broken:true,tileRatio:0,centerRatio:0,sideMin:0,woodRatio:1};
+    if(w<4||h<8)return {score:0,broken:true,tileRatio:0,centerRatio:0,sideMin:0,woodRatio:1,edgeContamination:1};
     const data=ctx.getImageData(x0,y0,w,h).data;
     const step=Math.max(1,Math.floor(Math.min(w,h)/42));
     let total=0,tile=0,wood=0,centerN=0,centerTile=0,leftN=0,leftTile=0,rightN=0,rightTile=0;
+    let edgeLeftN=0,edgeLeftWood=0,edgeLeftDark=0,edgeRightN=0,edgeRightWood=0,edgeRightDark=0;
     for(let y=Math.floor(h*.08);y<h*.92;y+=step){
       for(let x=0;x<w;x+=step){
         const i=(y*w+x)*4,r=data[i],g=data[i+1],bl=data[i+2];
@@ -1432,20 +1477,57 @@
         const neutral=(max-min)/(lum+1);
         const tileLike=lum>=70&&neutral<=.46;
         const woodLike=r>=g+8&&g>=bl+5&&r>=bl+17&&neutral>.16;
+        const darkLike=lum<48;
         total++;if(tileLike)tile++;if(woodLike)wood++;
         const xf=x/Math.max(1,w-1);
         if(xf>=.20&&xf<=.80){centerN++;if(tileLike)centerTile++;}
         if(xf<=.28){leftN++;if(tileLike)leftTile++;}
         if(xf>=.72){rightN++;if(tileLike)rightTile++;}
+        if(xf<=.16){edgeLeftN++;if(woodLike)edgeLeftWood++;if(darkLike)edgeLeftDark++;}
+        if(xf>=.84){edgeRightN++;if(woodLike)edgeRightWood++;if(darkLike)edgeRightDark++;}
       }
     }
     const tileRatio=total?tile/total:0,woodRatio=total?wood/total:1;
     const centerRatio=centerN?centerTile/centerN:0,leftRatio=leftN?leftTile/leftN:0,rightRatio=rightN?rightTile/rightN:0;
     const sideMin=Math.min(leftRatio,rightRatio),sideMean=(leftRatio+rightRatio)/2;
-    let score=centerRatio*.42+sideMin*.22+sideMean*.12+tileRatio*.24-woodRatio*.24;
+    const leftEdgeWood=edgeLeftN?edgeLeftWood/edgeLeftN:0,rightEdgeWood=edgeRightN?edgeRightWood/edgeRightN:0;
+    const leftEdgeDark=edgeLeftN?edgeLeftDark/edgeLeftN:0,rightEdgeDark=edgeRightN?edgeRightDark/edgeRightN:0;
+
+    // v75: score vertical seam evidence only in thin top/bottom bands where tile
+    // glyphs are rare. A strong internal seam near a side is a better neighbor-
+    // bleed signal than dark ink in the center.
+    const seamStrength=(lo,hi)=>{
+      let best=0;
+      const ya1=Math.max(1,Math.floor(h*.06)),yb1=Math.min(h-1,Math.ceil(h*.24));
+      const ya2=Math.max(1,Math.floor(h*.76)),yb2=Math.min(h-1,Math.ceil(h*.94));
+      for(let x=Math.max(2,Math.floor(lo));x<=Math.min(w-3,Math.ceil(hi));x++){
+        let sum=0,n=0;
+        for(const [ya,yb] of [[ya1,yb1],[ya2,yb2]]){
+          for(let y=ya;y<yb;y++){
+            const il=(y*w+x-1)*4,ir=(y*w+x+1)*4;
+            const ll=(data[il]*3+data[il+1]*6+data[il+2])/10;
+            const lr=(data[ir]*3+data[ir+1]*6+data[ir+2])/10;
+            sum+=Math.abs(lr-ll);n++;
+          }
+        }
+        if(n)best=Math.max(best,sum/n);
+      }
+      return Math.max(0,Math.min(1,best/46));
+    };
+    // Ignore the extreme outer 10%: a legitimate tile-face/table edge lives there.
+    // Neighbor bleed is an *internal* seam that remains after the normal inner crop.
+    const leftSeam=seamStrength(w*.10,w*.28),rightSeam=seamStrength(w*.72,w*.90);
+    const leftContamination=Math.max(leftEdgeWood*.88+leftEdgeDark*.12,leftSeam*.74+leftEdgeWood*.26);
+    const rightContamination=Math.max(rightEdgeWood*.88+rightEdgeDark*.12,rightSeam*.74+rightEdgeWood*.26);
+    const edgeContamination=Math.max(leftContamination,rightContamination);
+
+    let score=centerRatio*.41+sideMin*.20+sideMean*.11+tileRatio*.28-woodRatio*.22-edgeContamination*.20;
     score=Math.max(0,Math.min(1,score));
-    const broken=centerRatio<.28||tileRatio<.24||sideMin<.08||woodRatio>.58;
-    return {score,broken,tileRatio,centerRatio,sideMin,leftRatio,rightRatio,woodRatio};
+    const broken=centerRatio<.28||tileRatio<.24||sideMin<.08||woodRatio>.58||edgeContamination>.78;
+    return {
+      score,broken,tileRatio,centerRatio,sideMin,leftRatio,rightRatio,woodRatio,
+      edgeContamination,leftContamination,rightContamination,leftEdgeWood,rightEdgeWood,leftSeam,rightSeam
+    };
   }
 
   function canvasCropQuality(canvas){
@@ -1463,13 +1545,16 @@
     const lower=scores[Math.floor(scores.length*.20)]||0;
     const endMean=qualities.length?((qualities[0]?.score||0)+(qualities[qualities.length-1]?.score||0))/2:0;
     const brokenCount=qualities.filter(q=>q.broken).length;
-    const score=mean*.44+median*.24+lower*.20+endMean*.12-brokenCount*.045;
-    return {score,mean,median,lower,endMean,brokenCount,qualities,boxes};
+    const edgeMean=qualities.reduce((s,q)=>s+(q.edgeContamination||0),0)/Math.max(1,qualities.length);
+    const edgeHighCount=qualities.filter(q=>(q.edgeContamination||0)>.58).length;
+    const score=mean*.40+median*.22+lower*.18+endMean*.16-brokenCount*.045-edgeMean*.06-edgeHighCount*.012;
+    return {score,mean,median,lower,endMean,brokenCount,edgeMean,edgeHighCount,qualities,boxes};
   }
 
-  function selectRowByCropQuality(ctx,row,outerFit=null,count=14){
-    if(!ctx||!row)return {row,used:false,reason:'invalid',base:null,best:null};
+  function selectRowByCropQuality(ctx,row,outerFit=null,gridFit=null,count=14){
+    if(!ctx||!row)return {row,used:false,reason:'invalid',base:null,best:null,startDeltaPitch:0,pitchScale:1};
     const candidates=[],seen=new Set();
+    const nominalPitch=row.w/count;
     const add=(candidate,reason)=>{
       if(!candidate||!Number.isFinite(candidate.x)||!Number.isFinite(candidate.w)||candidate.w<=0)return;
       const key=`${Math.round(candidate.x*10)}:${Math.round(candidate.w*10)}`;
@@ -1478,52 +1563,138 @@
     };
     add(row,'base');
     if(outerFit?.used&&outerFit.row)add(outerFit.row,'outer-edge');
-    const seeds=[row];
-    if(outerFit?.used&&outerFit.row)seeds.push(outerFit.row);
-    for(const seed of seeds){
-      const pitch=seed.w/count;
-      for(const dl of [-.14,0,.14]){
-        for(const dr of [-.14,0,.14]){
-          if(dl===0&&dr===0)continue;
-          const left=seed.x+pitch*dl,right=seed.x+seed.w+pitch*dr;
-          const width=right-left;
-          if(width<=0)continue;
-          const scale=width/seed.w;
-          if(scale<.972||scale>1.028)continue;
-          add({...seed,x:left,w:width},'quality-endpoints');
-        }
+
+    // v75: v61's periodic grid is never trusted directly. It is only one
+    // low-freedom candidate when both phase and pitch stay very close to the
+    // located row, and crop quality still has veto power.
+    if(gridFit?.used&&gridFit.row&&Math.abs(gridFit.offsetPitch||0)<=.10&&Math.abs((gridFit.pitchScale||1)-1)<=.015){
+      add(gridFit.row,'periodic-candidate');
+    }
+
+    // Search only start + common pitch. Internal 13 boundaries never move
+    // independently, avoiding the v37 seam-chasing failure.
+    for(const startDelta of [-.10,-.05,.05,.10]){
+      add({...row,x:row.x+nominalPitch*startDelta},'start-candidate');
+    }
+    for(const scale of [.988,.994,1.006,1.012]){
+      add({...row,w:row.w*scale},'pitch-candidate');
+    }
+    for(const startDelta of [-.06,.06]){
+      for(const scale of [.994,1.006]){
+        add({...row,x:row.x+nominalPitch*startDelta,w:row.w*scale},'start-pitch-candidate');
       }
     }
+
     const base=candidates[0];
     let best=base;
     for(const cand of candidates.slice(1)){
-      const bq=best.quality,cq=cand.quality;
-      const clearlyBetter=cq.brokenCount<bq.brokenCount&&cq.score>=bq.score-.012;
-      const scoreBetter=cq.score>bq.score+.025&&cq.brokenCount<=bq.brokenCount;
-      if(clearlyBetter||scoreBetter)best=cand;
+      const bq=base.quality,cq=cand.quality;
+      const fewerBroken=cq.brokenCount<bq.brokenCount&&cq.score>=bq.score-.010&&cq.edgeHighCount<=bq.edgeHighCount+1;
+      const lessBleed=cq.edgeHighCount<bq.edgeHighCount&&cq.score>=bq.score-.010&&cq.brokenCount<=bq.brokenCount;
+      const scoreBetter=cq.score>=bq.score+.020&&cq.brokenCount<=bq.brokenCount&&cq.edgeMean<=bq.edgeMean+.025;
+      if(!(fewerBroken||lessBleed||scoreBetter))continue;
+      const current=best.quality;
+      const candRank=cq.score-cq.brokenCount*.06-cq.edgeHighCount*.018-cq.edgeMean*.04;
+      const bestRank=current.score-current.brokenCount*.06-current.edgeHighCount*.018-current.edgeMean*.04;
+      if(best===base||candRank>bestRank+.004)best=cand;
     }
     const used=best!==base;
+    const pitch=best.row.w/count;
     return {
       row:best.row,used,reason:best.reason,
       base:base.quality,best:best.quality,
       scoreGain:best.quality.score-base.quality.score,
-      brokenBefore:base.quality.brokenCount,brokenAfter:best.quality.brokenCount
+      brokenBefore:base.quality.brokenCount,brokenAfter:best.quality.brokenCount,
+      edgeHighBefore:base.quality.edgeHighCount,edgeHighAfter:best.quality.edgeHighCount,
+      startDeltaPitch:(best.row.x-row.x)/Math.max(1,nominalPitch),
+      pitchScale:pitch/Math.max(1,nominalPitch)
     };
   }
 
   function rescueBrokenBox(ctx,b){
     const base=boxCropQuality(ctx,b);
-    if(!base.broken&&base.score>=.42)return {box:b,used:false,quality:base,before:base};
+    if(!base.broken&&base.score>=.42&&(base.edgeContamination||0)<.56)return {box:b,used:false,quality:base,before:base};
     let best={box:b,quality:base};
-    for(const frac of [-.14,-.08,.08,.14]){
+    for(const frac of [-.06,-.04,-.02,.02,.04,.06]){
       const maxX=Math.max(0,(ctx.canvas.width||0)-b.w);
       const candidate={...b,x:Math.max(0,Math.min(maxX,b.x+b.w*frac))};
       const q=boxCropQuality(ctx,candidate);
       const clearlyBetter=!q.broken&&base.broken&&q.score>=base.score-.01;
+      const bleedBetter=(q.edgeContamination||0)<(base.edgeContamination||0)-.10&&q.score>=base.score-.012;
       const scoreBetter=q.score>=best.quality.score+.035;
-      if(clearlyBetter||scoreBetter)best={box:candidate,quality:q};
+      if(clearlyBetter||bleedBetter||scoreBetter)best={box:candidate,quality:q};
     }
     return {box:best.box,used:best.box!==b,quality:best.quality,before:base};
+  }
+
+  function tripletCropQuality(ctx,boxes,index){
+    const ids=[index-1,index,index+1].filter(i=>i>=0&&i<boxes.length);
+    const qualities=ids.map(i=>boxCropQuality(ctx,boxes[i]));
+    return {
+      score:qualities.reduce((s,q)=>s+q.score,0)/Math.max(1,qualities.length),
+      brokenCount:qualities.filter(q=>q.broken).length,
+      edgeMean:qualities.reduce((s,q)=>s+(q.edgeContamination||0),0)/Math.max(1,qualities.length),
+      qualities
+    };
+  }
+
+  function applyLocalBoundaryDelta(boxes,index,leftDelta=0,rightDelta=0){
+    const out=boxes.map(b=>({...b}));
+    const target=out[index];if(!target)return null;
+    const minW=Math.max(4,target.w*.72);
+    if(index===0)leftDelta=0;
+    if(index===out.length-1)rightDelta=0;
+    if(index>0){
+      out[index-1].w+=leftDelta;
+      target.x+=leftDelta;
+      target.w-=leftDelta;
+    }
+    if(index<out.length-1){
+      target.w+=rightDelta;
+      out[index+1].x+=rightDelta;
+      out[index+1].w-=rightDelta;
+    }
+    if(target.w<minW)return null;
+    if(index>0&&out[index-1].w<minW)return null;
+    if(index<out.length-1&&out[index+1].w<minW)return null;
+    return out;
+  }
+
+  function rescueLocalBoundaries(ctx,boxes){
+    let current=boxes.map(b=>({...b}));
+    const debug=Array.from({length:boxes.length},()=>({used:false,leftPx:0,rightPx:0,beforeScore:null,afterScore:null}));
+    let adoptedCount=0;
+    for(let i=0;i<current.length;i++){
+      const q=boxCropQuality(ctx,current[i]);
+      const suspect=q.broken||q.score<.40||(q.edgeContamination||0)>.52;
+      if(!suspect)continue;
+      const pitch=current[i].w;
+      const baseTriplet=tripletCropQuality(ctx,current,i);
+      let bestBoxes=current,bestTriplet=baseTriplet,bestLeft=0,bestRight=0;
+      const fractions=[-.06,-.04,-.02,.02,.04,.06];
+      const candidates=[];
+      if(i>0)for(const f of fractions)candidates.push([pitch*f,0]);
+      if(i<current.length-1)for(const f of fractions)candidates.push([0,pitch*f]);
+      for(const [dl,dr] of candidates){
+        const next=applyLocalBoundaryDelta(current,i,dl,dr);if(!next)continue;
+        const tq=tripletCropQuality(ctx,next,i);
+        const fewerBroken=tq.brokenCount<baseTriplet.brokenCount&&tq.score>=baseTriplet.score-.010;
+        const lessBleed=tq.edgeMean<=baseTriplet.edgeMean-.075&&tq.score>=baseTriplet.score-.012&&tq.brokenCount<=baseTriplet.brokenCount;
+        const scoreBetter=tq.score>=baseTriplet.score+.030&&tq.brokenCount<=baseTriplet.brokenCount&&tq.edgeMean<=baseTriplet.edgeMean+.015;
+        if(!(fewerBroken||lessBleed||scoreBetter))continue;
+        const rank=tq.score-tq.brokenCount*.07-tq.edgeMean*.05;
+        const bestRank=bestTriplet.score-bestTriplet.brokenCount*.07-bestTriplet.edgeMean*.05;
+        if(bestBoxes===current||rank>bestRank+.004){
+          bestBoxes=next;bestTriplet=tq;bestLeft=dl;bestRight=dr;
+        }
+      }
+      if(bestBoxes!==current){
+        debug[i]={used:true,leftPx:bestLeft,rightPx:bestRight,beforeScore:baseTriplet.score,afterScore:bestTriplet.score,
+          beforeBroken:baseTriplet.brokenCount,afterBroken:bestTriplet.brokenCount,beforeEdge:baseTriplet.edgeMean,afterEdge:bestTriplet.edgeMean};
+        current=bestBoxes;adoptedCount++;
+      }
+    }
+    return {boxes:current,adoptedCount,debug};
   }
 
 
@@ -1765,21 +1936,28 @@
     lowCtx.drawImage(highCanvas,0,0,low.width,low.height);
     const lowRow=locateTileRow(lowCtx);
     if(!lowRow)return {row:null,boxes:[],features:[],crops:[],trainingImages:[],perspectiveCount:0,gridUsed:false,gridFit:null,photo:highCanvas.toDataURL('image/jpeg',.80)};
-    // v74: do not trust a geometric correction just because it fires. Score the
-    // 14 resulting crops and adopt only row endpoint changes that measurably
-    // improve tile-face quality. This keeps the correction low-freedom while
-    // catching cases like slot 14 becoming mostly table.
+
+    // v75: choose only among low-freedom row models (start + one common pitch).
+    // v37-style independent seams remain disabled; v61 periodic evidence is only
+    // a small, quality-gated candidate.
     const gridFit=fitGlobalRowGrid(lowCtx,lowRow,14);
     const outerFit=refineRowOuterEdges(lowCtx,lowRow,14);
-    const qualityRow=selectRowByCropQuality(lowCtx,lowRow,outerFit,14);
+    const qualityRow=selectRowByCropQuality(lowCtx,lowRow,outerFit,gridFit,14);
     const productionLowRow=qualityRow.row||lowRow;
+
     const sx=highCanvas.width/low.width,sy=highCanvas.height/low.height;
     const row={x:productionLowRow.x*sx,y:productionLowRow.y*sy,w:productionLowRow.w*sx,h:productionLowRow.h*sy};
     const initialBoxes=splitRow(row,14);
-    const rescued=initialBoxes.map(b=>rescueBrokenBox(highCtx,b));
-    const boxes=rescued.map(x=>x.box);
-    const tileData=boxes.map(b=>analyzeTileBox(highCtx,b));
+
+    // Only suspicious tiles may adjust a local boundary, and the adjacent
+    // triplet must improve as a group before the change is adopted.
+    const localRescue=rescueLocalBoundaries(highCtx,initialBoxes);
+    const boxes=localRescue.boxes;
+    const tileData=boxes.map((b,i)=>analyzeTileBox(highCtx,b,i,14));
     const cropBroken=tileData.map(x=>x.cropBroken===true);
+    const rowStartDeltaPitch=Number.isFinite(qualityRow.startDeltaPitch)?qualityRow.startDeltaPitch:0;
+    const rowPitchScale=Number.isFinite(qualityRow.pitchScale)?qualityRow.pitchScale:1;
+
     return {
       row,boxes,
       features:tileData.map(x=>x.feature),
@@ -1787,29 +1965,47 @@
       crops:tileData.map(x=>x.crop),
       trainingImages:tileData.map(x=>x.trainingImage),
       cropBroken,
-      cropQualities:tileData.map(x=>({
+      cropQualities:tileData.map((x,i)=>({
         score:Number((x.quality?.score||0).toFixed(4)),
+        beforeScore:Number((x.qualityBefore?.score||0).toFixed(4)),
         broken:x.cropBroken===true,
         tileRatio:Number((x.quality?.tileRatio||0).toFixed(4)),
         centerRatio:Number((x.quality?.centerRatio||0).toFixed(4)),
-        woodRatio:Number((x.quality?.woodRatio||0).toFixed(4))
+        woodRatio:Number((x.quality?.woodRatio||0).toFixed(4)),
+        edgeContamination:Number((x.quality?.edgeContamination||0).toFixed(4)),
+        beforeEdgeContamination:Number((x.qualityBefore?.edgeContamination||0).toFixed(4)),
+        leftTrim:Number((x.bleedTrimLeft||0).toFixed(4)),
+        rightTrim:Number((x.bleedTrimRight||0).toFixed(4)),
+        trimReason:x.cropTrimReason||'base',
+        localBoundary:localRescue.debug?.[i]||null
       })),
       cropQualityFallbackCount:tileData.filter(x=>x.qualityFallback===true).length,
       brokenCropCount:cropBroken.filter(Boolean).length,
-      resplitAdoptedCount:rescued.filter(x=>x.used===true).length,
+      cropAbnormalCount:cropBroken.filter(Boolean).length,
+      resplitAdoptedCount:localRescue.adoptedCount||0,
+      localBoundaryDebug:localRescue.debug||[],
       perspectiveCount:tileData.filter(x=>x.perspectiveUsed).length,
       bleedSafeCount:tileData.filter(x=>x.bleedInsetApplied===true).length,
+      boundaryTrimCount:tileData.filter(x=>x.bleedInsetApplied===true).length,
       bleedShifts:tileData.map(x=>Number((x.bleedShift||0).toFixed(4))),
-      bleedInsets:tileData.map(x=>({left:Number((x.bleedTrimLeft||.12).toFixed(4)),right:Number((x.bleedTrimRight||.12).toFixed(4))})),
-      gridUsed:false,
+      bleedInsets:tileData.map(x=>({leftTrim:Number((x.bleedTrimLeft||0).toFixed(4)),rightTrim:Number((x.bleedTrimRight||0).toFixed(4)),reason:x.cropTrimReason||'base'})),
+      gridUsed:qualityRow.reason==='periodic-candidate',
       gridCandidate:gridFit.used===true,
-      outerFitUsed:qualityRow.used===true,
+      outerFitUsed:qualityRow.reason==='outer-edge',
+      rowCorrectionUsed:qualityRow.used===true,
+      rowStartDeltaPitch,
+      rowPitchScale,
       rowQuality:{
         reason:qualityRow.reason||'',
         scoreGain:Number.isFinite(qualityRow.scoreGain)?Number(qualityRow.scoreGain.toFixed(4)):null,
         brokenBefore:Number.isFinite(qualityRow.brokenBefore)?qualityRow.brokenBefore:null,
         brokenAfter:Number.isFinite(qualityRow.brokenAfter)?qualityRow.brokenAfter:null,
-        candidateOuter:outerFit.used===true
+        edgeHighBefore:Number.isFinite(qualityRow.edgeHighBefore)?qualityRow.edgeHighBefore:null,
+        edgeHighAfter:Number.isFinite(qualityRow.edgeHighAfter)?qualityRow.edgeHighAfter:null,
+        startDeltaPitch:Number(rowStartDeltaPitch.toFixed(4)),
+        pitchScale:Number(rowPitchScale.toFixed(5)),
+        candidateOuter:outerFit.used===true,
+        candidateGrid:gridFit.used===true
       },
       outerFit:{
         reason:outerFit.reason||'',
@@ -1877,7 +2073,7 @@
       if(note)note.textContent=features.length===14
         ?(firstCalibration
           ?'この保存領域には学習データがありません。今回だけ14枚を正しく指定してください。「この手牌で進む」を押した時に保存完了を確認してから次へ進みます。'
-          :`精度優先版です。14cropの品質を先に採点し、外周補正・局所再分割・境界除去は実際にcrop品質が改善した場合だけ採用します。壊れcropは無理にTop1を出しません。高信頼候補 ${auto}枚。保留理由: ${confidenceReasonSummary()}。認識 ${Math.max(0,state.lastRecognitionMs||0)}ms / 外周補正 ${analysis.outerFitUsed?'ON':'OFF'} / 境界除去 ${analysis.bleedSafeCount||0}/14 / crop品質fallback ${analysis.cropQualityFallbackCount||0}/14 / 壊れcrop ${analysis.brokenCropCount||0}/14 / 再分割採用 ${analysis.resplitAdoptedCount||0}/14 / 補助view ${state.lastAuxViewsUsed||0} / 微調整 ${state.lastMicroRefined||0}${state.lastAuxFallbackCount?' / 時間上限fallback':''}。`)
+          :`精度優先版です。分類器はv74を維持し、row開始＋共通pitchの低自由度補正、左右端の混入重視品質評価、品質改善時だけの2/4/6%非対称trim、疑わしい牌だけの3枚合計品質による局所境界補正を行います。壊れcropはTop1を出しません。高信頼候補 ${auto}枚。保留理由: ${confidenceReasonSummary()}。認識 ${Math.max(0,state.lastRecognitionMs||0)}ms / row補正 ${analysis.rowCorrectionUsed?'ON':'OFF'} / 開始 ${Number(analysis.rowStartDeltaPitch||0).toFixed(3)}牌 / pitch ${Number(analysis.rowPitchScale||1).toFixed(4)} / 境界trim ${analysis.boundaryTrimCount||0}/14 / 局所再分割 ${analysis.resplitAdoptedCount||0}/14 / crop異常 ${analysis.cropAbnormalCount||0}/14 / crop品質fallback ${analysis.cropQualityFallbackCount||0}/14 / 補助view ${state.lastAuxViewsUsed||0} / 微調整 ${state.lastMicroRefined||0}${state.lastAuxFallbackCount?' / 時間上限fallback':''}。`)
         :'白枠内から牌列を特定できませんでした。撮影画像を確認し、14枠を手動入力するか「読み取り直す」で再撮影してください。';
       const status=root.querySelector('.hand-result-status-m7v5');
       if(status&&auto<14)status.textContent=features.length===14
@@ -1919,10 +2115,12 @@
       state.diagnostics={
         sourceWidth:Math.round(capture.source.w),sourceHeight:Math.round(capture.source.h),
         rowFound:!!analysis.row,row:analysis.row?{...analysis.row}:null,
-        gridUsed:false,gridCandidate:analysis.gridCandidate===true,gridFit:analysis.gridFit||null,
+        gridUsed:analysis.gridUsed===true,gridCandidate:analysis.gridCandidate===true,gridFit:analysis.gridFit||null,
         outerFitUsed:analysis.outerFitUsed===true,outerFit:analysis.outerFit||null,rowQuality:analysis.rowQuality||null,
+        rowCorrectionUsed:analysis.rowCorrectionUsed===true,rowStartDeltaPitch:analysis.rowStartDeltaPitch||0,rowPitchScale:analysis.rowPitchScale||1,
         cropQualityFallbackCount:analysis.cropQualityFallbackCount||0,brokenCropCount:analysis.brokenCropCount||0,
-        resplitAdoptedCount:analysis.resplitAdoptedCount||0,cropQualities:analysis.cropQualities||[]
+        boundaryTrimCount:analysis.boundaryTrimCount||0,resplitAdoptedCount:analysis.resplitAdoptedCount||0,
+        localBoundaryDebug:analysis.localBoundaryDebug||[],cropQualities:analysis.cropQualities||[]
       };
       window.M7V36LastDiagnostics=state.diagnostics;
       // Existing cancel owns the MediaStream and removes the camera overlay.
@@ -2056,6 +2254,6 @@
   },true);
 
   window.M7CameraV36=Object.freeze({
-    sourceRectForCover,locateTileRow,splitRow,boxCropQuality,canvasCropQuality,rowCropQuality,selectRowByCropQuality,rescueBrokenBox,refineRowOuterEdges,fitGlobalRowGrid,splitRowBySeams,analyzeGuideCanvas,featureFromBox,tileFaceRect,descriptorFromCanvas,detectFaceGeometry,detectFaceQuad,canonicalizeCanvas,orientedFaceCanvas,perspectiveFaceCanvas,warpQuadToCanvas,trainingImageDataUrl,estimateBleedSafeShift,safeInsetWindow,innerRecognitionCanvas,innerRecognitionWindowCanvas,innerFeatureFromCanonical,inferenceFeatureViews,analyzeTileBox,loadTrainingSamples,rebuildLibraryFromTrainingImages,loadLibrary,activeLibrary,saveLibrary,saveLibraryDetailed,persistVerifiedHand,persistFailureText,loadLegacyLibrary,legacyLibraryKeys,convertLegacyDirectFeature,cropResampleFeatureMap,confidenceAssessment,confidentCandidate,confidenceReasonSummary,renderPickerPhoto,renderPickerSuggestions,pickerCurrentIndex,schedulePickerSuggestionSync,attachPickerSuggestionObserver
+    sourceRectForCover,locateTileRow,splitRow,boxCropQuality,canvasCropQuality,rowCropQuality,selectRowByCropQuality,rescueBrokenBox,tripletCropQuality,applyLocalBoundaryDelta,rescueLocalBoundaries,refineRowOuterEdges,fitGlobalRowGrid,splitRowBySeams,analyzeGuideCanvas,featureFromBox,tileFaceRect,descriptorFromCanvas,detectFaceGeometry,detectFaceQuad,canonicalizeCanvas,orientedFaceCanvas,perspectiveFaceCanvas,warpQuadToCanvas,trainingImageDataUrl,estimateBleedSafeShift,safeInsetWindow,chooseRecognitionWindow,innerRecognitionCanvas,innerRecognitionWindowCanvas,innerFeatureFromCanonical,inferenceFeatureViews,analyzeTileBox,loadTrainingSamples,rebuildLibraryFromTrainingImages,loadLibrary,activeLibrary,saveLibrary,saveLibraryDetailed,persistVerifiedHand,persistFailureText,loadLegacyLibrary,legacyLibraryKeys,convertLegacyDirectFeature,cropResampleFeatureMap,confidenceAssessment,confidentCandidate,confidenceReasonSummary,renderPickerPhoto,renderPickerSuggestions,pickerCurrentIndex,schedulePickerSuggestionSync,attachPickerSuggestionObserver
   });
 })();

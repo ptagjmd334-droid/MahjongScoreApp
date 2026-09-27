@@ -310,7 +310,7 @@ test('camera v36 is loaded before ui-fixes so verified clicks train the active c
   assert(index.indexOf('script.js')<index.indexOf('m7-recognition-core.js'));
   assert(index.indexOf('m7-recognition-core.js')<index.indexOf('m7-camera-v36.js'));
   assert(index.indexOf('m7-camera-v36.js')<index.indexOf('ui-fixes.js'));
-  assert(index.includes('M7 v74'));
+  assert(index.includes('M7 v75'));
 });
 
 test('legacy live detector and demo fill yield to the active camera owner',()=>{
@@ -327,7 +327,7 @@ test('v36 camera avoids fixed bright-white threshold and closes camera when hidd
   assert(camera.includes(".realtime-hand-cancel-m7v3')?.click()"));
 });
 
-test('v74 preserves stable learning and adds crop-quality-gated geometry',()=>{
+test('v75 preserves stable learning and crop-quality-gated geometry',()=>{
   const camera=fs.readFileSync(path.join(root,'m7-camera-v36.js'),'utf8');
   assert(camera.includes("MahjongScoreApp_tile_templates_stable1"));
   assert(camera.includes("MahjongScoreApp_tile_templates_stable1_backup"));
@@ -375,24 +375,28 @@ test('v74 preserves stable learning and adds crop-quality-gated geometry',()=>{
   assert(camera.includes('function innerRecognitionWindowCanvas'));
   assert(camera.includes('const bleedInfo=estimateBleedSafeShift(canonical,.12)'));
   assert(camera.includes('bleedSafeCount:tileData.filter'));
-  assert(camera.includes('bleedInsetApplied:safeImproves'));
+  assert(camera.includes('bleedInsetApplied:chosen.used===true'));
   assert(camera.includes('bleedInsets:tileData.map'));
   assert(camera.includes('const outerFit=refineRowOuterEdges(lowCtx,lowRow,14)'));
   assert(camera.includes('function boxCropQuality'));
   assert(camera.includes('function rowCropQuality'));
   assert(camera.includes('function selectRowByCropQuality'));
   assert(camera.includes('function rescueBrokenBox'));
-  assert(camera.includes('const qualityRow=selectRowByCropQuality(lowCtx,lowRow,outerFit,14)'));
+  assert(camera.includes('function rescueLocalBoundaries'));
+  assert(camera.includes('function chooseRecognitionWindow'));
+  assert(camera.includes('const qualityRow=selectRowByCropQuality(lowCtx,lowRow,outerFit,gridFit,14)'));
   assert(camera.includes('const productionLowRow=qualityRow.row||lowRow'));
-  assert(camera.includes('outerFitUsed:qualityRow.used===true'));
+  assert(camera.includes('const localRescue=rescueLocalBoundaries(highCtx,initialBoxes)'));
+  assert(camera.includes("outerFitUsed:qualityRow.reason==='outer-edge'"));
+  assert(camera.includes('rowCorrectionUsed:qualityRow.used===true'));
   assert(camera.includes('cropQualityFallbackCount'));
   assert(camera.includes('brokenCropCount'));
   assert(camera.includes('resplitAdoptedCount'));
   assert(camera.includes("reasons[index]='crop-broken'"));
   assert(camera.includes("if(state.pendingBroken[i])continue"));
   assert(camera.includes('crop品質fallback'));
-  assert(camera.includes('壊れcrop'));
-  assert(camera.includes('再分割採用'));
+  assert(camera.includes('crop異常'));
+  assert(camera.includes('局所再分割'));
   assert(camera.includes('core.rankLabelsFastDiscriminative(view,lib'));
   assert(camera.includes('core.combineViewRankings(rankings)'));
   assert(camera.includes('const TOTAL_BUDGET_MS=7500'));
@@ -412,7 +416,7 @@ test('v74 preserves stable learning and adds crop-quality-gated geometry',()=>{
   assert(camera.includes("reason:'template-consensus'"));
   assert(camera.includes("reason:'template-distance'"));
   assert(camera.includes('gridCandidate:gridFit.used===true'));
-  assert(camera.includes('gridUsed:false'));
+  assert(camera.includes("gridUsed:qualityRow.reason==='periodic-candidate'"));
   assert(camera.includes('const row={x:productionLowRow.x*sx,y:productionLowRow.y*sy,w:productionLowRow.w*sx,h:productionLowRow.h*sy}'));
   const picker=fs.readFileSync(path.join(root,'m8-v3.js'),'utf8');
   assert(picker.includes('100dvh'));
@@ -456,11 +460,22 @@ test('v74 preserves stable learning and adds crop-quality-gated geometry',()=>{
   assert(ui.includes("if(!saved?.ok)"));
 });
 
-test('v74 crop quality helper distinguishes tile face from table-like crop',()=>{
+test('v75 crop quality and low-freedom crop stabilization helpers are wired',()=>{
   const camera=fs.readFileSync(path.join(root,'m7-camera-v36.js'),'utf8');
-  assert(camera.includes("const broken=centerRatio<.28||tileRatio<.24||sideMin<.08||woodRatio>.58"));
-  assert(camera.includes('safeQuality.score>=baseQuality.score+.018'));
-  assert(camera.includes('qualityFallback:safeWindow.applied===true&&!safeImproves'));
+  assert(camera.includes('edgeContamination'));
+  assert(camera.includes('function chooseRecognitionWindow'));
+  assert(camera.includes('for(const extra of [.02,.04,.06])'));
+  assert(camera.includes('function tripletCropQuality'));
+  assert(camera.includes('function applyLocalBoundaryDelta'));
+  assert(camera.includes('function rescueLocalBoundaries'));
+  assert(camera.includes("qualityRow=selectRowByCropQuality(lowCtx,lowRow,outerFit,gridFit,14)"));
+  assert(camera.includes("qualityRow.reason==='periodic-candidate'"));
+  assert(camera.includes('rowStartDeltaPitch'));
+  assert(camera.includes('rowPitchScale'));
+  assert(camera.includes('boundaryTrimCount'));
+  assert(camera.includes('localBoundaryDebug'));
+  assert(camera.includes('crop異常'));
+  assert(camera.includes('境界trim'));
 });
 
 test('all published JavaScript entrypoints parse',()=>{
