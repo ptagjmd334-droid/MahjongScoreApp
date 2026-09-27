@@ -882,3 +882,13 @@
 **再発防止:** 診断ラベルを版更新する際は、既存の自動テスト・スクリーンショット比較で使う安定prefixを残す。  
 **回帰テスト:** 既存 `境界signal診断` assertionを変更せずCIを再実行し、追加したv77 dual-band assertionも同時に通す。  
 **確度:** CIログとsource差分から確定。
+
+
+## M100: v77 dual-band境界signalは実機で2/13まで低下し、古典境界検出を打ち切った
+**時期:** M7 v77→v78  
+**症状:** iPhone実機でv77は境界signal診断 v2が ±5% 2/13、広め 6/13、共通ずれ -0.121牌。v76の6/13・8/13より改善せず、上下帯一致＋縦連続性を要求すると真境界signal自体が不足した。既存cropも複数箇所で隣牌混入が継続。  
+**根本原因:** 密着した実牌列では、牌と牌の境界が安定した明暗edgeとして観測できない箇所が多い。模様edgeを抑えるほど真境界も消え、境界線検出だけから13境界を復元する前提が実画像に合っていない。  
+**修正/方針転換:** v78では境界signal・DPの追加調整を停止し、牌そのものをobjectとして直接検出するYOLO診断へ移行する。MITライセンスの nikmomo/Mahjong-YOLO YOLO11n ONNXを外部CDNから読み込み、全体1視点＋重複3分割の4視点で推論し、class-agnostic NMS後の牌boxを可視化する。v75系14crop・分類・学習保存は比較/フォールバックとして変更しない。  
+**再発防止:** 観測signalが実機で2世代連続して目標未達ならthreshold調整を続けず、問題表現そのものを変える。外部モデルは明示ライセンス確認・commit pin・フォールバック保持を必須にする。  
+**回帰テスト:** synthetic YOLO出力で [1,41,N] decode、低confidence除外、重複boxのclass-agnostic NMS、横長rowに対するfull+3 overlap windowを確認。既存カメラ・保存・採点フローはモデルネットワークに依存せずCIを通す。  
+**確度:** v77の2/13・6/13・-0.121牌はユーザー実機スクリーンショットで確定。Mahjong-YOLOのMIT、YOLO11n ONNX約10.6MB、公開precision/recallは上流repositoryで確認。
