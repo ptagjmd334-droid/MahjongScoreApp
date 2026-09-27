@@ -375,7 +375,7 @@ test('v74 preserves stable learning and adds crop-quality-gated geometry',()=>{
   assert(camera.includes('function innerRecognitionWindowCanvas'));
   assert(camera.includes('const bleedInfo=estimateBleedSafeShift(canonical,.12)'));
   assert(camera.includes('bleedSafeCount:tileData.filter'));
-  assert(camera.includes('bleedInsetApplied:safeWindow.applied===true'));
+  assert(camera.includes('bleedInsetApplied:safeImproves'));
   assert(camera.includes('bleedInsets:tileData.map'));
   assert(camera.includes('const outerFit=refineRowOuterEdges(lowCtx,lowRow,14)'));
   assert(camera.includes('function boxCropQuality'));
