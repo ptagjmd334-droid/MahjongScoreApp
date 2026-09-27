@@ -34,7 +34,7 @@ const server=http.createServer((req,res)=>{
     const errors=[];page.on('pageerror',e=>errors.push(String(e)));
     await page.goto('http://127.0.0.1:'+port+'/',{waitUntil:'domcontentloaded',timeout:30000});
     await page.waitForSelector('#go-confirm-button',{timeout:12000});
-    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'M7 v72');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'M7 v73');
     // v36 analyzes one long row after the shutter instead of requiring 14 live connected components.
     const synthetic=await page.evaluate(()=>{
       const canvas=document.createElement('canvas');canvas.width=840;canvas.height=260;
@@ -59,6 +59,30 @@ const server=http.createServer((req,res)=>{
     }
     assert(synthetic.mapping&&synthetic.mapping.w>1500&&synthetic.mapping.h>300,
       'object-fit cover mapping lost high-resolution source area '+JSON.stringify(synthetic));
+
+    const outerEdge=await page.evaluate(()=>{
+      const canvas=document.createElement('canvas');canvas.width=840;canvas.height=260;
+      const ctx=canvas.getContext('2d');ctx.fillStyle='#70472b';ctx.fillRect(0,0,840,260);
+      const start=108,pitch=44,top=76,height=112;
+      // One contiguous 14-tile white row with small dark separators.
+      ctx.fillStyle='#d9d6cc';ctx.fillRect(start,top,pitch*14,height);
+      ctx.fillStyle='#7f725f';
+      for(let i=1;i<14;i++)ctx.fillRect(start+i*pitch-1,top,2,height);
+      // Deliberately over-wide/noisy row: equal splitting this would drift.
+      const noisy={x:start-12,y:68,w:pitch*14+24,h:128};
+      const fit=window.M7CameraV36.refineRowOuterEdges(ctx,noisy,14);
+      return {
+        used:fit.used,reason:fit.reason,
+        beforeLeft:Math.abs(noisy.x-start),
+        afterLeft:Math.abs((fit.row?.x??noisy.x)-start),
+        beforePitch:Math.abs(noisy.w/14-pitch),
+        afterPitch:Math.abs((fit.row?.w??noisy.w)/14-pitch),
+        pitchScale:fit.pitchScale??null
+      };
+    });
+    assert(outerEdge.used,'v73 outer-edge fit did not engage '+JSON.stringify(outerEdge));
+    assert(outerEdge.afterLeft<outerEdge.beforeLeft,'v73 outer-edge fit did not improve row start '+JSON.stringify(outerEdge));
+    assert(outerEdge.afterPitch<outerEdge.beforePitch,'v73 outer-edge fit did not improve row pitch '+JSON.stringify(outerEdge));
 
     const globalGrid=await page.evaluate(()=>{
       const canvas=document.createElement('canvas');canvas.width=840;canvas.height=260;
@@ -393,9 +417,9 @@ const server=http.createServer((req,res)=>{
       const views=window.M7CameraV36.inferenceFeatureViews(c);
       return views.map(v=>({kind:v.kind,width:v.width,height:v.height,n:v.gray.length}));
     });
-    assert.equal(inferenceViews.length,5,'v72 keeps five nearby inference crops '+JSON.stringify(inferenceViews));
+    assert.equal(inferenceViews.length,5,'v73 keeps five nearby inference crops '+JSON.stringify(inferenceViews));
     assert(inferenceViews.every(v=>v.kind==='perspective-direct-v1'&&v.width===24&&v.height===36&&v.n===864),
-      'v72 inference crops changed feature schema '+JSON.stringify(inferenceViews));
+      'v73 inference crops changed feature schema '+JSON.stringify(inferenceViews));
     const bleedSafe=await page.evaluate(()=>{
       const c=document.createElement('canvas');c.width=96;c.height=144;
       const x=c.getContext('2d');x.fillStyle='#eee9dc';x.fillRect(0,0,96,144);
@@ -408,10 +432,10 @@ const server=http.createServer((req,res)=>{
       const p=out.getContext('2d').getImageData(0,72,1,1).data;
       return {info,safe,leftPixel:[p[0],p[1],p[2]]};
     });
-    assert(bleedSafe.safe.applied,'v72 did not activate asymmetric inset for left neighbor bleed '+JSON.stringify(bleedSafe));
-    assert(bleedSafe.safe.left>.20,'v72 did not trim past the left-side seam '+JSON.stringify(bleedSafe));
-    assert(bleedSafe.safe.right>.80,'v72 over-trimmed the clean right side '+JSON.stringify(bleedSafe));
-    assert(bleedSafe.leftPixel[0]>180,'v72 output still starts inside the simulated dark neighboring tile '+JSON.stringify(bleedSafe));
+    assert(bleedSafe.safe.applied,'v73 did not activate asymmetric inset for left neighbor bleed '+JSON.stringify(bleedSafe));
+    assert(bleedSafe.safe.left>.20,'v73 did not trim past the left-side seam '+JSON.stringify(bleedSafe));
+    assert(bleedSafe.safe.right>.80,'v73 over-trimmed the clean right side '+JSON.stringify(bleedSafe));
+    assert(bleedSafe.leftPixel[0]>180,'v73 output still starts inside the simulated dark neighboring tile '+JSON.stringify(bleedSafe));
     const fastVote=await page.evaluate(()=>{
       const core=window.M7RecognitionCoreV33;
       const base=[
@@ -428,8 +452,8 @@ const server=http.createServer((req,res)=>{
       const ranked=core.applyViewVoteConsensus(base,aux,{candidateLimit:3,votePenalty:.006});
       return {top:ranked[0]?.label,votes:ranked[0]?.viewTopVotes,count:ranked[0]?.viewCount,base:ranked[0]?.baseDistance};
     });
-    assert.equal(fastVote.top,'8筒','v72 auxiliary majority did not break a close race '+JSON.stringify(fastVote));
-    assert.equal(fastVote.count,5,'v72 lost five-view vote count '+JSON.stringify(fastVote));
+    assert.equal(fastVote.top,'8筒','v73 auxiliary majority did not break a close race '+JSON.stringify(fastVote));
+    assert.equal(fastVote.count,5,'v73 lost five-view vote count '+JSON.stringify(fastVote));
     const fastFull=await page.evaluate(()=>{
       const core=window.M7RecognitionCoreV33,w=24,h=36,n=w*h;
       const mk=(left)=>({
@@ -442,7 +466,7 @@ const server=http.createServer((req,res)=>{
       const ranked=core.rankLabelsFastDiscriminative(mk(true),lib,{});
       return {top:ranked[0]?.label,score:ranked[0]?.distance};
     });
-    assert.equal(fastFull.top,'5筒','v72 fast full-label scorer lost the correct label '+JSON.stringify(fastFull));
+    assert.equal(fastFull.top,'5筒','v73 fast full-label scorer lost the correct label '+JSON.stringify(fastFull));
     const micro=await page.evaluate(()=>{
       const core=window.M7RecognitionCoreV33,w=24,h=36,n=w*h;
       const mk=(offset)=>{
@@ -455,8 +479,8 @@ const server=http.createServer((req,res)=>{
       const ranked=core.rankCandidateLabelsMicroShift(q,lib,['5索','6索'],{});
       return {top:ranked[0]?.label,aligned:core.alignedDirectImageDistance(q,lib['5索'][0]),shifted:core.integerShiftDirectImageDistance(q,lib['5索'][0])};
     });
-    assert.equal(micro.top,'5索','v72 micro-shift candidate refinement chose the wrong label '+JSON.stringify(micro));
-    assert(micro.shifted<micro.aligned,'v72 micro-shift did not improve a one-pixel offset '+JSON.stringify(micro));
+    assert.equal(micro.top,'5索','v73 micro-shift candidate refinement chose the wrong label '+JSON.stringify(micro));
+    assert(micro.shifted<micro.aligned,'v73 micro-shift did not improve a one-pixel offset '+JSON.stringify(micro));
 
     const confidence=await page.evaluate(()=>{
       const api=window.M7CameraV36;
@@ -489,7 +513,7 @@ const server=http.createServer((req,res)=>{
     assert.equal(confidence.rawFarReason,'template-consensus','v63 must reject weak multi-template consensus '+JSON.stringify(confidence));
     assert.equal(confidence.supported,'A','v63 repeated nearby templates should support a real representative even when the representative alone is farther '+JSON.stringify(confidence));
     assert.equal(confidence.supportedReason,'accepted','v64 supported candidate should pass confidence '+JSON.stringify(confidence));
-    assert.equal(confidence.viewDisagree,'','v72 must not auto-confirm when fewer than half of nearby crops agree '+JSON.stringify(confidence));
+    assert.equal(confidence.viewDisagree,'','v73 must not auto-confirm when fewer than half of nearby crops agree '+JSON.stringify(confidence));
     assert.equal(confidence.viewDisagreeReason,'view-disagreement','v70 must explain crop-view disagreement '+JSON.stringify(confidence));
     assert(shutter.diag?.rowFound,'v36 diagnostics did not record the located row '+JSON.stringify(shutter));
     assert.equal(shutter.diag?.gridUsed,false,'v62 must not apply the v61 global-grid candidate to production crops '+JSON.stringify(shutter.diag));
