@@ -1082,3 +1082,13 @@
 **再発防止:** UI文言cleanup時は、source test内の `camera.includes(...)` を変更前後で機械照合し、欠落markerを一括でlegacy定数へ退避する。  
 **回帰テスト:** source assertion文字列の欠落が0件であることを確認してからCIへ進む。  
 **確度:** source assertion全件とv85 camera sourceの機械比較から確定。
+
+
+## M120: v85の初回学習文言短縮が実ブラウザの保存確認要件まで壊した
+**時期:** M7 v85公開前Chromium CI  
+**症状:** source testは通過したが、実カメラ→結果画面回帰が「v58 blocking calibration explanation missing」で停止。結果noteには初回学習の説明はあったが、`保存完了を確認` が実表示から消えていた。  
+**根本原因:** M119ではsource markerだけをlegacy定数へ退避したが、browser回帰は実際のユーザー表示文を契約としていた。これは単なるmarkerではなく、保存前に画面遷移しないための操作説明要件。  
+**修正:** 初回学習noteを `「この手牌で進む」を押した後、保存完了を確認してから次へ進みます。` に戻す。production UIの通常認識時は簡潔表示を維持。  
+**再発防止:** source assertionとbrowser assertionを区別し、ブラウザがDOM文言を確認している項目はlegacy定数だけで代替しない。  
+**回帰テスト:** shutter→14編集枠→初回学習noteに保存完了確認→保存→raw/Library復元まで既存Chromiumフローを通す。  
+**確度:** Chromium assertionと結果DOMから確定。
