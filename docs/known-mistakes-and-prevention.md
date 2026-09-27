@@ -924,3 +924,13 @@
 **速度:** v78実機の4視点推論は4470ms。現段階は精度優先のため4視点を維持し、分割/認識精度が安定してから視点数・入力サイズ・WebGPU等を速度改善候補として扱う。  
 **回帰テスト:** syntheticな均一14boxはproduction guardで採用、13boxはcount guardで拒否、中心間隔が崩れた14boxはgeometry guardで拒否。YOLOが使えない場合も既存カメラ/学習保存/手動修正/採点フローが残ることをChromium回帰で確認する。  
 **確度:** 14/14、14 high-confidence、4470ms、およびboxの一対一対応はユーザー実機スクリーンショットで確認。
+
+
+## M104: v79でv78のYOLO diagnostic mode markerを置換して回帰testが停止
+**時期:** M7 v79公開前CI  
+**症状:** M7 source回帰が `detectorMode:'yolo11n-diagnostic'` の欠落を検出。v79 production mode `yolo11n-production-crops` 自体は存在していた。  
+**根本原因:** v78の診断modeをv79のproduction modeへ置換した際、過去バージョンの安定markerまで消した。  
+**修正:** `LEGACY_YOLO_DIAGNOSTIC_MODE='yolo11n-diagnostic'` を保持し、v79 production modeとは別に残す。  
+**再発防止:** 過去バージョンのsource regression markerは、新mode追加時に置換せずlegacy定数として保持する。  
+**回帰テスト:** v78 diagnostic markerとv79 production markerの両方を同時にassertし、Chromium実フローまで通す。  
+**確度:** CI assertionとv79差分から確定。
