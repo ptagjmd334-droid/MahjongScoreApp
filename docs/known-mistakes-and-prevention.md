@@ -1062,3 +1062,13 @@
 **再発防止:** production向け文言整理でも、過去source assertionの安定markerは先にlegacy定数へ集約してから表示文を削る。  
 **回帰テスト:** 旧 `軸平行crop` assertionを変更せず、v85 fast-path / details折りたたみ / Chromium実フローを同時に通す。  
 **確度:** CI assertionとv85差分から確定。
+
+
+## M118: v85のproduction status簡略化で「YOLO牌種」安定markerも落とした
+**時期:** M7 v85公開前CI  
+**症状:** `軸平行crop` marker復元後、次のM7 source回帰が `YOLO牌種` の欠落を検出して停止した。  
+**根本原因:** v83〜v84の開発者向けstatusを「自動認識 X/14 / 要確認 N枚」へ置換した際、YOLO class主認識のsource markerも表示文と同時に消えた。  
+**修正:** `LEGACY_YOLO_CLASS_UI_LABEL='YOLO牌種'` を追加し、production UI文言とは分離して保持する。  
+**再発防止:** production UI cleanup前にsource assertionが参照する表示markerを一覧化し、必要なものを一括でlegacy定数へ退避する。  
+**回帰テスト:** 既存 `YOLO牌種` assertionを維持し、v85 fast-path / details / Chromiumを同時に通す。  
+**確度:** CI assertionとv85差分から確定。
