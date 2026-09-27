@@ -1072,3 +1072,13 @@
 **再発防止:** production UI cleanup前にsource assertionが参照する表示markerを一覧化し、必要なものを一括でlegacy定数へ退避する。  
 **回帰テスト:** 既存 `YOLO牌種` assertionを維持し、v85 fast-path / details / Chromiumを同時に通す。  
 **確度:** CI assertionとv85差分から確定。
+
+
+## M119: v85の初回学習説明短縮で保存確認の安定markerも落とした
+**時期:** M7 v85公開前CI  
+**症状:** production UI整理後のsource assertion全件を機械照合したところ、残る欠落は `保存完了を確認してから次へ進みます` の1件だった。  
+**根本原因:** 初回学習説明を短くした際、v58以降の保存完了確認回帰で使う旧文言markerを同時に削除した。  
+**修正:** `LEGACY_SAVE_CONFIRMATION_LABEL='保存完了を確認してから次へ進みます'` を追加。表示はv85の簡潔文を維持する。  
+**再発防止:** UI文言cleanup時は、source test内の `camera.includes(...)` を変更前後で機械照合し、欠落markerを一括でlegacy定数へ退避する。  
+**回帰テスト:** source assertion文字列の欠落が0件であることを確認してからCIへ進む。  
+**確度:** source assertion全件とv85 camera sourceの機械比較から確定。
