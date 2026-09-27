@@ -55,6 +55,7 @@ on:
       - work/m7-v75-lowfreedom-crop-stabilization
       - work/m7-v76-boundary-signal-diagnostic
       - work/m7-v77-dualband-boundary-signal
+      - work/m7-v78-yolo-tile-detector-diagnostic
   workflow_dispatch:
 
 jobs:
