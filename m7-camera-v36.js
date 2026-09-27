@@ -1934,21 +1934,28 @@
     lowCtx.drawImage(highCanvas,0,0,low.width,low.height);
     const lowRow=locateTileRow(lowCtx);
     if(!lowRow)return {row:null,boxes:[],features:[],crops:[],trainingImages:[],perspectiveCount:0,gridUsed:false,gridFit:null,photo:highCanvas.toDataURL('image/jpeg',.80)};
-    // v74: do not trust a geometric correction just because it fires. Score the
-    // 14 resulting crops and adopt only row endpoint changes that measurably
-    // improve tile-face quality. This keeps the correction low-freedom while
-    // catching cases like slot 14 becoming mostly table.
+
+    // v75: choose only among low-freedom row models (start + one common pitch).
+    // v37-style independent seams remain disabled; v61 periodic evidence is only
+    // a small, quality-gated candidate.
     const gridFit=fitGlobalRowGrid(lowCtx,lowRow,14);
     const outerFit=refineRowOuterEdges(lowCtx,lowRow,14);
-    const qualityRow=selectRowByCropQuality(lowCtx,lowRow,outerFit,14);
+    const qualityRow=selectRowByCropQuality(lowCtx,lowRow,outerFit,gridFit,14);
     const productionLowRow=qualityRow.row||lowRow;
+
     const sx=highCanvas.width/low.width,sy=highCanvas.height/low.height;
     const row={x:productionLowRow.x*sx,y:productionLowRow.y*sy,w:productionLowRow.w*sx,h:productionLowRow.h*sy};
     const initialBoxes=splitRow(row,14);
-    const rescued=initialBoxes.map(b=>rescueBrokenBox(highCtx,b));
-    const boxes=rescued.map(x=>x.box);
-    const tileData=boxes.map(b=>analyzeTileBox(highCtx,b));
+
+    // Only suspicious tiles may adjust a local boundary, and the adjacent
+    // triplet must improve as a group before the change is adopted.
+    const localRescue=rescueLocalBoundaries(highCtx,initialBoxes);
+    const boxes=localRescue.boxes;
+    const tileData=boxes.map((b,i)=>analyzeTileBox(highCtx,b,i,14));
     const cropBroken=tileData.map(x=>x.cropBroken===true);
+    const rowStartDeltaPitch=Number.isFinite(qualityRow.startDeltaPitch)?qualityRow.startDeltaPitch:0;
+    const rowPitchScale=Number.isFinite(qualityRow.pitchScale)?qualityRow.pitchScale:1;
+
     return {
       row,boxes,
       features:tileData.map(x=>x.feature),
@@ -1956,29 +1963,47 @@
       crops:tileData.map(x=>x.crop),
       trainingImages:tileData.map(x=>x.trainingImage),
       cropBroken,
-      cropQualities:tileData.map(x=>({
+      cropQualities:tileData.map((x,i)=>({
         score:Number((x.quality?.score||0).toFixed(4)),
+        beforeScore:Number((x.qualityBefore?.score||0).toFixed(4)),
         broken:x.cropBroken===true,
         tileRatio:Number((x.quality?.tileRatio||0).toFixed(4)),
         centerRatio:Number((x.quality?.centerRatio||0).toFixed(4)),
-        woodRatio:Number((x.quality?.woodRatio||0).toFixed(4))
+        woodRatio:Number((x.quality?.woodRatio||0).toFixed(4)),
+        edgeContamination:Number((x.quality?.edgeContamination||0).toFixed(4)),
+        beforeEdgeContamination:Number((x.qualityBefore?.edgeContamination||0).toFixed(4)),
+        leftTrim:Number((x.bleedTrimLeft||0).toFixed(4)),
+        rightTrim:Number((x.bleedTrimRight||0).toFixed(4)),
+        trimReason:x.cropTrimReason||'base',
+        localBoundary:localRescue.debug?.[i]||null
       })),
       cropQualityFallbackCount:tileData.filter(x=>x.qualityFallback===true).length,
       brokenCropCount:cropBroken.filter(Boolean).length,
-      resplitAdoptedCount:rescued.filter(x=>x.used===true).length,
+      cropAbnormalCount:cropBroken.filter(Boolean).length,
+      resplitAdoptedCount:localRescue.adoptedCount||0,
+      localBoundaryDebug:localRescue.debug||[],
       perspectiveCount:tileData.filter(x=>x.perspectiveUsed).length,
       bleedSafeCount:tileData.filter(x=>x.bleedInsetApplied===true).length,
+      boundaryTrimCount:tileData.filter(x=>x.bleedInsetApplied===true).length,
       bleedShifts:tileData.map(x=>Number((x.bleedShift||0).toFixed(4))),
-      bleedInsets:tileData.map(x=>({left:Number((x.bleedTrimLeft||.12).toFixed(4)),right:Number((x.bleedTrimRight||.12).toFixed(4))})),
-      gridUsed:false,
+      bleedInsets:tileData.map(x=>({leftTrim:Number((x.bleedTrimLeft||0).toFixed(4)),rightTrim:Number((x.bleedTrimRight||0).toFixed(4)),reason:x.cropTrimReason||'base'})),
+      gridUsed:qualityRow.reason==='periodic-candidate',
       gridCandidate:gridFit.used===true,
-      outerFitUsed:qualityRow.used===true,
+      outerFitUsed:qualityRow.reason==='outer-edge',
+      rowCorrectionUsed:qualityRow.used===true,
+      rowStartDeltaPitch,
+      rowPitchScale,
       rowQuality:{
         reason:qualityRow.reason||'',
         scoreGain:Number.isFinite(qualityRow.scoreGain)?Number(qualityRow.scoreGain.toFixed(4)):null,
         brokenBefore:Number.isFinite(qualityRow.brokenBefore)?qualityRow.brokenBefore:null,
         brokenAfter:Number.isFinite(qualityRow.brokenAfter)?qualityRow.brokenAfter:null,
-        candidateOuter:outerFit.used===true
+        edgeHighBefore:Number.isFinite(qualityRow.edgeHighBefore)?qualityRow.edgeHighBefore:null,
+        edgeHighAfter:Number.isFinite(qualityRow.edgeHighAfter)?qualityRow.edgeHighAfter:null,
+        startDeltaPitch:Number(rowStartDeltaPitch.toFixed(4)),
+        pitchScale:Number(rowPitchScale.toFixed(5)),
+        candidateOuter:outerFit.used===true,
+        candidateGrid:gridFit.used===true
       },
       outerFit:{
         reason:outerFit.reason||'',
@@ -2046,7 +2071,7 @@
       if(note)note.textContent=features.length===14
         ?(firstCalibration
           ?'この保存領域には学習データがありません。今回だけ14枚を正しく指定してください。「この手牌で進む」を押した時に保存完了を確認してから次へ進みます。'
-          :`精度優先版です。14cropの品質を先に採点し、外周補正・局所再分割・境界除去は実際にcrop品質が改善した場合だけ採用します。壊れcropは無理にTop1を出しません。高信頼候補 ${auto}枚。保留理由: ${confidenceReasonSummary()}。認識 ${Math.max(0,state.lastRecognitionMs||0)}ms / 外周補正 ${analysis.outerFitUsed?'ON':'OFF'} / 境界除去 ${analysis.bleedSafeCount||0}/14 / crop品質fallback ${analysis.cropQualityFallbackCount||0}/14 / 壊れcrop ${analysis.brokenCropCount||0}/14 / 再分割採用 ${analysis.resplitAdoptedCount||0}/14 / 補助view ${state.lastAuxViewsUsed||0} / 微調整 ${state.lastMicroRefined||0}${state.lastAuxFallbackCount?' / 時間上限fallback':''}。`)
+          :`精度優先版です。分類器はv74を維持し、row開始＋共通pitchの低自由度補正、左右端の混入重視品質評価、品質改善時だけの2/4/6%非対称trim、疑わしい牌だけの3枚合計品質による局所境界補正を行います。壊れcropはTop1を出しません。高信頼候補 ${auto}枚。保留理由: ${confidenceReasonSummary()}。認識 ${Math.max(0,state.lastRecognitionMs||0)}ms / row補正 ${analysis.rowCorrectionUsed?'ON':'OFF'} / 開始 ${Number(analysis.rowStartDeltaPitch||0).toFixed(3)}牌 / pitch ${Number(analysis.rowPitchScale||1).toFixed(4)} / 境界trim ${analysis.boundaryTrimCount||0}/14 / 局所再分割 ${analysis.resplitAdoptedCount||0}/14 / crop異常 ${analysis.cropAbnormalCount||0}/14 / crop品質fallback ${analysis.cropQualityFallbackCount||0}/14 / 補助view ${state.lastAuxViewsUsed||0} / 微調整 ${state.lastMicroRefined||0}${state.lastAuxFallbackCount?' / 時間上限fallback':''}。`)
         :'白枠内から牌列を特定できませんでした。撮影画像を確認し、14枠を手動入力するか「読み取り直す」で再撮影してください。';
       const status=root.querySelector('.hand-result-status-m7v5');
       if(status&&auto<14)status.textContent=features.length===14
@@ -2088,10 +2113,12 @@
       state.diagnostics={
         sourceWidth:Math.round(capture.source.w),sourceHeight:Math.round(capture.source.h),
         rowFound:!!analysis.row,row:analysis.row?{...analysis.row}:null,
-        gridUsed:false,gridCandidate:analysis.gridCandidate===true,gridFit:analysis.gridFit||null,
+        gridUsed:analysis.gridUsed===true,gridCandidate:analysis.gridCandidate===true,gridFit:analysis.gridFit||null,
         outerFitUsed:analysis.outerFitUsed===true,outerFit:analysis.outerFit||null,rowQuality:analysis.rowQuality||null,
+        rowCorrectionUsed:analysis.rowCorrectionUsed===true,rowStartDeltaPitch:analysis.rowStartDeltaPitch||0,rowPitchScale:analysis.rowPitchScale||1,
         cropQualityFallbackCount:analysis.cropQualityFallbackCount||0,brokenCropCount:analysis.brokenCropCount||0,
-        resplitAdoptedCount:analysis.resplitAdoptedCount||0,cropQualities:analysis.cropQualities||[]
+        boundaryTrimCount:analysis.boundaryTrimCount||0,resplitAdoptedCount:analysis.resplitAdoptedCount||0,
+        localBoundaryDebug:analysis.localBoundaryDebug||[],cropQualities:analysis.cropQualities||[]
       };
       window.M7V36LastDiagnostics=state.diagnostics;
       // Existing cancel owns the MediaStream and removes the camera overlay.
@@ -2225,6 +2252,6 @@
   },true);
 
   window.M7CameraV36=Object.freeze({
-    sourceRectForCover,locateTileRow,splitRow,boxCropQuality,canvasCropQuality,rowCropQuality,selectRowByCropQuality,rescueBrokenBox,refineRowOuterEdges,fitGlobalRowGrid,splitRowBySeams,analyzeGuideCanvas,featureFromBox,tileFaceRect,descriptorFromCanvas,detectFaceGeometry,detectFaceQuad,canonicalizeCanvas,orientedFaceCanvas,perspectiveFaceCanvas,warpQuadToCanvas,trainingImageDataUrl,estimateBleedSafeShift,safeInsetWindow,innerRecognitionCanvas,innerRecognitionWindowCanvas,innerFeatureFromCanonical,inferenceFeatureViews,analyzeTileBox,loadTrainingSamples,rebuildLibraryFromTrainingImages,loadLibrary,activeLibrary,saveLibrary,saveLibraryDetailed,persistVerifiedHand,persistFailureText,loadLegacyLibrary,legacyLibraryKeys,convertLegacyDirectFeature,cropResampleFeatureMap,confidenceAssessment,confidentCandidate,confidenceReasonSummary,renderPickerPhoto,renderPickerSuggestions,pickerCurrentIndex,schedulePickerSuggestionSync,attachPickerSuggestionObserver
+    sourceRectForCover,locateTileRow,splitRow,boxCropQuality,canvasCropQuality,rowCropQuality,selectRowByCropQuality,rescueBrokenBox,tripletCropQuality,applyLocalBoundaryDelta,rescueLocalBoundaries,refineRowOuterEdges,fitGlobalRowGrid,splitRowBySeams,analyzeGuideCanvas,featureFromBox,tileFaceRect,descriptorFromCanvas,detectFaceGeometry,detectFaceQuad,canonicalizeCanvas,orientedFaceCanvas,perspectiveFaceCanvas,warpQuadToCanvas,trainingImageDataUrl,estimateBleedSafeShift,safeInsetWindow,chooseRecognitionWindow,innerRecognitionCanvas,innerRecognitionWindowCanvas,innerFeatureFromCanonical,inferenceFeatureViews,analyzeTileBox,loadTrainingSamples,rebuildLibraryFromTrainingImages,loadLibrary,activeLibrary,saveLibrary,saveLibraryDetailed,persistVerifiedHand,persistFailureText,loadLegacyLibrary,legacyLibraryKeys,convertLegacyDirectFeature,cropResampleFeatureMap,confidenceAssessment,confidentCandidate,confidenceReasonSummary,renderPickerPhoto,renderPickerSuggestions,pickerCurrentIndex,schedulePickerSuggestionSync,attachPickerSuggestionObserver
   });
 })();
