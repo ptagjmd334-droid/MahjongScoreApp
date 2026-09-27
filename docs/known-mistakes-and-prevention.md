@@ -966,3 +966,23 @@
 **再発防止:** version bump時は `tests/` 全体で直前build番号を検索し、固定markerを一覧化してから変更する。  
 **回帰テスト:** M7 source test、browser smoke、scoring testを全て再実行する。  
 **確度:** CI assertionとsource差分から確定。
+
+
+## M108: v81は実牌14枚を検出できても余分1boxで15個になり、安全guardが全体fallbackした
+**時期:** M7 v81→v82  
+**実機症状:** iPhone実機でYOLOは `15個 / confidence 0.25以上13個 / 4視点 / 2173ms`。画像上では実牌14枚すべてを検出できていたが、中央付近に通常牌より細い追加boxが1個発生。production guardが `count-15` で全体をrejectし、`YOLO分割 fallback / 軸平行crop 0/14` となって旧cropへ戻った。  
+**根本原因:** v79〜v81のproduction guardは「最終box数がちょうど14」を採用条件にしており、object detector特有の少数false positiveを候補集合から除外する処理がなかった。NMSだけでは中心がずれた細い部分boxを必ずしも重複扱いできない。  
+**修正:** v82は14〜16boxまでを候補集合として受け、14box subsetを列挙する。各subsetを、x中心の等間隔直線fit、gap CV、box幅/高さCV、y spread、aspect、confidenceで評価し、最も自然な14枚列を選ぶ。次点との差が小さい場合は `subset-ambiguous` として採用せずfallbackする。15→14選抜時は選択済み14boxだけを診断画像へ描画し、UIに `15→14個 / 余分1box除外` を表示する。  
+**再発防止:** object detectionのproduction採用条件はraw detection countの完全一致ではなく、「必要個数の一貫したsubsetを安全に確定できるか」で設計する。ただし不足（13以下）や過剰（17以上）、曖昧subsetは自動補完せずfallbackする。  
+**回帰テスト:** syntheticな14実牌box＋細いfalse boxの15検出から正しい14を採用し、細いboxをdropする。13検出は従来通りreject。通常幅の追加boxで複数subsetが近いケースは `subset-ambiguous` でfallbackする。既存axis-aligned crop・保存・カメラ・採点回帰も継続。  
+**確度:** v81実機スクリーンショットの `count-15`、15box表示、中央の細い追加box、および現行guardのexact-count条件から確定。
+
+
+## M109: v82の曖昧subset回帰fixtureが実際には曖昧ではなかった
+**時期:** M7 v82公開前CI  
+**症状:** 15→14の細いfalse box除外テストは成功したが、「曖昧ならfallback」fixtureもproduction selectorが採用し、assertionが停止した。  
+**根本原因:** 曖昧fixtureとして通常幅boxを牌間の中間位置へ追加したが、その配置は等間隔row fitを大きく崩すため、正しい14box subsetとの差が十分大きかった。つまりテストが意図した「二つのsubsetがほぼ同等」状態になっていなかった。  
+**修正:** 既存実牌boxの1枚をほぼ同位置・同サイズ・同confidenceで複製し、元boxを残すか複製を残すかでgeometry scoreがほぼ同じになるfixtureへ変更。これにより `selectionMargin < .035` の `subset-ambiguous` guardを直接検証する。  
+**再発防止:** safety marginの回帰fixtureは、期待する境界条件そのもの（今回はbest/second score差が小さいこと）を作る。見た目だけ「紛らわしい」データで代用しない。  
+**回帰テスト:** narrow extraは15→14採用、near-identical duplicateはsubset-ambiguous fallback、13boxはcount rejectを同一browser testで確認。  
+**確度:** CI出力のnarrowケース margin=1.0241 と、ambiguous fixtureの幾何配置から確定。

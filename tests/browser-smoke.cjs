@@ -34,7 +34,7 @@ const server=http.createServer((req,res)=>{
     const errors=[];page.on('pageerror',e=>errors.push(String(e)));
     await page.goto('http://127.0.0.1:'+port+'/',{waitUntil:'domcontentloaded',timeout:30000});
     await page.waitForSelector('#go-confirm-button',{timeout:12000});
-    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'M7 v81');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'M7 v82');
     const v81HeaderLayout=await page.evaluate(()=>{
       window.showHandResultM7V5?.(Array(14).fill(''));
       const root=document.getElementById('hand-result-overlay-m7v5');
@@ -173,6 +173,30 @@ const server=http.createServer((req,res)=>{
     assert.equal(v79ProductionGuard.goodCount,14,'v79 accepted crop count mismatch '+JSON.stringify(v79ProductionGuard));
     assert.equal(v79ProductionGuard.missing,false,'v79 must reject 13 detections '+JSON.stringify(v79ProductionGuard));
     assert.equal(v79ProductionGuard.bad,false,'v79 must reject duplicated/chaotic spacing '+JSON.stringify(v79ProductionGuard));
+
+    const v82SubsetSelection=await page.evaluate(()=>{
+      const api=window.M7CameraV36;
+      const canvas=document.createElement('canvas');canvas.width=1000;canvas.height=240;
+      const row={x:80,y:50,w:840,h:140},real=[];
+      for(let i=0;i<14;i++)real.push({x:82+i*60,y:55+(i%3-1)*2,w:56+(i%2),h:128+(i%2)*2,score:.72+i*.01,label:'1m'});
+      const extra={x:82+6*60+40,y:58,w:15,h:122,score:.19,label:'5s'};
+      const fifteen=real.concat(extra).sort((a,b)=>(a.x+a.w/2)-(b.x+b.w/2));
+      const selected=api.selectDetectorProductionBoxes({ok:true,boxes:fifteen},canvas,row,14);
+      const ambiguousExtra={...real[6],x:real[6].x+1,score:real[6].score+.002,label:'7s'};
+      const ambiguous=api.selectDetectorProductionBoxes({ok:true,boxes:real.concat(ambiguousExtra).sort((a,b)=>(a.x+a.w/2)-(b.x+b.w/2))},canvas,row,14);
+      return {
+        accepted:selected.accepted,reason:selected.reason,count:selected.boxes.length,
+        rawCount:selected.stats?.rawCount,droppedCount:selected.stats?.droppedCount,
+        droppedWidth:selected.stats?.dropped?.[0]?.w||0,margin:selected.stats?.selectionMargin,
+        ambiguousAccepted:ambiguous.accepted,ambiguousReason:ambiguous.reason
+      };
+    });
+    assert.equal(v82SubsetSelection.accepted,true,'v82 should recover 14 tiles from one narrow extra box '+JSON.stringify(v82SubsetSelection));
+    assert.equal(v82SubsetSelection.count,14,'v82 selected subset must contain 14 boxes '+JSON.stringify(v82SubsetSelection));
+    assert.equal(v82SubsetSelection.rawCount,15,'v82 raw count diagnostics lost 15-box input '+JSON.stringify(v82SubsetSelection));
+    assert.equal(v82SubsetSelection.droppedCount,1,'v82 should drop exactly one extra box '+JSON.stringify(v82SubsetSelection));
+    assert(v82SubsetSelection.droppedWidth<30,'v82 did not remove the synthetic narrow false box '+JSON.stringify(v82SubsetSelection));
+    assert.equal(v82SubsetSelection.ambiguousAccepted,false,'v82 must fallback when two 14-box subsets are too similar '+JSON.stringify(v82SubsetSelection));
 
     const v80AxisAligned=await page.evaluate(()=>{
       const api=window.M7CameraV36;

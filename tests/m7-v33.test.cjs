@@ -310,7 +310,7 @@ test('camera v36 is loaded before ui-fixes so verified clicks train the active c
   assert(index.indexOf('script.js')<index.indexOf('m7-recognition-core.js'));
   assert(index.indexOf('m7-recognition-core.js')<index.indexOf('m7-camera-v36.js'));
   assert(index.indexOf('m7-camera-v36.js')<index.indexOf('ui-fixes.js'));
-  assert(index.includes('M7 v81'));
+  assert(index.includes('M7 v82'));
 });
 
 test('legacy live detector and demo fill yield to the active camera owner',()=>{
@@ -390,6 +390,11 @@ test('v75 preserves stable learning and crop-quality-gated geometry',()=>{
   assert(camera.includes('function decodeYoloOutput'));
   assert(camera.includes('function detectorNms'));
   assert(camera.includes('function runYoloTileDetectorDiagnostic'));
+  assert(camera.includes('function detectorGeometryEvaluation'));
+  assert(camera.includes('function detectorSubsetCandidates'));
+  assert(camera.includes("reason:'subset-ambiguous'"));
+  assert(camera.includes("reason:subsetUsed?'subset-'"));
+  assert(camera.includes("detectorMode:'yolo11n-production-axis-aligned-subset-crops'"));
   assert(camera.includes('function selectDetectorProductionBoxes'));
   assert(camera.includes('function axisAlignedYoloFaceCanvas'));
   assert(camera.includes('function analyzeYoloTileBox'));
