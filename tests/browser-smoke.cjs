@@ -34,7 +34,7 @@ const server=http.createServer((req,res)=>{
     const errors=[];page.on('pageerror',e=>errors.push(String(e)));
     await page.goto('http://127.0.0.1:'+port+'/',{waitUntil:'domcontentloaded',timeout:30000});
     await page.waitForSelector('#go-confirm-button',{timeout:12000});
-    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'M7 v78');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'M7 v79');
     // v36 analyzes one long row after the shutter instead of requiring 14 live connected components.
     const synthetic=await page.evaluate(()=>{
       const canvas=document.createElement('canvas');canvas.width=840;canvas.height=260;
@@ -130,6 +130,22 @@ const server=http.createServer((req,res)=>{
     assert.equal(v78DetectorPure.decoded,3,'v78 decoder threshold/layout mismatch '+JSON.stringify(v78DetectorPure));
     assert.equal(v78DetectorPure.nms,2,'v78 class-agnostic NMS did not merge duplicate boxes '+JSON.stringify(v78DetectorPure));
     assert(v78DetectorPure.iou>.7,'v78 synthetic duplicate IoU unexpectedly low '+JSON.stringify(v78DetectorPure));
+
+    const v79ProductionGuard=await page.evaluate(()=>{
+      const api=window.M7CameraV36;
+      const canvas=document.createElement('canvas');canvas.width=1000;canvas.height=240;
+      const row={x:80,y:50,w:840,h:140},boxes=[];
+      for(let i=0;i<14;i++)boxes.push({x:82+i*60,y:55+(i%3-1)*2,w:56+(i%2),h:128+(i%2)*2,score:.72+i*.01,label:'1m'});
+      const good=api.selectDetectorProductionBoxes({ok:true,boxes},canvas,row,14);
+      const missing=api.selectDetectorProductionBoxes({ok:true,boxes:boxes.slice(0,13)},canvas,row,14);
+      const chaotic=boxes.map((b,i)=>({...b,x:i===7?b.x+45:b.x}));
+      const bad=api.selectDetectorProductionBoxes({ok:true,boxes:chaotic},canvas,row,14);
+      return {good:good.accepted,goodCount:good.boxes.length,missing:missing.accepted,missingReason:missing.reason,bad:bad.accepted,badReason:bad.reason};
+    });
+    assert.equal(v79ProductionGuard.good,true,'v79 should accept clean 14-box geometry '+JSON.stringify(v79ProductionGuard));
+    assert.equal(v79ProductionGuard.goodCount,14,'v79 accepted crop count mismatch '+JSON.stringify(v79ProductionGuard));
+    assert.equal(v79ProductionGuard.missing,false,'v79 must reject 13 detections '+JSON.stringify(v79ProductionGuard));
+    assert.equal(v79ProductionGuard.bad,false,'v79 must reject duplicated/chaotic spacing '+JSON.stringify(v79ProductionGuard));
 
     const cropQuality=await page.evaluate(()=>{
       const canvas=document.createElement('canvas');canvas.width=220;canvas.height=150;
