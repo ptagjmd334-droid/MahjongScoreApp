@@ -1006,3 +1006,49 @@
 **再発防止:** note/statusの全面置換前に既存source assertionの安定marker一覧を機械的に確認し、表示から外す場合でもlegacy定数へ退避してから変更する。  
 **回帰テスト:** 旧marker assertionを弱めず、v83 YOLO class mapping/hybrid回帰とChromium実フローを同時に通す。  
 **確度:** CI assertionとv83差分から確定。
+
+
+## M112: v83の未使用牌種テストでYOLO classは有望だが13box不足で全体fallbackした
+**時期:** M7 v83→v84  
+**実機結果:** 未使用牌種を多く含むバラ14枚で、v83は `YOLO牌種0/14 / 旧分類fallback0/14 / 未確定14/14 / YOLO分割fallback / 軸平行crop0/14`。検出診断は `13個 / confidence 0.25以上13個 / 4視点 / 1499ms / count-13`。画像上では右側に通常牌より明確に横長なboxがあり、隣接2牌を1boxにまとめた可能性が高い。  
+**判断:** v83のclass主認識が失敗したのではなく、production selectorが13box不足を安全rejectしたためclass認識まで進まなかった。v82で15→14の余分box除外を実装済みなので、対称的に13→14の「不足1boxだけ」の安全復元を追加する価値がある。  
+**修正:** v84はraw13box時のみ二系統の回復候補を生成する。(A) median幅の1.48倍以上かつ2.45倍以下の明確な横長boxを2等分し、14box幾何評価を通す。(B) 13中心を14個の整数slotへ線形fitし、fit residual <=0.12かつ次点との差>=0.055で一意に決まる空き1slotへmedianサイズboxを補完する。いずれも最終14boxを既存 `detectorGeometryEvaluation` に再投入し、曖昧/不自然なら採用しない。  
+**認識安全策:** 補完・分割で新しく作ったboxにはYOLO classを推測して付与しない。label空欄・score0として扱い、既存分類器へfallbackし、それも未確定なら手動修正する。既存13個のYOLO classはそのまま維持する。  
+**UI:** 採用時は `13→14個 / 不足1box補完(空きslot|横長box分割)` を表示し、診断画像も復元後14boxを描画する。診断画像内の古い `v82 YOLO tile detector` 表示もv84へ更新する。  
+**再発防止:** object detectorのraw count完全一致を目的化せず、1個の過剰(v82)・1個の不足(v84)は幾何的に一意な場合だけ修復する。2個以上不足、fit曖昧、row geometry不良では引き続きfallbackする。  
+**回帰テスト:** 13枚検出で中央1slot欠落→14へ補完、末尾2牌を1つのdouble-width boxに統合→2分割、幾何を崩した13box→reject。既存15→14 subset、YOLO class mapping、axis-aligned crop、保存・採点回帰も継続。  
+**確度:** count-13とfallbackはユーザー実機スクリーンショットで確定。横長boxがmerge由来という解釈は画像形状に基づく高確度推定。
+
+
+## M113: v84 note文の置換でfirstCalibration三項演算子の閉じ括弧を落とした
+**時期:** M7 v84公開前CI  
+**症状:** JavaScript parse回帰が `Unexpected token ':'` で停止し、Chromium実フロー前に公開をブロックした。  
+**根本原因:** v83のnoteテンプレートをv84文へ置換した際、内側 `(firstCalibration ? ... : ...)` の閉じ括弧まで置換範囲へ含めて削除した。  
+**修正:** v84テンプレートliteral直後へ閉じ括弧を復元。  
+**再発防止:** 長い三項演算子の本文置換では開始/終了delimiterを文字列だけで切らず、置換後にparse testを最初のgateとして必ず通す。  
+**確度:** CI parse errorと該当sourceから確定。
+
+
+## M114: v84のselector三分岐化でv82 subset reasonの完全markerが消えた
+**時期:** M7 v84公開前CI  
+**症状:** JavaScript parseは成功したがM7 source回帰が `reason:subsetUsed?'subset-'` の欠落を検出して停止。  
+**根本原因:** v84でreturn reasonを `recoveryUsed ? recover-13... : (subsetUsed ? subset-... : accepted)` へ拡張したため、v82の完全文字列markerがsource上から消えた。15→14機能自体は残っている。  
+**修正:** `LEGACY_SUBSET_REASON_MARKER="reason:subsetUsed?'subset-'"` を保持し、v82の15→14回帰契約とv84の13→14回復を共存させる。  
+**再発防止:** 既存挙動へ新しい外側分岐を追加する際も、過去source testが完全文字列を契約化している場合はlegacy markerを先に保持する。  
+**確度:** CI assertionとselector差分から確定。
+
+## M115: 13個が等間隔の時、中心fitだけでは左端欠落と右端欠落を区別できない
+**時期:** M7 v84公開前Chromium CI
+**症状:** cleanな13box（14番目だけ欠落）fixtureが `recover-13-no-valid`。内部missing-slot fit自体は成立するが、missing=0とmissing=13がほぼ同等になり、unique-margin guardが採用を拒否した。
+**根本原因:** 13個の等間隔点だけを見れば、14slotへの対応は「左端1slot欠落」と「右端1slot欠落」で平行移動対称になり、center residualだけでは一意化できない。
+**修正:** 既存rowの左右端をpriorとして使い、復元後の先頭/末尾centerを `row.x + rowPitch/2` / `row.right - rowPitch/2` と比較。平均edge residualが0.45牌幅を超える候補を除外し、残りのscoreにもedge residual penaltyを追加する。
+**再発防止:** 欠損補完の一意性判定は内部間隔だけでなく、利用可能な外部anchor（今回は撮影rowの左右端）も含める。
+**確度:** Chromium fixtureと線形fitの平行移動対称性から確定。
+
+## M116: v84 missing-slot補完の0.12牌幅residualは段差のある不良rowまで通した
+**時期:** M7 v84公開前Chromium CI
+**症状:** 正常な中央1slot欠落とdouble-width splitは成功した一方、13box列の右半分を28pxずらしたbad fixtureも `recover-13-to-14-missing-slot` で採用された。
+**根本原因:** bad fixtureの最良fit residualが約0.111牌幅で、初期guard 0.12をわずかに下回った。
+**修正:** missing-slot採用の最終residual上限を0.095牌幅へ厳格化。候補生成は0.16まで残し、最終採用だけを厳しくすることでdiagnostic余地を残す。
+**再発防止:** 欠損補完は「何とか14にする」より誤補完回避を優先し、synthetic safety fixtureの不連続rowを必ずrejectする。
+**確度:** Chromium fixtureの実測fit residualから確定。

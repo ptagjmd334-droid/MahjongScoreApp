@@ -61,6 +61,7 @@ on:
       - work/m7-v82-yolo-14-subset-selection
       - work/m7-v81-result-header-layout
       - work/m7-v83-yolo-class-recognition
+      - work/m7-v84-recover-13-to-14
   workflow_dispatch:
 
 jobs:

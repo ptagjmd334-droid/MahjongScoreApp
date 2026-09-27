@@ -34,7 +34,7 @@ const server=http.createServer((req,res)=>{
     const errors=[];page.on('pageerror',e=>errors.push(String(e)));
     await page.goto('http://127.0.0.1:'+port+'/',{waitUntil:'domcontentloaded',timeout:30000});
     await page.waitForSelector('#go-confirm-button',{timeout:12000});
-    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'M7 v83');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'M7 v84');
     const v81HeaderLayout=await page.evaluate(()=>{
       window.showHandResultM7V5?.(Array(14).fill(''));
       const root=document.getElementById('hand-result-overlay-m7v5');
@@ -171,7 +171,7 @@ const server=http.createServer((req,res)=>{
     });
     assert.equal(v79ProductionGuard.good,true,'v79 should accept clean 14-box geometry '+JSON.stringify(v79ProductionGuard));
     assert.equal(v79ProductionGuard.goodCount,14,'v79 accepted crop count mismatch '+JSON.stringify(v79ProductionGuard));
-    assert.equal(v79ProductionGuard.missing,false,'v79 must reject 13 detections '+JSON.stringify(v79ProductionGuard));
+    assert.equal(v79ProductionGuard.missing,true,'v84 should recover a clean single missing slot from 13 detections '+JSON.stringify(v79ProductionGuard));
     assert.equal(v79ProductionGuard.bad,false,'v79 must reject duplicated/chaotic spacing '+JSON.stringify(v79ProductionGuard));
 
     const v82SubsetSelection=await page.evaluate(()=>{
@@ -197,6 +197,34 @@ const server=http.createServer((req,res)=>{
     assert.equal(v82SubsetSelection.droppedCount,1,'v82 should drop exactly one extra box '+JSON.stringify(v82SubsetSelection));
     assert(v82SubsetSelection.droppedWidth<30,'v82 did not remove the synthetic narrow false box '+JSON.stringify(v82SubsetSelection));
     assert.equal(v82SubsetSelection.ambiguousAccepted,false,'v82 must fallback when two 14-box subsets are too similar '+JSON.stringify(v82SubsetSelection));
+
+    const v84Recover13=await page.evaluate(()=>{
+      const api=window.M7CameraV36;
+      const canvas=document.createElement('canvas');canvas.width=1000;canvas.height=240;
+      const row={x:80,y:50,w:840,h:140},real=[];
+      for(let i=0;i<14;i++)real.push({x:82+i*60,y:55+(i%3-1)*2,w:56+(i%2),h:128+(i%2)*2,score:.74,label:'1m'});
+      const missing=real.filter((_,i)=>i!==9);
+      const gap=api.selectDetectorProductionBoxes({ok:true,boxes:missing},canvas,row,14);
+      const merged=real.slice(0,12).concat([{
+        x:real[12].x,y:real[12].y,w:(real[13].x+real[13].w)-real[12].x,h:129,score:.78,label:'4z'
+      }]);
+      const split=api.selectDetectorProductionBoxes({ok:true,boxes:merged},canvas,row,14);
+      const chaotic=missing.map((b,i)=>({...b,x:b.x+(i>6?28:0)}));
+      const bad=api.selectDetectorProductionBoxes({ok:true,boxes:chaotic},canvas,row,14);
+      return {
+        gap:{accepted:gap.accepted,reason:gap.reason,count:gap.boxes.length,synthetic:gap.stats?.syntheticCount,type:gap.stats?.recoveryType,missing:gap.stats?.missingIndex},
+        split:{accepted:split.accepted,reason:split.reason,count:split.boxes.length,synthetic:split.stats?.syntheticCount,type:split.stats?.recoveryType},
+        bad:{accepted:bad.accepted,reason:bad.reason}
+      };
+    });
+    assert.equal(v84Recover13.gap.accepted,true,'v84 should recover one clean missing slot '+JSON.stringify(v84Recover13));
+    assert.equal(v84Recover13.gap.count,14,'v84 missing-slot recovery must output 14 boxes '+JSON.stringify(v84Recover13));
+    assert.equal(v84Recover13.gap.type,'missing-slot','v84 chose wrong recovery type for a simple gap '+JSON.stringify(v84Recover13));
+    assert.equal(v84Recover13.gap.synthetic,1,'v84 simple gap should synthesize exactly one box '+JSON.stringify(v84Recover13));
+    assert.equal(v84Recover13.split.accepted,true,'v84 should split one clear double-width detection '+JSON.stringify(v84Recover13));
+    assert.equal(v84Recover13.split.count,14,'v84 split-wide recovery must output 14 boxes '+JSON.stringify(v84Recover13));
+    assert.equal(v84Recover13.split.type,'split-wide','v84 chose wrong recovery type for a merged double box '+JSON.stringify(v84Recover13));
+    assert.equal(v84Recover13.bad.accepted,false,'v84 must reject a geometrically ambiguous/bad 13-box row '+JSON.stringify(v84Recover13));
 
     const v80AxisAligned=await page.evaluate(()=>{
       const api=window.M7CameraV36;
