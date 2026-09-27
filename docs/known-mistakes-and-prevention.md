@@ -956,3 +956,13 @@
 **再発防止:** 可変長diagnostic textをflex headerへ追加する場合、nowrapを使わず、固定情報側の最小幅と可変側の `min-width:0` / wrapをセットで定義する。  
 **回帰テスト:** 932×430のiPhone相当landscapeでv80相当の長いstatusを挿入し、見出し列175px以上、タイトル150px以上、statusがcard右端を越えない、header高さ90px未満、statusがnowrapでないことをChromiumで確認する。  
 **確度:** ユーザー実機スクリーンショットと既存CSS `white-space:nowrap` / flex shrink挙動から確定。
+
+
+## M107: v81のversion bumpでM7 source testの固定v80 assertionを更新し忘れた
+**時期:** M7 v81公開前CI  
+**症状:** scoring系テストは進んだが、`camera v36 is loaded before ui-fixes...` testが `assert(index.includes('M7 v80'))` で停止した。v81本体のUI修正とは無関係。  
+**根本原因:** index/browser/m8 testのversion更新は行ったが、M7 source test内の固定build markerを更新対象一覧から漏らした。  
+**修正:** 該当assertionを `M7 v81` に更新。  
+**再発防止:** version bump時は `tests/` 全体で直前build番号を検索し、固定markerを一覧化してから変更する。  
+**回帰テスト:** M7 source test、browser smoke、scoring testを全て再実行する。  
+**確度:** CI assertionとsource差分から確定。
