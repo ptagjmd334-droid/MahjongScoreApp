@@ -1044,3 +1044,11 @@
 **修正:** 既存rowの左右端をpriorとして使い、復元後の先頭/末尾centerを `row.x + rowPitch/2` / `row.right - rowPitch/2` と比較。平均edge residualが0.45牌幅を超える候補を除外し、残りのscoreにもedge residual penaltyを追加する。
 **再発防止:** 欠損補完の一意性判定は内部間隔だけでなく、利用可能な外部anchor（今回は撮影rowの左右端）も含める。
 **確度:** Chromium fixtureと線形fitの平行移動対称性から確定。
+
+## M116: v84 missing-slot補完の0.12牌幅residualは段差のある不良rowまで通した
+**時期:** M7 v84公開前Chromium CI
+**症状:** 正常な中央1slot欠落とdouble-width splitは成功した一方、13box列の右半分を28pxずらしたbad fixtureも `recover-13-to-14-missing-slot` で採用された。
+**根本原因:** bad fixtureの最良fit residualが約0.111牌幅で、初期guard 0.12をわずかに下回った。
+**修正:** missing-slot採用の最終residual上限を0.095牌幅へ厳格化。候補生成は0.16まで残し、最終採用だけを厳しくすることでdiagnostic余地を残す。
+**再発防止:** 欠損補完は「何とか14にする」より誤補完回避を優先し、synthetic safety fixtureの不連続rowを必ずrejectする。
+**確度:** Chromium fixtureの実測fit residualから確定。
