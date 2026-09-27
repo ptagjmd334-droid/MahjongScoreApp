@@ -31,6 +31,7 @@
   const LEGACY_YOLO_DIAGNOSTIC_MODE="detectorMode:'yolo11n-diagnostic'"; // exact v78 source-regression marker; v79 production mode is separate.
   const LEGACY_YOLO_AXIS_MODE="detectorMode:'yolo11n-production-axis-aligned-crops'"; // exact v80/v81 source-regression marker; v82 adds subset selection.
   const LEGACY_YOLO_SUBSET_MODE="detectorMode:'yolo11n-production-axis-aligned-subset-crops'"; // exact v82 source-regression marker; v83 adds YOLO class recognition.
+  const LEGACY_YOLO_PRIMARY_CLASS_MODE="detectorMode:'yolo11n-primary-class-hybrid'"; // exact v83 source-regression marker; v84 adds safe 13→14 recovery.
   const YOLO_CLASS_USE_THRESHOLD=.15;
   const LEGACY_YOLO_PRODUCTION_MODE="detectorMode:'yolo11n-production-crops'"; // exact v79 source-regression marker; v80 uses axis-aligned crops.
   const YOLO_MODEL_URL='https://cdn.jsdelivr.net/gh/nikmomo/Mahjong-YOLO@28ffceed232ad95fd019c47a6c51ae7c78791a0e/models/nano/mahjong-yolon-best.onnx';
@@ -2121,7 +2122,7 @@
       ctx.fillRect(d.x,Math.max(0,d.y-th),tw,th);
       ctx.fillStyle='#fff';ctx.fillText(label,d.x+3,Math.max(10,d.y-2));
     });
-    const title='v82 YOLO tile detector  boxes:'+boxes.length+'  >=.25:'+high+'  views:'+viewCount+'  '+Math.round(elapsedMs)+'ms';
+    const title='v84 YOLO tile detector  boxes:'+boxes.length+'  >=.25:'+high+'  views:'+viewCount+'  '+Math.round(elapsedMs)+'ms';
     const th=Math.max(18,source.width/55);
     ctx.fillStyle='rgba(0,0,0,.68)';ctx.fillRect(0,0,Math.min(source.width,ctx.measureText(title).width+14),th);
     ctx.fillStyle='#fff';ctx.fillText(title,7,Math.max(12,th-5));
@@ -2254,11 +2255,87 @@
     return out;
   }
 
+  function detectorMissingSlotFit(boxes,missingIndex,count=14){
+    const sorted=(Array.isArray(boxes)?boxes:[]).slice().sort((a,b)=>(a.x+a.w/2)-(b.x+b.w/2));
+    if(sorted.length!==count-1||missingIndex<0||missingIndex>=count)return null;
+    const slots=[];for(let i=0;i<count;i++)if(i!==missingIndex)slots.push(i);
+    const centers=sorted.map(b=>b.x+b.w/2);
+    const meanI=slots.reduce((s,v)=>s+v,0)/slots.length;
+    const meanX=centers.reduce((s,v)=>s+v,0)/centers.length;
+    let cov=0,varI=0;
+    for(let i=0;i<slots.length;i++){const di=slots[i]-meanI;cov+=di*(centers[i]-meanX);varI+=di*di;}
+    const pitch=varI>0?cov/varI:0;
+    if(!(pitch>1))return null;
+    const intercept=meanX-pitch*meanI;
+    const rms=Math.sqrt(centers.reduce((s,x,i)=>{const d=x-(intercept+pitch*slots[i]);return s+d*d;},0)/centers.length);
+    return {missingIndex,pitch,intercept,fitResidualPitch:rms/Math.abs(pitch),expectedX:intercept+pitch*missingIndex};
+  }
+
+  function detectorRecoverThirteenCandidates(boxes,row,cw,ch,count=14){
+    const sorted=(Array.isArray(boxes)?boxes:[]).slice().sort((a,b)=>(a.x+a.w/2)-(b.x+b.w/2));
+    if(sorted.length!==count-1)return [];
+    const medW=medianNumber(sorted.map(b=>b.w)),medH=medianNumber(sorted.map(b=>b.h));
+    const medCy=medianNumber(sorted.map(b=>b.y+b.h/2));
+    if(!(medW>5&&medH>8))return [];
+    const out=[];
+
+    // Case A: one detector box visibly spans two neighboring tiles.
+    // Split only a clearly over-wide box; both children intentionally lose the
+    // original class label because we cannot know which physical tile produced it.
+    sorted.forEach((b,index)=>{
+      const ratio=b.w/medW;
+      if(ratio<1.48||ratio>2.45)return;
+      const half=b.w/2;
+      if(half<medW*.62||half>medW*1.28)return;
+      const left={...b,w:half,label:'',classId:-1,score:0,synthetic:true,recovery:'split-wide',recoverySource:index};
+      const right={...b,x:b.x+half,w:half,label:'',classId:-1,score:0,synthetic:true,recovery:'split-wide',recoverySource:index};
+      const candidate=sorted.slice(0,index).concat([left,right],sorted.slice(index+1));
+      const evaluated=detectorGeometryEvaluation(candidate,row,count);
+      if(!evaluated.valid)return;
+      out.push({
+        type:'split-wide',missingIndex:null,fitResidualPitch:evaluated.stats?.fitResidualPitch??Infinity,
+        score:evaluated.score+.025,boxes:evaluated.boxes,stats:{...evaluated.stats,wideRatio:Number(ratio.toFixed(3)),splitRawIndex:b.rawIndex}
+      });
+    });
+
+    // Case B: exactly one slot is absent. Fit 13 observed centers to 14 integer
+    // slots, insert one median-sized crop, and accept only a unique, tight fit.
+    const fits=[];
+    for(let missing=0;missing<count;missing++){
+      const fit=detectorMissingSlotFit(sorted,missing,count);
+      if(!fit||fit.fitResidualPitch>.16||fit.pitch<medW*.55||fit.pitch>medW*1.65)continue;
+      const x=Math.max(0,Math.min(cw-medW,fit.expectedX-medW/2));
+      const y=Math.max(0,Math.min(ch-medH,medCy-medH/2));
+      const synthetic={
+        x,y,w:medW,h:medH,score:0,label:'',classId:-1,view:'recovered',
+        rawIndex:-1,synthetic:true,recovery:'missing-slot',missingIndex:missing
+      };
+      const candidate=sorted.concat(synthetic).sort((a,b)=>(a.x+a.w/2)-(b.x+b.w/2));
+      const evaluated=detectorGeometryEvaluation(candidate,row,count);
+      if(!evaluated.valid)continue;
+      fits.push({
+        type:'missing-slot',missingIndex:missing,fitResidualPitch:fit.fitResidualPitch,
+        score:evaluated.score+fit.fitResidualPitch*1.8+.035,
+        boxes:evaluated.boxes,stats:{...evaluated.stats,missingIndex:missing,fitResidualPitch13:Number(fit.fitResidualPitch.toFixed(4))}
+      });
+    }
+    fits.sort((a,b)=>a.score-b.score);
+    if(fits.length){
+      const best=fits[0],second=fits[1]||null;
+      const margin=second?second.score-best.score:Infinity;
+      if(best.fitResidualPitch<=.12&&(!second||margin>=.055)){
+        best.stats={...best.stats,recoveryMargin:Number.isFinite(margin)?Number(margin.toFixed(4)):null};
+        out.push(best);
+      }
+    }
+    return out.sort((a,b)=>a.score-b.score);
+  }
+
   function selectDetectorProductionBoxes(result,source,row,count=14){
     const raw=(result?.boxes||[]).filter(b=>b&&Number.isFinite(b.x)&&Number.isFinite(b.y)&&Number.isFinite(b.w)&&Number.isFinite(b.h)&&Number.isFinite(b.score));
     const cw=source?.width||0,ch=source?.height||0;
     if(cw<20||ch<20)return {accepted:false,reason:'source-small',boxes:[],stats:{rawCount:raw.length}};
-    if(raw.length<count||raw.length>count+2){
+    if(raw.length<count-1||raw.length>count+2){
       return {accepted:false,reason:'count-'+raw.length,boxes:[],stats:{rawCount:raw.length}};
     }
     const normalized=raw.map((b,rawIndex)=>{
@@ -2267,12 +2344,22 @@
       return {...b,x,y,w:x2-x,h:y2-y,rawIndex};
     }).sort((a,b)=>(a.x+a.w/2)-(b.x+b.w/2));
 
-    const evaluated=detectorSubsetCandidates(normalized,count)
-      .map(boxes=>detectorGeometryEvaluation(boxes,row,count))
-      .filter(x=>x.valid)
-      .sort((a,b)=>a.score-b.score);
-    if(!evaluated.length){
-      return {accepted:false,reason:raw.length===count?'geometry':'subset-no-valid',boxes:[],stats:{rawCount:raw.length,candidateCount:detectorSubsetCandidates(normalized,count).length}};
+    let evaluated=[],recovery=null;
+    if(raw.length===count-1){
+      const recovered=detectorRecoverThirteenCandidates(normalized,row,cw,ch,count);
+      if(!recovered.length){
+        return {accepted:false,reason:'recover-13-no-valid',boxes:[],stats:{rawCount:raw.length,candidateCount:0}};
+      }
+      recovery=recovered[0];
+      evaluated=[{valid:true,score:recovery.score,reason:'accepted',boxes:recovery.boxes,stats:recovery.stats}];
+    }else{
+      evaluated=detectorSubsetCandidates(normalized,count)
+        .map(boxes=>detectorGeometryEvaluation(boxes,row,count))
+        .filter(x=>x.valid)
+        .sort((a,b)=>a.score-b.score);
+      if(!evaluated.length){
+        return {accepted:false,reason:raw.length===count?'geometry':'subset-no-valid',boxes:[],stats:{rawCount:raw.length,candidateCount:detectorSubsetCandidates(normalized,count).length}};
+      }
     }
     const best=evaluated[0],second=evaluated[1]||null;
     const margin=second?second.score-best.score:Infinity;
@@ -2289,14 +2376,19 @@
     }));
     const safeBoxes=best.boxes.map((b,i)=>{
       const ix=Math.min(b.w*.025,2.5),iy=Math.min(b.h*.015,2.0);
-      return {x:b.x+ix,y:b.y+iy,w:Math.max(2,b.w-ix*2),h:Math.max(4,b.h-iy*2),score:b.score,label:b.label,classId:b.classId,view:b.view,index:i,rawIndex:b.rawIndex};
+      return {x:b.x+ix,y:b.y+iy,w:Math.max(2,b.w-ix*2),h:Math.max(4,b.h-iy*2),score:b.score,label:b.label,classId:b.classId,view:b.view,index:i,rawIndex:b.rawIndex,synthetic:b.synthetic===true,recovery:b.recovery||'',missingIndex:Number.isInteger(b.missingIndex)?b.missingIndex:null};
     });
     const subsetUsed=raw.length>count;
+    const recoveryUsed=raw.length===count-1&&!!recovery;
     return {
-      accepted:true,reason:subsetUsed?'subset-'+raw.length+'-to-'+count:'accepted',boxes:safeBoxes,
+      accepted:true,
+      reason:recoveryUsed?'recover-13-to-14-'+recovery.type:(subsetUsed?'subset-'+raw.length+'-to-'+count:'accepted'),
+      boxes:safeBoxes,
       stats:{
         ...best.stats,rawCount:raw.length,selectedCount:safeBoxes.length,
         subsetUsed,droppedCount:dropped.length,dropped,
+        recoveryUsed,recoveryType:recovery?.type||'',missingIndex:Number.isInteger(recovery?.missingIndex)?recovery.missingIndex:null,
+        syntheticCount:safeBoxes.filter(b=>b.synthetic).length,
         candidateCount:evaluated.length,
         secondScore:second?Number(second.score.toFixed(4)):null,
         selectionMargin:Number.isFinite(margin)?Number(margin.toFixed(4)):null
@@ -2406,13 +2498,16 @@
   function applyDetectorProductionCrops(highCanvas,baseAnalysis,detectorResult){
     const selected=selectDetectorProductionBoxes(detectorResult,highCanvas,baseAnalysis?.row||null,14);
     let displayResult=detectorResult||null;
-    if(selected.accepted&&selected.stats?.subsetUsed){
+    if(selected.accepted&&(selected.stats?.subsetUsed||selected.stats?.recoveryUsed)){
       const selectedRender=renderDetectorDiagnostic(highCanvas,selected.boxes,detectorResult?.elapsedMs||0,detectorResult?.viewCount||0);
       displayResult={
         ...(detectorResult||{}),
         rawCount:detectorResult?.count||selected.stats.rawCount||0,
         count:selectedRender.count,highCount:selectedRender.highCount,
-        image:selectedRender.image,subsetSelected:true,
+        image:selectedRender.image,subsetSelected:selected.stats?.subsetUsed===true,
+        recoveredMissing:selected.stats?.recoveryUsed===true,
+        recoveryType:selected.stats?.recoveryType||'',
+        syntheticCount:selected.stats?.syntheticCount||0,
         droppedCount:selected.stats.droppedCount||0
       };
     }
@@ -2471,10 +2566,11 @@
       return;
     }
     const prefix=adopted?'YOLO牌分割：採用':'YOLO牌分割：フォールバック';
-    const countText=result.subsetSelected&&result.rawCount?result.rawCount+'→'+result.count+'個':result.count+'個';
-    label.textContent=prefix+' '+countText+' / 信頼度25%以上 '+result.highCount+'個 / '+result.viewCount+'視点 / '+result.elapsedMs+'ms'+(adopted&&result.subsetSelected?' / 余分'+(result.droppedCount||1)+'box除外':'')+(adopted?'':' / '+reason)+'（緑=高信頼・橙=低信頼）';
+    const countText=(result.subsetSelected||result.recoveredMissing)&&result.rawCount?result.rawCount+'→'+result.count+'個':result.count+'個';
+    const recoveryText=adopted&&result.recoveredMissing?' / 不足1box補完('+((result.recoveryType||'').replace('missing-slot','空きslot').replace('split-wide','横長box分割'))+')':'';
+    label.textContent=prefix+' '+countText+' / 信頼度25%以上 '+result.highCount+'個 / '+result.viewCount+'視点 / '+result.elapsedMs+'ms'+(adopted&&result.subsetSelected?' / 余分'+(result.droppedCount||1)+'box除外':'')+recoveryText+(adopted?'':' / '+reason)+'（緑=高信頼・橙=低信頼）';
     if(result.image){
-      const img=document.createElement('img');img.src=result.image;img.alt='M7 v82 YOLO牌box';
+      const img=document.createElement('img');img.src=result.image;img.alt='M7 v84 YOLO牌box';
       img.style.cssText='display:block;width:100%;max-height:104px;object-fit:contain;margin-top:3px;background:#111;';
       wrap.appendChild(img);
     }
@@ -2852,7 +2948,7 @@
       if(note)note.textContent=features.length===14
         ?(firstCalibration
           ?'この保存領域には学習データがありません。今回だけ14枚を正しく指定してください。「この手牌で進む」を押した時に保存完了を確認してから次へ進みます。'
-          :`v83はYOLOの牌種classを主認識へ使う検証版です。YOLO分割が安全採用され、class confidenceが${YOLO_CLASS_USE_THRESHOLD.toFixed(2)}以上ならYOLO Top1をそのまま牌名へ変換し、低confidence・未対応時だけ既存学習分類器へfallbackします。赤5(0m/0p/0s)は現UIに赤牌区別がないため5萬/5筒/5索へ統合します。YOLO分割 ${analysis.detectorAdopted?'採用':'fallback'}${analysis.detectorAdoptionReason?`(${analysis.detectorAdoptionReason})`:''} / YOLO牌種 ${primary.yoloUsed}/14 / 旧分類fallback ${primary.legacyUsed}/14 / 未確定 ${primary.unresolved}/14 / 軸平行crop ${analysis.detectorAdopted?'14/14':'0/14'}。旧分類器参考: 高信頼 ${legacyPredicted.filter(Boolean).length}枚・${Math.max(0,state.lastRecognitionMs||0)}ms。`)
+          :`v84はYOLO牌種認識を維持しつつ、検出が13boxの時だけ安全な14牌復元を追加した版です。通常より明確に横長なboxは2牌へ分割し、それ以外は13中心を14等間隔slotへ当てはめて一意な空き1slotだけ補完します。幾何fitが悪い・候補が曖昧なら従来通りfallbackします。補完boxはYOLO牌種を捏造せず旧分類器/手動修正へ回します。YOLO分割 ${analysis.detectorAdopted?'採用':'fallback'}${analysis.detectorAdoptionReason?`(${analysis.detectorAdoptionReason})`:''} / YOLO牌種 ${primary.yoloUsed}/14 / 旧分類fallback ${primary.legacyUsed}/14 / 未確定 ${primary.unresolved}/14 / 軸平行crop ${analysis.detectorAdopted?'14/14':'0/14'}。`
         :'白枠内から牌列を特定できませんでした。撮影画像を確認し、14枠を手動入力するか「読み取り直す」で再撮影してください。';
       if(analysis.yoloDetectorResult||analysis.detectorAdoptionReason){
         renderDetectorResult(root,analysis.yoloDetectorResult,analysis.detectorAdopted===true,analysis.detectorAdoptionReason||'');
@@ -2916,7 +3012,7 @@
         cropQualityFallbackCount:analysis.cropQualityFallbackCount||0,brokenCropCount:analysis.brokenCropCount||0,
         boundaryTrimCount:analysis.boundaryTrimCount||0,resplitAdoptedCount:analysis.resplitAdoptedCount||0,
         localBoundaryDebug:analysis.localBoundaryDebug||[],cropQualities:analysis.cropQualities||[],boundarySignal:analysis.boundarySignal||null,
-        detectorMode:'yolo11n-primary-class-hybrid',detectorAdopted:analysis.detectorAdopted===true,yoloAxisAligned:analysis.detectorAdopted===true,
+        detectorMode:'yolo11n-primary-class-recover13',detectorAdopted:analysis.detectorAdopted===true,yoloAxisAligned:analysis.detectorAdopted===true,
         detectorAdoptionReason:analysis.detectorAdoptionReason||'',detectorGeometry:analysis.detectorGeometry||null,
         yoloDetector:analysis.yoloDetectorResult?{...analysis.yoloDetectorResult,image:undefined}:null
       };
@@ -3052,6 +3148,6 @@
   },true);
 
   window.M7CameraV36=Object.freeze({
-    sourceRectForCover,locateTileRow,splitRow,boxCropQuality,canvasCropQuality,rowCropQuality,selectRowByCropQuality,rescueBrokenBox,tripletCropQuality,applyLocalBoundaryDelta,rescueLocalBoundaries,detectorWindows,detectorIoU,detectorNms,decodeYoloOutput,runYoloTileDetectorDiagnostic,detectorGeometryEvaluation,detectorSubsetCandidates,selectDetectorProductionBoxes,yoloLabelToAppTile,yoloRecognitionFromBoxes,chooseYoloPrimaryRecognition,axisAlignedYoloFaceCanvas,analyzeYoloTileBox,applyDetectorProductionCrops,renderDetectorResult,boundaryLikelihoodDiagnostics,refineRowOuterEdges,fitGlobalRowGrid,splitRowBySeams,analyzeGuideCanvas,featureFromBox,tileFaceRect,descriptorFromCanvas,detectFaceGeometry,detectFaceQuad,canonicalizeCanvas,orientedFaceCanvas,perspectiveFaceCanvas,warpQuadToCanvas,trainingImageDataUrl,estimateBleedSafeShift,safeInsetWindow,chooseRecognitionWindow,innerRecognitionCanvas,innerRecognitionWindowCanvas,innerFeatureFromCanonical,inferenceFeatureViews,analyzeTileBox,loadTrainingSamples,rebuildLibraryFromTrainingImages,loadLibrary,activeLibrary,saveLibrary,saveLibraryDetailed,persistVerifiedHand,persistFailureText,loadLegacyLibrary,legacyLibraryKeys,convertLegacyDirectFeature,cropResampleFeatureMap,confidenceAssessment,confidentCandidate,confidenceReasonSummary,renderPickerPhoto,renderPickerSuggestions,pickerCurrentIndex,schedulePickerSuggestionSync,attachPickerSuggestionObserver
+    sourceRectForCover,locateTileRow,splitRow,boxCropQuality,canvasCropQuality,rowCropQuality,selectRowByCropQuality,rescueBrokenBox,tripletCropQuality,applyLocalBoundaryDelta,rescueLocalBoundaries,detectorWindows,detectorIoU,detectorNms,decodeYoloOutput,runYoloTileDetectorDiagnostic,detectorGeometryEvaluation,detectorSubsetCandidates,detectorMissingSlotFit,detectorRecoverThirteenCandidates,selectDetectorProductionBoxes,yoloLabelToAppTile,yoloRecognitionFromBoxes,chooseYoloPrimaryRecognition,axisAlignedYoloFaceCanvas,analyzeYoloTileBox,applyDetectorProductionCrops,renderDetectorResult,boundaryLikelihoodDiagnostics,refineRowOuterEdges,fitGlobalRowGrid,splitRowBySeams,analyzeGuideCanvas,featureFromBox,tileFaceRect,descriptorFromCanvas,detectFaceGeometry,detectFaceQuad,canonicalizeCanvas,orientedFaceCanvas,perspectiveFaceCanvas,warpQuadToCanvas,trainingImageDataUrl,estimateBleedSafeShift,safeInsetWindow,chooseRecognitionWindow,innerRecognitionCanvas,innerRecognitionWindowCanvas,innerFeatureFromCanonical,inferenceFeatureViews,analyzeTileBox,loadTrainingSamples,rebuildLibraryFromTrainingImages,loadLibrary,activeLibrary,saveLibrary,saveLibraryDetailed,persistVerifiedHand,persistFailureText,loadLegacyLibrary,legacyLibraryKeys,convertLegacyDirectFeature,cropResampleFeatureMap,confidenceAssessment,confidentCandidate,confidenceReasonSummary,renderPickerPhoto,renderPickerSuggestions,pickerCurrentIndex,schedulePickerSuggestionSync,attachPickerSuggestionObserver
   });
 })();
