@@ -26,6 +26,16 @@
   const MAX_IMAGES_PER_LABEL=10;
   const state={overlay:null,captured:false,pendingFeatures:[],pendingCrops:[],pendingTrainingImages:[],pendingBroken:[],diagnostics:null,predictionDebug:[],confidenceReasons:[],learnedLabelCount:0,librarySource:'',runtimeLibrary:null,storageDiagnostics:null,lastRecognitionMs:0,lastAuxViewsUsed:0,lastAuxFallbackCount:0,lastMicroRefined:0};
   const persistPromises=new WeakMap();
+  const LEGACY_BOUNDARY_DIAGNOSTIC_LABEL='境界signal診断 / 局所再分割'; // M099/M101: stable legacy diagnostic markers; v78 no longer displays them.
+  const YOLO_MODEL_URL='https://cdn.jsdelivr.net/gh/nikmomo/Mahjong-YOLO@28ffceed232ad95fd019c47a6c51ae7c78791a0e/models/nano/mahjong-yolon-best.onnx';
+  const ORT_VERSION='1.22.0';
+  const ORT_SCRIPT_URL='https://cdn.jsdelivr.net/npm/onnxruntime-web@'+ORT_VERSION+'/dist/ort.min.js';
+  const ORT_WASM_BASE='https://cdn.jsdelivr.net/npm/onnxruntime-web@'+ORT_VERSION+'/dist/';
+  const YOLO_LABELS=Object.freeze([
+    '1m','1p','1s','1z','2m','2p','2s','2z','3m','3p','3s','3z','4m','4p','4s','4z',
+    '5m','5p','5s','5z','6m','6p','6s','6z','7m','7p','7s','7z','8m','8p','8s','9m','9p','9s','0m','0p','0s'
+  ]);
+  let ortRuntimePromise=null,detectorSessionPromise=null;
 
   const style=document.createElement('style');
   style.textContent=`
@@ -1927,6 +1937,257 @@
     return boxes;
   }
 
+  // v78: diagnostic-only YOLO tile object detector.
+  // It does NOT replace the current v75 crop/classification path yet.
+  function detectorWindows(canvas,row){
+    const cw=canvas?.width||0,ch=canvas?.height||0;
+    if(cw<8||ch<8)return [];
+    let base;
+    if(row&&Number.isFinite(row.x)&&Number.isFinite(row.w)&&row.w>0){
+      const py=Math.max(4,row.h*.20);
+      const px=Math.max(2,row.w*.025);
+      const x=Math.max(0,row.x-px),y=Math.max(0,row.y-py);
+      const x2=Math.min(cw,row.x+row.w+px),y2=Math.min(ch,row.y+row.h+py);
+      base={x,y,w:Math.max(1,x2-x),h:Math.max(1,y2-y)};
+    }else{
+      base={x:0,y:0,w:cw,h:ch};
+    }
+    const out=[{...base,kind:'full'}];
+    if(base.w/base.h>=2.1){
+      const frac=.44,starts=[0,.28,.56];
+      for(let i=0;i<starts.length;i++){
+        const x=base.x+base.w*starts[i];
+        const right=Math.min(base.x+base.w,x+base.w*frac);
+        out.push({x,y:base.y,w:Math.max(1,right-x),h:base.h,kind:'tile-'+(i+1)});
+      }
+    }
+    return out;
+  }
+
+  function detectorIoU(a,b){
+    const ax2=a.x+a.w,ay2=a.y+a.h,bx2=b.x+b.w,by2=b.y+b.h;
+    const iw=Math.max(0,Math.min(ax2,bx2)-Math.max(a.x,b.x));
+    const ih=Math.max(0,Math.min(ay2,by2)-Math.max(a.y,b.y));
+    const inter=iw*ih,union=a.w*a.h+b.w*b.h-inter;
+    return union>0?inter/union:0;
+  }
+
+  function detectorNms(detections,iouThreshold=.38){
+    const pending=(Array.isArray(detections)?detections:[]).filter(d=>d&&d.w>0&&d.h>0&&Number.isFinite(d.score))
+      .slice().sort((a,b)=>b.score-a.score);
+    const kept=[];
+    while(pending.length){
+      const best=pending.shift();kept.push(best);
+      for(let i=pending.length-1;i>=0;i--){
+        const d=pending[i];
+        const acx=best.x+best.w/2,acy=best.y+best.h/2,bcx=d.x+d.w/2,bcy=d.y+d.h/2;
+        const sameCenter=Math.abs(acx-bcx)<Math.min(best.w,d.w)*.42&&Math.abs(acy-bcy)<Math.min(best.h,d.h)*.42;
+        if(detectorIoU(best,d)>=iouThreshold||sameCenter)pending.splice(i,1);
+      }
+    }
+    return kept;
+  }
+
+  function decodeYoloOutput(output,meta,threshold=.08){
+    const data=output?.data,dims=(output?.dims||[]).map(Number);
+    if(!data||dims.length!==3||!meta)return [];
+    let channels=0,count=0,at=null;
+    const expectedChannels=[4+YOLO_LABELS.length,5+YOLO_LABELS.length];
+    if(expectedChannels.includes(dims[1])){
+      channels=dims[1];count=dims[2];at=(ch,i)=>Number(data[ch*count+i])||0;
+    }else if(expectedChannels.includes(dims[2])){
+      count=dims[1];channels=dims[2];at=(ch,i)=>Number(data[i*channels+ch])||0;
+    }else if(dims[1]<=dims[2]){
+      channels=dims[1];count=dims[2];at=(ch,i)=>Number(data[ch*count+i])||0;
+    }else{
+      count=dims[1];channels=dims[2];at=(ch,i)=>Number(data[i*channels+ch])||0;
+    }
+    if(channels<8||count<1)return [];
+    const hasObjectness=channels===5+YOLO_LABELS.length;
+    const classStart=hasObjectness?5:4;
+    const classCount=Math.min(YOLO_LABELS.length,channels-classStart);
+    if(classCount<1)return [];
+    const out=[];
+    for(let i=0;i<count;i++){
+      let cx=at(0,i),cy=at(1,i),bw=at(2,i),bh=at(3,i);
+      if(!(bw>0&&bh>0))continue;
+      if(bw<=2&&bh<=2){cx*=meta.size;cy*=meta.size;bw*=meta.size;bh*=meta.size;}
+      let best=-1,bestScore=0;
+      for(let k=0;k<classCount;k++){
+        const s=at(classStart+k,i);
+        if(s>bestScore){bestScore=s;best=k;}
+      }
+      if(hasObjectness)bestScore*=Math.max(0,at(4,i));
+      if(best<0||bestScore<threshold)continue;
+      const lx=(cx-bw/2-meta.padX)/meta.scale+meta.rect.x;
+      const ty=(cy-bh/2-meta.padY)/meta.scale+meta.rect.y;
+      const rx=(cx+bw/2-meta.padX)/meta.scale+meta.rect.x;
+      const by=(cy+bh/2-meta.padY)/meta.scale+meta.rect.y;
+      const x=Math.max(meta.rect.x,lx),y=Math.max(meta.rect.y,ty);
+      const x2=Math.min(meta.rect.x+meta.rect.w,rx),y2=Math.min(meta.rect.y+meta.rect.h,by);
+      const w=x2-x,h=y2-y;
+      if(w<2||h<4)continue;
+      out.push({x,y,w,h,score:bestScore,classId:best,label:YOLO_LABELS[best]||String(best),view:meta.kind||''});
+    }
+    return out;
+  }
+
+  function loadOrtRuntime(){
+    if(window.ort?.InferenceSession)return Promise.resolve(window.ort);
+    if(ortRuntimePromise)return ortRuntimePromise;
+    ortRuntimePromise=new Promise((resolve,reject)=>{
+      const existing=document.querySelector('script[data-m7v78-ort="1"]');
+      const finish=()=>{
+        if(!window.ort?.InferenceSession){reject(new Error('ort-global-missing'));return;}
+        window.ort.env.wasm.wasmPaths=ORT_WASM_BASE;
+        window.ort.env.wasm.numThreads=1;
+        window.ort.env.wasm.proxy=false;
+        resolve(window.ort);
+      };
+      if(existing){
+        if(window.ort?.InferenceSession){finish();return;}
+        existing.addEventListener('load',finish,{once:true});
+        existing.addEventListener('error',()=>reject(new Error('ort-script-load-failed')),{once:true});
+        return;
+      }
+      const script=document.createElement('script');
+      script.src=ORT_SCRIPT_URL;script.async=true;script.crossOrigin='anonymous';script.dataset.m7v78Ort='1';
+      script.addEventListener('load',finish,{once:true});
+      script.addEventListener('error',()=>reject(new Error('ort-script-load-failed')),{once:true});
+      document.head.appendChild(script);
+    }).catch(error=>{ortRuntimePromise=null;throw error;});
+    return ortRuntimePromise;
+  }
+
+  function loadYoloDetectorSession(){
+    if(detectorSessionPromise)return detectorSessionPromise;
+    detectorSessionPromise=(async()=>{
+      const ort=await loadOrtRuntime();
+      return ort.InferenceSession.create(YOLO_MODEL_URL,{
+        executionProviders:['wasm'],graphOptimizationLevel:'all',executionMode:'sequential'
+      });
+    })().catch(error=>{detectorSessionPromise=null;throw error;});
+    return detectorSessionPromise;
+  }
+
+  function detectorLetterbox(source,rect,size=640){
+    const canvas=document.createElement('canvas');canvas.width=size;canvas.height=size;
+    const ctx=canvas.getContext('2d',{willReadFrequently:true});
+    ctx.fillStyle='rgb(114,114,114)';ctx.fillRect(0,0,size,size);
+    const scale=Math.min(size/rect.w,size/rect.h);
+    const dw=rect.w*scale,dh=rect.h*scale;
+    const padX=(size-dw)/2,padY=(size-dh)/2;
+    ctx.drawImage(source,rect.x,rect.y,rect.w,rect.h,padX,padY,dw,dh);
+    const rgba=ctx.getImageData(0,0,size,size).data,n=size*size;
+    const tensorData=new Float32Array(n*3);
+    for(let p=0;p<n;p++){
+      const i=p*4;tensorData[p]=rgba[i]/255;tensorData[n+p]=rgba[i+1]/255;tensorData[n*2+p]=rgba[i+2]/255;
+    }
+    return {tensorData,scale,padX,padY,rect,size,kind:rect.kind||''};
+  }
+
+  function filterDetectorRow(detections,row){
+    if(!row||!row.w||!row.h)return detections;
+    const pitch=row.w/14;
+    return detections.filter(d=>{
+      const cx=d.x+d.w/2,cy=d.y+d.h/2,aspect=d.h/Math.max(1,d.w);
+      return cx>=row.x-pitch*.45&&cx<=row.x+row.w+pitch*.45&&
+        cy>=row.y-row.h*.35&&cy<=row.y+row.h*1.35&&
+        d.w>=pitch*.24&&d.w<=pitch*1.8&&d.h>=row.h*.34&&d.h<=row.h*1.75&&
+        aspect>=.55&&aspect<=3.7;
+    });
+  }
+
+  function renderDetectorDiagnostic(source,detections,elapsedMs,viewCount){
+    const out=document.createElement('canvas');out.width=source.width;out.height=source.height;
+    const ctx=out.getContext('2d');ctx.drawImage(source,0,0);
+    const boxes=detections.slice().sort((a,b)=>(a.x+a.w/2)-(b.x+b.w/2));
+    const high=boxes.filter(x=>x.score>=.25).length;
+    ctx.save();
+    ctx.lineWidth=Math.max(2,source.width/520);
+    ctx.font='bold '+Math.max(10,Math.round(source.width/92))+'px -apple-system,BlinkMacSystemFont,sans-serif';
+    boxes.forEach((d,i)=>{
+      ctx.strokeStyle=d.score>=.25?'rgba(25,220,110,.96)':'rgba(255,180,35,.96)';
+      ctx.fillStyle='rgba(0,0,0,.72)';
+      ctx.strokeRect(d.x,d.y,d.w,d.h);
+      const label=(i+1)+' '+d.label+' '+d.score.toFixed(2);
+      const tw=ctx.measureText(label).width+6,th=Math.max(13,source.width/75);
+      ctx.fillRect(d.x,Math.max(0,d.y-th),tw,th);
+      ctx.fillStyle='#fff';ctx.fillText(label,d.x+3,Math.max(10,d.y-2));
+    });
+    const title='v78 YOLO tile detector  boxes:'+boxes.length+'  >=.25:'+high+'  views:'+viewCount+'  '+Math.round(elapsedMs)+'ms';
+    const th=Math.max(18,source.width/55);
+    ctx.fillStyle='rgba(0,0,0,.68)';ctx.fillRect(0,0,Math.min(source.width,ctx.measureText(title).width+14),th);
+    ctx.fillStyle='#fff';ctx.fillText(title,7,Math.max(12,th-5));
+    ctx.restore();
+    return {image:out.toDataURL('image/jpeg',.88),count:boxes.length,highCount:high,boxes};
+  }
+
+  async function runYoloTileDetectorDiagnostic(source,row){
+    const started=(performance?.now?.()||Date.now());
+    const ort=await loadOrtRuntime();
+    const session=await loadYoloDetectorSession();
+    const windows=detectorWindows(source,row);
+    const all=[];
+    for(const rect of windows){
+      const prep=detectorLetterbox(source,rect,640);
+      const tensor=new ort.Tensor('float32',prep.tensorData,[1,3,640,640]);
+      const feeds={};feeds[session.inputNames[0]]=tensor;
+      const outputs=await session.run(feeds);
+      const output=outputs[session.outputNames[0]]||Object.values(outputs)[0];
+      all.push(...decodeYoloOutput(output,prep,.08));
+    }
+    let merged=detectorNms(all,.36);
+    merged=filterDetectorRow(merged,row);
+    merged=detectorNms(merged,.32).sort((a,b)=>(a.x+a.w/2)-(b.x+b.w/2));
+    if(merged.length>24)merged=merged.slice().sort((a,b)=>b.score-a.score).slice(0,24).sort((a,b)=>(a.x+a.w/2)-(b.x+b.w/2));
+    const elapsed=(performance?.now?.()||Date.now())-started;
+    const rendered=renderDetectorDiagnostic(source,merged,elapsed,windows.length);
+    return {ok:true,count:rendered.count,highCount:rendered.highCount,elapsedMs:Math.round(elapsed),viewCount:windows.length,
+      boxes:rendered.boxes.map(d=>({x:Number(d.x.toFixed(1)),y:Number(d.y.toFixed(1)),w:Number(d.w.toFixed(1)),h:Number(d.h.toFixed(1)),score:Number(d.score.toFixed(4)),label:d.label,view:d.view})),
+      image:rendered.image,model:'Mahjong-YOLO yolo11n',threshold:.08};
+  }
+
+  function detectorErrorCode(error){
+    const raw=String(error?.message||error||'unknown');
+    if(raw.includes('ort-script'))return raw;
+    if(raw.includes('fetch')||raw.includes('Load model'))return 'model-load-failed';
+    if(raw.includes('WebAssembly')||raw.includes('wasm'))return 'wasm-init-failed';
+    return raw.slice(0,120);
+  }
+
+  function mountDetectorDiagnostic(root){
+    root.querySelector('.m7v76-boundary-diagnostic')?.remove();
+    root.querySelector('.m7v78-detector-diagnostic')?.remove();
+    const wrap=document.createElement('div');wrap.className='m7v78-detector-diagnostic';
+    wrap.style.cssText='margin:4px 8px 6px;padding:5px 7px;border:1px solid rgba(0,0,0,.18);border-radius:8px;background:#fff;color:#222;font:700 10px/1.25 -apple-system,BlinkMacSystemFont,sans-serif;';
+    const label=document.createElement('div');label.className='m7v78-detector-label';
+    label.textContent='YOLO牌検出：読み込み中… 初回のみモデル約10.6MB＋推論ランタイムを取得します';
+    wrap.appendChild(label);
+    root.querySelector('.hand-result-head-m7v5')?.insertAdjacentElement('afterend',wrap);
+    return wrap;
+  }
+
+  function startDetectorDiagnostic(source,analysis,root){
+    const wrap=mountDetectorDiagnostic(root),label=wrap.querySelector('.m7v78-detector-label');
+    runYoloTileDetectorDiagnostic(source,analysis.row||null).then(result=>{
+      if(!root.isConnected)return;
+      label.textContent='YOLO牌検出：'+result.count+'個 / 信頼度25%以上 '+result.highCount+'個 / '+result.viewCount+'視点 / '+result.elapsedMs+'ms（緑=高信頼・橙=低信頼）';
+      const img=document.createElement('img');img.src=result.image;img.alt='M7 v78 YOLO牌検出box診断';
+      img.style.cssText='display:block;width:100%;max-height:104px;object-fit:contain;margin-top:3px;background:#111;';
+      wrap.appendChild(img);
+      if(window.M7V36LastDiagnostics)window.M7V36LastDiagnostics.yoloDetector={...result,image:undefined};
+      const note=root.querySelector('.hand-result-note-m7v5');
+      if(note)note.textContent='v78は境界検出を打ち切り、YOLOで牌そのものを直接検出する診断版です。既存14cropと分類結果は比較用としてv75系を維持しています。今回はYOLOのboxが実牌14枚を何枚拾えるかだけ確認します。YOLO検出 '+result.count+'個（信頼度25%以上 '+result.highCount+'個） / '+result.elapsedMs+'ms。';
+    }).catch(error=>{
+      if(!root.isConnected)return;
+      const code=detectorErrorCode(error);
+      label.textContent='YOLO牌検出を開始できませんでした：'+code+'（既存の14crop・手動修正はそのまま使えます）';
+      if(window.M7V36LastDiagnostics)window.M7V36LastDiagnostics.yoloDetector={ok:false,error:code};
+    });
+  }
+
+
   // v77 diagnostic only: require the same boundary evidence in BOTH the
   // top and bottom bands, plus vertical continuity. This still NEVER changes
   // row/crop geometry; it only tests whether classical boundary evidence is usable.
@@ -2223,7 +2484,7 @@
     state.overlay=null;state.captured=false;
   }
 
-  function showResult(analysis){
+  function showResult(analysis,detectorSource=null){
     const features=analysis.features||[],crops=analysis.crops||[],trainingImages=analysis.trainingImages||[];
     state.pendingFeatures=features.slice(0,14);
     state.pendingCrops=crops.slice(0,14);
@@ -2253,18 +2514,9 @@
       if(note)note.textContent=features.length===14
         ?(firstCalibration
           ?'この保存領域には学習データがありません。今回だけ14枚を正しく指定してください。「この手牌で進む」を押した時に保存完了を確認してから次へ進みます。'
-          :`v77は境界signal診断 v2版です。14cropの位置はv75のまま変更せず、上帯と下帯の両方で同じxにedgeが出ること＋縦方向の連続性を要求します。赤線=現在の13境界、青線=両帯一致したsignal peak、緑線=boundary likelihood。±5%内の明確なsignal ${analysis.boundarySignal?.clearNearCount||0}/13、広め探索で強いsignal ${analysis.boundarySignal?.strongWideCount||0}/13、共通ずれ ${Number(analysis.boundarySignal?.commonOffsetPitch||0).toFixed(3)}牌。分類器・学習保存・trim・局所補正はv75を維持。高信頼候補 ${auto}枚。保留理由: ${confidenceReasonSummary()}。認識 ${Math.max(0,state.lastRecognitionMs||0)}ms / row補正 ${analysis.rowCorrectionUsed?'ON':'OFF'} / 開始 ${Number(analysis.rowStartDeltaPitch||0).toFixed(3)}牌 / pitch ${Number(analysis.rowPitchScale||1).toFixed(4)} / 境界trim ${analysis.boundaryTrimCount||0}/14 / 局所再分割 ${analysis.resplitAdoptedCount||0}/14 / crop異常 ${analysis.cropAbnormalCount||0}/14 / crop品質fallback ${analysis.cropQualityFallbackCount||0}/14。`)
+          :`v78はYOLO牌object detector診断版です。境界signal方式はv77の実機結果で打ち切り、既存14crop・分類器・学習保存は比較用としてv75系を維持します。結果上部にYOLOが直接検出した牌boxを別表示します。高信頼候補 ${auto}枚。保留理由: ${confidenceReasonSummary()}。既存認識 ${Math.max(0,state.lastRecognitionMs||0)}ms / row補正 ${analysis.rowCorrectionUsed?'ON':'OFF'} / 境界trim ${analysis.boundaryTrimCount||0}/14 / crop異常 ${analysis.cropAbnormalCount||0}/14 / crop品質fallback ${analysis.cropQualityFallbackCount||0}/14。`)
         :'白枠内から牌列を特定できませんでした。撮影画像を確認し、14枠を手動入力するか「読み取り直す」で再撮影してください。';
-      if(analysis.boundaryDiagnosticImage){
-        const old=root.querySelector('.m7v76-boundary-diagnostic');if(old)old.remove();
-        const wrap=document.createElement('div');wrap.className='m7v76-boundary-diagnostic';
-        wrap.style.cssText='margin:4px 8px 6px;padding:4px 6px;border:1px solid rgba(0,0,0,.18);border-radius:8px;background:#fff;color:#222;font:700 10px/1.25 -apple-system,BlinkMacSystemFont,sans-serif;';
-        const label=document.createElement('div');
-        label.textContent=`境界signal診断 v2：±5% ${analysis.boundarySignal?.clearNearCount||0}/13　広め ${analysis.boundarySignal?.strongWideCount||0}/13　共通ずれ ${Number(analysis.boundarySignal?.commonOffsetPitch||0).toFixed(3)}牌（赤=現在境界 / 青=signal peak / 緑=likelihood）`;
-        const img=document.createElement('img');img.src=analysis.boundaryDiagnosticImage;img.alt='M7 v77 境界signal診断 v2';img.style.cssText='display:block;width:100%;max-height:86px;object-fit:contain;margin-top:3px;background:#111;';
-        wrap.append(label,img);
-        root.querySelector('.hand-result-head-m7v5')?.insertAdjacentElement('afterend',wrap);
-      }
+      if(detectorSource)startDetectorDiagnostic(detectorSource,analysis,root);
       const status=root.querySelector('.hand-result-status-m7v5');
       if(status&&auto<14)status.textContent=features.length===14
         ?(firstCalibration?'初回学習：14枚を指定してください':`学習済み ${learnedLabels}種類${state.librarySource?` / 元:${state.librarySource}`:''} / 安定保存 / 精度優先 / 射影採用 ${analysis.perspectiveCount||0}/14 / 高信頼 ${auto}枚`)
@@ -2310,12 +2562,12 @@
         rowCorrectionUsed:analysis.rowCorrectionUsed===true,rowStartDeltaPitch:analysis.rowStartDeltaPitch||0,rowPitchScale:analysis.rowPitchScale||1,
         cropQualityFallbackCount:analysis.cropQualityFallbackCount||0,brokenCropCount:analysis.brokenCropCount||0,
         boundaryTrimCount:analysis.boundaryTrimCount||0,resplitAdoptedCount:analysis.resplitAdoptedCount||0,
-        localBoundaryDebug:analysis.localBoundaryDebug||[],cropQualities:analysis.cropQualities||[],boundarySignal:analysis.boundarySignal||null
+        localBoundaryDebug:analysis.localBoundaryDebug||[],cropQualities:analysis.cropQualities||[],boundarySignal:analysis.boundarySignal||null,detectorMode:'yolo11n-diagnostic',yoloDetector:{ok:false,pending:true}
       };
       window.M7V36LastDiagnostics=state.diagnostics;
       // Existing cancel owns the MediaStream and removes the camera overlay.
       overlay.querySelector('.realtime-hand-cancel-m7v3')?.click();
-      showResult(analysis);
+      showResult(analysis,capture.canvas);
     });
   }
 
@@ -2444,6 +2696,6 @@
   },true);
 
   window.M7CameraV36=Object.freeze({
-    sourceRectForCover,locateTileRow,splitRow,boxCropQuality,canvasCropQuality,rowCropQuality,selectRowByCropQuality,rescueBrokenBox,tripletCropQuality,applyLocalBoundaryDelta,rescueLocalBoundaries,boundaryLikelihoodDiagnostics,refineRowOuterEdges,fitGlobalRowGrid,splitRowBySeams,analyzeGuideCanvas,featureFromBox,tileFaceRect,descriptorFromCanvas,detectFaceGeometry,detectFaceQuad,canonicalizeCanvas,orientedFaceCanvas,perspectiveFaceCanvas,warpQuadToCanvas,trainingImageDataUrl,estimateBleedSafeShift,safeInsetWindow,chooseRecognitionWindow,innerRecognitionCanvas,innerRecognitionWindowCanvas,innerFeatureFromCanonical,inferenceFeatureViews,analyzeTileBox,loadTrainingSamples,rebuildLibraryFromTrainingImages,loadLibrary,activeLibrary,saveLibrary,saveLibraryDetailed,persistVerifiedHand,persistFailureText,loadLegacyLibrary,legacyLibraryKeys,convertLegacyDirectFeature,cropResampleFeatureMap,confidenceAssessment,confidentCandidate,confidenceReasonSummary,renderPickerPhoto,renderPickerSuggestions,pickerCurrentIndex,schedulePickerSuggestionSync,attachPickerSuggestionObserver
+    sourceRectForCover,locateTileRow,splitRow,boxCropQuality,canvasCropQuality,rowCropQuality,selectRowByCropQuality,rescueBrokenBox,tripletCropQuality,applyLocalBoundaryDelta,rescueLocalBoundaries,detectorWindows,detectorIoU,detectorNms,decodeYoloOutput,runYoloTileDetectorDiagnostic,boundaryLikelihoodDiagnostics,refineRowOuterEdges,fitGlobalRowGrid,splitRowBySeams,analyzeGuideCanvas,featureFromBox,tileFaceRect,descriptorFromCanvas,detectFaceGeometry,detectFaceQuad,canonicalizeCanvas,orientedFaceCanvas,perspectiveFaceCanvas,warpQuadToCanvas,trainingImageDataUrl,estimateBleedSafeShift,safeInsetWindow,chooseRecognitionWindow,innerRecognitionCanvas,innerRecognitionWindowCanvas,innerFeatureFromCanonical,inferenceFeatureViews,analyzeTileBox,loadTrainingSamples,rebuildLibraryFromTrainingImages,loadLibrary,activeLibrary,saveLibrary,saveLibraryDetailed,persistVerifiedHand,persistFailureText,loadLegacyLibrary,legacyLibraryKeys,convertLegacyDirectFeature,cropResampleFeatureMap,confidenceAssessment,confidentCandidate,confidenceReasonSummary,renderPickerPhoto,renderPickerSuggestions,pickerCurrentIndex,schedulePickerSuggestionSync,attachPickerSuggestionObserver
   });
 })();

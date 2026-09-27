@@ -34,7 +34,7 @@ const server=http.createServer((req,res)=>{
     const errors=[];page.on('pageerror',e=>errors.push(String(e)));
     await page.goto('http://127.0.0.1:'+port+'/',{waitUntil:'domcontentloaded',timeout:30000});
     await page.waitForSelector('#go-confirm-button',{timeout:12000});
-    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'M7 v77');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'M7 v78');
     // v36 analyzes one long row after the shutter instead of requiring 14 live connected components.
     const synthetic=await page.evaluate(()=>{
       const canvas=document.createElement('canvas');canvas.width=840;canvas.height=260;
@@ -108,6 +108,28 @@ const server=http.createServer((req,res)=>{
       'v77 dual-band diagnostic failed to recover synthetic seams '+JSON.stringify(dualBandDiagnostic));
     assert(dualBandDiagnostic.strongWideCount>=11,
       'v77 wide dual-band diagnostic is too weak '+JSON.stringify(dualBandDiagnostic));
+
+    const v78DetectorPure=await page.evaluate(()=>{
+      const api=window.M7CameraV36;
+      const canvas=document.createElement('canvas');canvas.width=980;canvas.height=180;
+      const row={x:70,y:28,w:840,h:124};
+      const windows=api.detectorWindows(canvas,row);
+      const size=640,count=4,channels=41,data=new Float32Array(channels*count);
+      const set=(ch,i,v)=>{data[ch*count+i]=v;};
+      // Two overlapping predictions for tile A and one separate tile B.
+      set(0,0,120);set(1,0,320);set(2,0,70);set(3,0,150);set(4,0,.90);
+      set(0,1,123);set(1,1,322);set(2,1,72);set(3,1,148);set(4,1,.82);
+      set(0,2,310);set(1,2,320);set(2,2,68);set(3,2,152);set(5,2,.88);
+      set(0,3,500);set(1,3,320);set(2,3,60);set(3,3,130);set(6,3,.02);
+      const meta={size,scale:1,padX:0,padY:0,rect:{x:0,y:0,w:640,h:640},kind:'test'};
+      const decoded=api.decodeYoloOutput({dims:[1,channels,count],data},meta,.08);
+      const nms=api.detectorNms(decoded,.36);
+      return {windowCount:windows.length,kinds:windows.map(x=>x.kind),decoded:decoded.length,nms:nms.length,labels:nms.map(x=>x.label),iou:api.detectorIoU(decoded[0],decoded[1])};
+    });
+    assert.equal(v78DetectorPure.windowCount,4,'v78 should use full + three overlapping row views '+JSON.stringify(v78DetectorPure));
+    assert.equal(v78DetectorPure.decoded,3,'v78 decoder threshold/layout mismatch '+JSON.stringify(v78DetectorPure));
+    assert.equal(v78DetectorPure.nms,2,'v78 class-agnostic NMS did not merge duplicate boxes '+JSON.stringify(v78DetectorPure));
+    assert(v78DetectorPure.iou>.7,'v78 synthetic duplicate IoU unexpectedly low '+JSON.stringify(v78DetectorPure));
 
     const cropQuality=await page.evaluate(()=>{
       const canvas=document.createElement('canvas');canvas.width=220;canvas.height=150;
