@@ -946,3 +946,13 @@
 **再発防止:** object detectorが対象物を個別box化した後は、同じ対象の輪郭を別の古典CVで再推定しない。追加幾何補正は実画像で必要性が確認された場合のみ明示的に導入する。  
 **回帰テスト:** synthetic box内の左赤・右青パターンをaxis-aligned cropへ通し、左右が保存されること、perspective markerがfalseであること、production pathが `analyzeYoloTileBox` を使うことを確認。既存v78/v79 source markerもlegacy保持する。  
 **確度:** v79スクリーンショットのYOLO 14/14と斜めcrop、コード上のproduction path→analyzeTileBox→perspectiveFaceCanvas/canonicalizeCanvasから確定に近い。
+
+
+## M106: v80の長い結果statusがiPhone横画面で見出し列を1文字幅まで圧縮した
+**時期:** M7 v80→v81  
+**実機症状:** v80結果画面は処理自体が完了し、ヘッダに `YOLO分割 採用 / 軸平行crop 14/14 / 射影採用 0/14` まで表示されたが、「認識した手牌を確認」が1文字ずつ縦に折れ、statusが右へ大きく伸びて牌crop欄を確認できないレイアウトになった。  
+**根本原因:** `.hand-result-head-m7v5` はflexで、statusに `white-space:nowrap` が指定されていた。v80でstatus文へYOLO/軸平行/射影など診断項目を追加した結果、statusのmin-content幅が大きくなり、左見出しflex itemが日本語の1文字幅付近まで縮小された。  
+**修正:** v81は左見出しへlandscape時180px以上のflex basis/min-widthを確保し、statusを `min-width:0; white-space:normal; overflow-wrap:anywhere; text-align:right` に変更。診断文は残したまま右側領域内で折り返す。認識・YOLO・crop処理は変更しない。  
+**再発防止:** 可変長diagnostic textをflex headerへ追加する場合、nowrapを使わず、固定情報側の最小幅と可変側の `min-width:0` / wrapをセットで定義する。  
+**回帰テスト:** 932×430のiPhone相当landscapeでv80相当の長いstatusを挿入し、見出し列175px以上、タイトル150px以上、statusがcard右端を越えない、header高さ90px未満、statusがnowrapでないことをChromiumで確認する。  
+**確度:** ユーザー実機スクリーンショットと既存CSS `white-space:nowrap` / flex shrink挙動から確定。
