@@ -58,6 +58,7 @@ on:
       - work/m7-v78-yolo-tile-detector-diagnostic
       - work/m7-v79-yolo-production-crops
       - work/m7-v80-yolo-axis-aligned-crops
+      - work/m7-v81-result-header-layout
   workflow_dispatch:
 
 jobs:

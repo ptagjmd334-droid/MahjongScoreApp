@@ -4655,3 +4655,50 @@ body:has(.agari-overlay:not(.hidden)) .riichi-button {
 .hand-result-note-m7v5{text-align:center;font-size:10px}.hand-result-actions-m7v5{display:grid;grid-template-columns:1fr 1.4fr;gap:8px}.hand-result-actions-m7v5 button{min-height:40px;border-radius:10px;font-size:14px;font-weight:900}.hand-result-ok-m7v5:disabled{opacity:.45}
 .tile-picker-m7v5{position:fixed;inset:0;z-index:10400;display:flex;align-items:center;justify-content:center;padding:10px;background:rgba(0,0,0,.72);box-sizing:border-box}.tile-picker-card-m7v5{width:min(780px,92vw);max-height:92vh;display:flex;flex-direction:column;gap:8px;padding:12px;border-radius:16px;background:#f7f3e8;color:#172019;box-sizing:border-box}.tile-picker-title-m7v5{text-align:center;font-size:17px;font-weight:900}.tile-picker-grid-m7v5{display:grid;grid-template-columns:repeat(9,1fr);gap:5px;min-height:0;overflow:auto}.tile-picker-grid-m7v5 button{min-height:38px;border-radius:7px;font-size:12px;font-weight:800}.tile-picker-cancel-m7v5{min-height:36px;font-weight:800}
 @media (orientation:landscape) and (max-height:500px){.hand-result-card-m7v5{height:94vh;padding:8px 12px;gap:6px}.hand-result-head-m7v5 b{font-size:16px}.hand-result-head-m7v5 small{font-size:9px}.hand-result-tile-m7v5{font-size:12px}.hand-result-actions-m7v5 button{min-height:34px}.tile-picker-card-m7v5{height:94vh;padding:8px}.tile-picker-title-m7v5{font-size:14px}.tile-picker-grid-m7v5 button{min-height:30px;font-size:11px}}
+
+
+/* ========================================
+   M7 v81: result header must survive long diagnostics on iPhone landscape
+   ======================================== */
+#hand-result-overlay-m7v5 .hand-result-head-m7v5{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  min-width:0;
+}
+#hand-result-overlay-m7v5 .hand-result-head-m7v5>div{
+  flex:0 0 clamp(190px,28%,270px);
+  min-width:190px;
+  max-width:270px;
+}
+#hand-result-overlay-m7v5 .hand-result-head-m7v5 b,
+#hand-result-overlay-m7v5 .hand-result-head-m7v5 small{
+  white-space:normal;
+  word-break:keep-all;
+  overflow-wrap:normal;
+}
+#hand-result-overlay-m7v5 .hand-result-status-m7v5{
+  flex:1 1 auto;
+  min-width:0;
+  max-width:100%;
+  white-space:normal;
+  overflow-wrap:anywhere;
+  word-break:normal;
+  text-align:right;
+  line-height:1.22;
+}
+@media (orientation:landscape) and (max-height:500px){
+  #hand-result-overlay-m7v5 .hand-result-head-m7v5{
+    gap:9px;
+  }
+  #hand-result-overlay-m7v5 .hand-result-head-m7v5>div{
+    flex-basis:clamp(180px,27%,235px);
+    min-width:180px;
+    max-width:235px;
+  }
+  #hand-result-overlay-m7v5 .hand-result-status-m7v5{
+    font-size:11px;
+    line-height:1.18;
+  }
+}
