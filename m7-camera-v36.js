@@ -24,7 +24,7 @@
   const FEATURE_KIND='perspective-direct-v1';
   const MAX_TEMPLATES=5;
   const MAX_IMAGES_PER_LABEL=10;
-  const state={overlay:null,captured:false,pendingFeatures:[],pendingCrops:[],pendingTrainingImages:[],diagnostics:null,predictionDebug:[],confidenceReasons:[],learnedLabelCount:0,librarySource:'',runtimeLibrary:null,storageDiagnostics:null,lastRecognitionMs:0,lastAuxViewsUsed:0,lastAuxFallbackCount:0,lastMicroRefined:0};
+  const state={overlay:null,captured:false,pendingFeatures:[],pendingCrops:[],pendingTrainingImages:[],pendingBroken:[],diagnostics:null,predictionDebug:[],confidenceReasons:[],learnedLabelCount:0,librarySource:'',runtimeLibrary:null,storageDiagnostics:null,lastRecognitionMs:0,lastAuxViewsUsed:0,lastAuxFallbackCount:0,lastMicroRefined:0};
   const persistPromises=new WeakMap();
 
   const style=document.createElement('style');
@@ -942,35 +942,53 @@
     return descriptorFromCanvas(innerRecognitionCanvas(source,96,144));
   }
 
-  function inferenceFeatureViews(source,bleedInfo=null){
-    const safe=bleedInfo||estimateBleedSafeShift(source,.12);
-    const windows=[
-      {...safeInsetWindow(source,.12,safe,0,0),trimY:.08},
-      {...safeInsetWindow(source,.12,safe,-.015,0),trimY:.06},
-      {...safeInsetWindow(source,.12,safe,.018,0),trimY:.10},
-      {...safeInsetWindow(source,.12,safe,0,-.018),trimY:.08},
-      {...safeInsetWindow(source,.12,safe,0,.018),trimY:.08}
+  function inferenceFeatureViews(source,bleedInfo=null,useSafe=true){
+    if(useSafe){
+      const safe=bleedInfo||estimateBleedSafeShift(source,.12);
+      const windows=[
+        {...safeInsetWindow(source,.12,safe,0,0),trimY:.08},
+        {...safeInsetWindow(source,.12,safe,-.015,0),trimY:.06},
+        {...safeInsetWindow(source,.12,safe,.018,0),trimY:.10},
+        {...safeInsetWindow(source,.12,safe,0,-.018),trimY:.08},
+        {...safeInsetWindow(source,.12,safe,0,.018),trimY:.08}
+      ];
+      return windows.map(v=>descriptorFromCanvas(innerRecognitionWindowCanvas(source,96,144,v.left,v.right,v.trimY)));
+    }
+    const configs=[
+      [.12,.08,0,0],[.10,.06,0,0],[.14,.10,0,0],[.12,.08,-.025,0],[.12,.08,.025,0]
     ];
-    return windows.map(v=>descriptorFromCanvas(innerRecognitionWindowCanvas(source,96,144,v.left,v.right,v.trimY)));
+    return configs.map(([tx,ty,sx,sy])=>descriptorFromCanvas(innerRecognitionCanvas(source,96,144,tx,ty,sx,sy)));
   }
 
   function analyzeTileBox(ctx,b){
     const canonical=perspectiveFaceCanvas(ctx,b,96,144);
     const bleedInfo=estimateBleedSafeShift(canonical,.12);
     const safeWindow=safeInsetWindow(canonical,.12,bleedInfo,0,0);
-    const recognition=innerRecognitionWindowCanvas(canonical,96,144,safeWindow.left,safeWindow.right,.08);
+    const baseRecognition=innerRecognitionWindowCanvas(canonical,96,144,.12,.88,.08);
+    const safeRecognition=innerRecognitionWindowCanvas(canonical,96,144,safeWindow.left,safeWindow.right,.08);
+    const baseQuality=canvasCropQuality(baseRecognition);
+    const safeQuality=canvasCropQuality(safeRecognition);
+    const safeImproves=safeWindow.applied===true&&(
+      (baseQuality.broken&&!safeQuality.broken&&safeQuality.score>=baseQuality.score-.01)||
+      (safeQuality.score>=baseQuality.score+.018&&!safeQuality.broken)
+    );
+    const recognition=safeImproves?safeRecognition:baseRecognition;
+    const quality=safeImproves?safeQuality:baseQuality;
     const trainingImage=canonical.toDataURL('image/jpeg',.92);
     return {
       feature:descriptorFromCanvas(recognition),
-      inferenceFeatures:inferenceFeatureViews(canonical,bleedInfo),
+      inferenceFeatures:inferenceFeatureViews(canonical,bleedInfo,safeImproves),
       crop:recognition.toDataURL('image/jpeg',.92),
       trainingImage,
+      quality,
+      cropBroken:quality.broken===true,
+      qualityFallback:safeWindow.applied===true&&!safeImproves,
       bleedShift:Number(bleedInfo.shiftX)||0,
       bleedSide:bleedInfo.side||'none',
       bleedConfidence:Number(bleedInfo.confidence)||0,
-      bleedInsetApplied:safeWindow.applied===true,
-      bleedTrimLeft:Number(safeWindow.left)||.12,
-      bleedTrimRight:Number(1-safeWindow.right)||.12,
+      bleedInsetApplied:safeImproves,
+      bleedTrimLeft:safeImproves?(Number(safeWindow.left)||.12):.12,
+      bleedTrimRight:safeImproves?(Number(1-safeWindow.right)||.12):.12,
       perspectiveUsed:canonical.__m7v46Perspective===true
     };
   }
@@ -1113,13 +1131,14 @@
       'single-class-quality':'単独品質',
       'no-candidate':'候補なし',
       'invalid-distance':'距離不正',
-      'label-limit':'枚数制限'
+      'label-limit':'枚数制限',
+      'crop-broken':'crop異常'
     };
     const parts=Object.entries(counts).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`${labels[k]||k}${v}`);
     return parts.length?parts.join('・'):'なし';
   }
 
-  function predict(features,inferenceViews=[]){
+  function predict(features,inferenceViews=[],brokenFlags=[]){
     const lib=activeLibrary(),used={},debug=[],reasons=[];
     const now=()=>((typeof performance!=='undefined'&&performance.now)?performance.now():Date.now());
     const started=now();
@@ -1127,6 +1146,7 @@
     let auxViewsUsed=0,auxFallbackCount=0,microRefined=0;
     state.learnedLabelCount=Object.keys(lib).filter(label=>Array.isArray(lib[label])&&lib[label].length).length;
     const labels=features.map((feature,index)=>{
+      if(brokenFlags[index]){debug[index]=[];reasons[index]='crop-broken';return '';}
       const views=Array.isArray(inferenceViews[index])&&inferenceViews[index].length?inferenceViews[index]:[feature];
       const rankings=[];
       for(const view of views){
@@ -1395,6 +1415,116 @@
     });
   }
 
+  function boxCropQuality(ctx,b){
+    if(!ctx||!b)return {score:0,broken:true,tileRatio:0,centerRatio:0,sideMin:0,woodRatio:1};
+    const cw=ctx.canvas.width|0,ch=ctx.canvas.height|0;
+    const x0=Math.max(0,Math.floor(b.x)),y0=Math.max(0,Math.floor(b.y));
+    const x1=Math.min(cw,Math.ceil(b.x+b.w)),y1=Math.min(ch,Math.ceil(b.y+b.h));
+    const w=Math.max(1,x1-x0),h=Math.max(1,y1-y0);
+    if(w<4||h<8)return {score:0,broken:true,tileRatio:0,centerRatio:0,sideMin:0,woodRatio:1};
+    const data=ctx.getImageData(x0,y0,w,h).data;
+    const step=Math.max(1,Math.floor(Math.min(w,h)/42));
+    let total=0,tile=0,wood=0,centerN=0,centerTile=0,leftN=0,leftTile=0,rightN=0,rightTile=0;
+    for(let y=Math.floor(h*.08);y<h*.92;y+=step){
+      for(let x=0;x<w;x+=step){
+        const i=(y*w+x)*4,r=data[i],g=data[i+1],bl=data[i+2];
+        const max=Math.max(r,g,bl),min=Math.min(r,g,bl),lum=(r*3+g*6+bl)/10;
+        const neutral=(max-min)/(lum+1);
+        const tileLike=lum>=70&&neutral<=.46;
+        const woodLike=r>=g+8&&g>=bl+5&&r>=bl+17&&neutral>.16;
+        total++;if(tileLike)tile++;if(woodLike)wood++;
+        const xf=x/Math.max(1,w-1);
+        if(xf>=.20&&xf<=.80){centerN++;if(tileLike)centerTile++;}
+        if(xf<=.28){leftN++;if(tileLike)leftTile++;}
+        if(xf>=.72){rightN++;if(tileLike)rightTile++;}
+      }
+    }
+    const tileRatio=total?tile/total:0,woodRatio=total?wood/total:1;
+    const centerRatio=centerN?centerTile/centerN:0,leftRatio=leftN?leftTile/leftN:0,rightRatio=rightN?rightTile/rightN:0;
+    const sideMin=Math.min(leftRatio,rightRatio),sideMean=(leftRatio+rightRatio)/2;
+    let score=centerRatio*.42+sideMin*.22+sideMean*.12+tileRatio*.24-woodRatio*.24;
+    score=Math.max(0,Math.min(1,score));
+    const broken=centerRatio<.28||tileRatio<.24||sideMin<.08||woodRatio>.58;
+    return {score,broken,tileRatio,centerRatio,sideMin,leftRatio,rightRatio,woodRatio};
+  }
+
+  function canvasCropQuality(canvas){
+    if(!canvas)return {score:0,broken:true,tileRatio:0,centerRatio:0,sideMin:0,woodRatio:1};
+    const ctx=canvas.getContext('2d',{willReadFrequently:true});
+    return boxCropQuality(ctx,{x:0,y:0,w:canvas.width,h:canvas.height});
+  }
+
+  function rowCropQuality(ctx,row,count=14){
+    const boxes=splitRow(row,count);
+    const qualities=boxes.map(b=>boxCropQuality(ctx,b));
+    const scores=qualities.map(q=>q.score).sort((a,b)=>a-b);
+    const mean=qualities.reduce((s,q)=>s+q.score,0)/Math.max(1,qualities.length);
+    const median=scores[Math.floor(scores.length/2)]||0;
+    const lower=scores[Math.floor(scores.length*.20)]||0;
+    const endMean=qualities.length?((qualities[0]?.score||0)+(qualities[qualities.length-1]?.score||0))/2:0;
+    const brokenCount=qualities.filter(q=>q.broken).length;
+    const score=mean*.44+median*.24+lower*.20+endMean*.12-brokenCount*.045;
+    return {score,mean,median,lower,endMean,brokenCount,qualities,boxes};
+  }
+
+  function selectRowByCropQuality(ctx,row,outerFit=null,count=14){
+    if(!ctx||!row)return {row,used:false,reason:'invalid',base:null,best:null};
+    const candidates=[],seen=new Set();
+    const add=(candidate,reason)=>{
+      if(!candidate||!Number.isFinite(candidate.x)||!Number.isFinite(candidate.w)||candidate.w<=0)return;
+      const key=`${Math.round(candidate.x*10)}:${Math.round(candidate.w*10)}`;
+      if(seen.has(key))return;seen.add(key);
+      candidates.push({row:candidate,reason,quality:rowCropQuality(ctx,candidate,count)});
+    };
+    add(row,'base');
+    if(outerFit?.used&&outerFit.row)add(outerFit.row,'outer-edge');
+    const seeds=[row];
+    if(outerFit?.used&&outerFit.row)seeds.push(outerFit.row);
+    for(const seed of seeds){
+      const pitch=seed.w/count;
+      for(const dl of [-.14,0,.14]){
+        for(const dr of [-.14,0,.14]){
+          if(dl===0&&dr===0)continue;
+          const left=seed.x+pitch*dl,right=seed.x+seed.w+pitch*dr;
+          const width=right-left;
+          if(width<=0)continue;
+          const scale=width/seed.w;
+          if(scale<.972||scale>1.028)continue;
+          add({...seed,x:left,w:width},'quality-endpoints');
+        }
+      }
+    }
+    const base=candidates[0];
+    let best=base;
+    for(const cand of candidates.slice(1)){
+      const bq=best.quality,cq=cand.quality;
+      const clearlyBetter=cq.brokenCount<bq.brokenCount&&cq.score>=bq.score-.012;
+      const scoreBetter=cq.score>bq.score+.025&&cq.brokenCount<=bq.brokenCount;
+      if(clearlyBetter||scoreBetter)best=cand;
+    }
+    const used=best!==base;
+    return {
+      row:best.row,used,reason:best.reason,
+      base:base.quality,best:best.quality,
+      scoreGain:best.quality.score-base.quality.score,
+      brokenBefore:base.quality.brokenCount,brokenAfter:best.quality.brokenCount
+    };
+  }
+
+  function rescueBrokenBox(ctx,b){
+    const base=boxCropQuality(ctx,b);
+    if(!base.broken&&base.score>=.42)return {box:b,used:false,quality:base,before:base};
+    let best={box:b,quality:base};
+    for(const frac of [-.14,-.08,.08,.14]){
+      const candidate={...b,x:b.x+b.w*frac};
+      const q=boxCropQuality(ctx,candidate);
+      const clearlyBetter=!q.broken&&base.broken&&q.score>=base.score-.01;
+      const scoreBetter=q.score>=best.quality.score+.035;
+      if(clearlyBetter||scoreBetter)best={box:candidate,quality:q};
+    }
+    return {box:best.box,used:best.box!==b,quality:best.quality,before:base};
+  }
+
 
   function refineRowOuterEdges(ctx,row,count=14){
     if(!ctx||!row||!Number.isFinite(row.x)||!Number.isFinite(row.w)||row.w<=0||count<2){
@@ -1634,31 +1764,52 @@
     lowCtx.drawImage(highCanvas,0,0,low.width,low.height);
     const lowRow=locateTileRow(lowCtx);
     if(!lowRow)return {row:null,boxes:[],features:[],crops:[],trainingImages:[],perspectiveCount:0,gridUsed:false,gridFit:null,photo:highCanvas.toDataURL('image/jpeg',.80)};
-    // v73: v72 crops drift progressively and the final slot can include table,
-    // which points to row endpoint/pitch error rather than only per-tile bleed.
-    // Refine ONLY the outer white-tile span using thin top/bottom bands, then
-    // keep an equal 14-way split. The old periodic glyph-seeking grid remains
-    // diagnostic-only because v61 proved it can lock onto symbols.
+    // v74: do not trust a geometric correction just because it fires. Score the
+    // 14 resulting crops and adopt only row endpoint changes that measurably
+    // improve tile-face quality. This keeps the correction low-freedom while
+    // catching cases like slot 14 becoming mostly table.
     const gridFit=fitGlobalRowGrid(lowCtx,lowRow,14);
     const outerFit=refineRowOuterEdges(lowCtx,lowRow,14);
-    const productionLowRow=outerFit.used?outerFit.row:lowRow;
+    const qualityRow=selectRowByCropQuality(lowCtx,lowRow,outerFit,14);
+    const productionLowRow=qualityRow.row||lowRow;
     const sx=highCanvas.width/low.width,sy=highCanvas.height/low.height;
     const row={x:productionLowRow.x*sx,y:productionLowRow.y*sy,w:productionLowRow.w*sx,h:productionLowRow.h*sy};
-    const boxes=splitRow(row,14);
+    const initialBoxes=splitRow(row,14);
+    const rescued=initialBoxes.map(b=>rescueBrokenBox(highCtx,b));
+    const boxes=rescued.map(x=>x.box);
     const tileData=boxes.map(b=>analyzeTileBox(highCtx,b));
+    const cropBroken=tileData.map(x=>x.cropBroken===true);
     return {
       row,boxes,
       features:tileData.map(x=>x.feature),
       inferenceViews:tileData.map(x=>x.inferenceFeatures),
       crops:tileData.map(x=>x.crop),
       trainingImages:tileData.map(x=>x.trainingImage),
+      cropBroken,
+      cropQualities:tileData.map(x=>({
+        score:Number((x.quality?.score||0).toFixed(4)),
+        broken:x.cropBroken===true,
+        tileRatio:Number((x.quality?.tileRatio||0).toFixed(4)),
+        centerRatio:Number((x.quality?.centerRatio||0).toFixed(4)),
+        woodRatio:Number((x.quality?.woodRatio||0).toFixed(4))
+      })),
+      cropQualityFallbackCount:tileData.filter(x=>x.qualityFallback===true).length,
+      brokenCropCount:cropBroken.filter(Boolean).length,
+      resplitAdoptedCount:rescued.filter(x=>x.used===true).length,
       perspectiveCount:tileData.filter(x=>x.perspectiveUsed).length,
       bleedSafeCount:tileData.filter(x=>x.bleedInsetApplied===true).length,
       bleedShifts:tileData.map(x=>Number((x.bleedShift||0).toFixed(4))),
       bleedInsets:tileData.map(x=>({left:Number((x.bleedTrimLeft||.12).toFixed(4)),right:Number((x.bleedTrimRight||.12).toFixed(4))})),
       gridUsed:false,
       gridCandidate:gridFit.used===true,
-      outerFitUsed:outerFit.used===true,
+      outerFitUsed:qualityRow.used===true,
+      rowQuality:{
+        reason:qualityRow.reason||'',
+        scoreGain:Number.isFinite(qualityRow.scoreGain)?Number(qualityRow.scoreGain.toFixed(4)):null,
+        brokenBefore:Number.isFinite(qualityRow.brokenBefore)?qualityRow.brokenBefore:null,
+        brokenAfter:Number.isFinite(qualityRow.brokenAfter)?qualityRow.brokenAfter:null,
+        candidateOuter:outerFit.used===true
+      },
       outerFit:{
         reason:outerFit.reason||'',
         leftMovePitch:Number.isFinite(outerFit.leftMovePitch)?Number(outerFit.leftMovePitch.toFixed(4)):null,
@@ -1700,8 +1851,9 @@
     state.pendingFeatures=features.slice(0,14);
     state.pendingCrops=crops.slice(0,14);
     state.pendingTrainingImages=trainingImages.slice(0,14);
+    state.pendingBroken=(analysis.cropBroken||[]).slice(0,14);
     window.M7V36PendingFeatures=state.pendingFeatures;
-    const predicted=features.length===14?predict(features,analysis.inferenceViews||[]):[];
+    const predicted=features.length===14?predict(features,analysis.inferenceViews||[],state.pendingBroken):[];
     while(predicted.length<14)predicted.push('');
     if(window.M7V36LastDiagnostics)window.M7V36LastDiagnostics.predictions=(state.predictionDebug||[]).map(x=>x.slice());
     setTimeout(()=>{
@@ -1724,7 +1876,7 @@
       if(note)note.textContent=features.length===14
         ?(firstCalibration
           ?'この保存領域には学習データがありません。今回だけ14枚を正しく指定してください。「この手牌で進む」を押した時に保存完了を確認してから次へ進みます。'
-          :`精度優先版です。まず牌列の左右端を牌面だけの帯域から補正して14等分のpitchずれを抑え、その後に隣牌側の非対称trim、高速5視点中央値合意＋Top4微調整を行います。高信頼候補 ${auto}枚。保留理由: ${confidenceReasonSummary()}。認識 ${Math.max(0,state.lastRecognitionMs||0)}ms / 外周補正 ${analysis.outerFitUsed?'ON':'OFF'} / 境界除去 ${analysis.bleedSafeCount||0}/14 / 補助view ${state.lastAuxViewsUsed||0} / 微調整 ${state.lastMicroRefined||0}${state.lastAuxFallbackCount?' / 時間上限fallback':''}。`)
+          :`精度優先版です。14cropの品質を先に採点し、外周補正・局所再分割・境界除去は実際にcrop品質が改善した場合だけ採用します。壊れcropは無理にTop1を出しません。高信頼候補 ${auto}枚。保留理由: ${confidenceReasonSummary()}。認識 ${Math.max(0,state.lastRecognitionMs||0)}ms / 外周補正 ${analysis.outerFitUsed?'ON':'OFF'} / 境界除去 ${analysis.bleedSafeCount||0}/14 / crop品質fallback ${analysis.cropQualityFallbackCount||0}/14 / 壊れcrop ${analysis.brokenCropCount||0}/14 / 再分割採用 ${analysis.resplitAdoptedCount||0}/14 / 補助view ${state.lastAuxViewsUsed||0} / 微調整 ${state.lastMicroRefined||0}${state.lastAuxFallbackCount?' / 時間上限fallback':''}。`)
         :'白枠内から牌列を特定できませんでした。撮影画像を確認し、14枠を手動入力するか「読み取り直す」で再撮影してください。';
       const status=root.querySelector('.hand-result-status-m7v5');
       if(status&&auto<14)status.textContent=features.length===14
@@ -1767,7 +1919,9 @@
         sourceWidth:Math.round(capture.source.w),sourceHeight:Math.round(capture.source.h),
         rowFound:!!analysis.row,row:analysis.row?{...analysis.row}:null,
         gridUsed:false,gridCandidate:analysis.gridCandidate===true,gridFit:analysis.gridFit||null,
-        outerFitUsed:analysis.outerFitUsed===true,outerFit:analysis.outerFit||null
+        outerFitUsed:analysis.outerFitUsed===true,outerFit:analysis.outerFit||null,rowQuality:analysis.rowQuality||null,
+        cropQualityFallbackCount:analysis.cropQualityFallbackCount||0,brokenCropCount:analysis.brokenCropCount||0,
+        resplitAdoptedCount:analysis.resplitAdoptedCount||0,cropQualities:analysis.cropQualities||[]
       };
       window.M7V36LastDiagnostics=state.diagnostics;
       // Existing cancel owns the MediaStream and removes the camera overlay.
@@ -1831,6 +1985,9 @@
       for(let i=0;i<14;i++){
         const label=labels[i],feature=state.pendingFeatures[i],imageDataUrl=state.pendingTrainingImages[i];
         if(!feature||feature.kind!==FEATURE_KIND)return {ok:false,reason:'feature-invalid-'+(i+1),learned:0,rawSaved:false,rawVerified:false};
+        // v74: manual correction may still be used to continue the hand, but a
+        // crop that failed the tile-face quality gate must never poison learning.
+        if(state.pendingBroken[i])continue;
         const list=Array.isArray(lib[label])?lib[label]:[];
         if(!list.some(t=>core.featureDistance(feature,t)<.012)){
           list.unshift(feature);lib[label]=list.slice(0,MAX_TEMPLATES);
@@ -1898,6 +2055,6 @@
   },true);
 
   window.M7CameraV36=Object.freeze({
-    sourceRectForCover,locateTileRow,splitRow,refineRowOuterEdges,fitGlobalRowGrid,splitRowBySeams,analyzeGuideCanvas,featureFromBox,tileFaceRect,descriptorFromCanvas,detectFaceGeometry,detectFaceQuad,canonicalizeCanvas,orientedFaceCanvas,perspectiveFaceCanvas,warpQuadToCanvas,trainingImageDataUrl,estimateBleedSafeShift,safeInsetWindow,innerRecognitionCanvas,innerRecognitionWindowCanvas,innerFeatureFromCanonical,inferenceFeatureViews,analyzeTileBox,loadTrainingSamples,rebuildLibraryFromTrainingImages,loadLibrary,activeLibrary,saveLibrary,saveLibraryDetailed,persistVerifiedHand,persistFailureText,loadLegacyLibrary,legacyLibraryKeys,convertLegacyDirectFeature,cropResampleFeatureMap,confidenceAssessment,confidentCandidate,confidenceReasonSummary,renderPickerPhoto,renderPickerSuggestions,pickerCurrentIndex,schedulePickerSuggestionSync,attachPickerSuggestionObserver
+    sourceRectForCover,locateTileRow,splitRow,boxCropQuality,canvasCropQuality,rowCropQuality,selectRowByCropQuality,rescueBrokenBox,refineRowOuterEdges,fitGlobalRowGrid,splitRowBySeams,analyzeGuideCanvas,featureFromBox,tileFaceRect,descriptorFromCanvas,detectFaceGeometry,detectFaceQuad,canonicalizeCanvas,orientedFaceCanvas,perspectiveFaceCanvas,warpQuadToCanvas,trainingImageDataUrl,estimateBleedSafeShift,safeInsetWindow,innerRecognitionCanvas,innerRecognitionWindowCanvas,innerFeatureFromCanonical,inferenceFeatureViews,analyzeTileBox,loadTrainingSamples,rebuildLibraryFromTrainingImages,loadLibrary,activeLibrary,saveLibrary,saveLibraryDetailed,persistVerifiedHand,persistFailureText,loadLegacyLibrary,legacyLibraryKeys,convertLegacyDirectFeature,cropResampleFeatureMap,confidenceAssessment,confidentCandidate,confidenceReasonSummary,renderPickerPhoto,renderPickerSuggestions,pickerCurrentIndex,schedulePickerSuggestionSync,attachPickerSuggestionObserver
   });
 })();
