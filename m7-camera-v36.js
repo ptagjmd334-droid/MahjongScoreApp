@@ -1992,7 +1992,12 @@
     const data=output?.data,dims=(output?.dims||[]).map(Number);
     if(!data||dims.length!==3||!meta)return [];
     let channels=0,count=0,at=null;
-    if(dims[1]<=dims[2]){
+    const expectedChannels=[4+YOLO_LABELS.length,5+YOLO_LABELS.length];
+    if(expectedChannels.includes(dims[1])){
+      channels=dims[1];count=dims[2];at=(ch,i)=>Number(data[ch*count+i])||0;
+    }else if(expectedChannels.includes(dims[2])){
+      count=dims[1];channels=dims[2];at=(ch,i)=>Number(data[i*channels+ch])||0;
+    }else if(dims[1]<=dims[2]){
       channels=dims[1];count=dims[2];at=(ch,i)=>Number(data[ch*count+i])||0;
     }else{
       count=dims[1];channels=dims[2];at=(ch,i)=>Number(data[i*channels+ch])||0;
