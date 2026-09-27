@@ -1516,7 +1516,8 @@
     if(!base.broken&&base.score>=.42)return {box:b,used:false,quality:base,before:base};
     let best={box:b,quality:base};
     for(const frac of [-.14,-.08,.08,.14]){
-      const candidate={...b,x:b.x+b.w*frac};
+      const maxX=Math.max(0,(ctx.canvas.width||0)-b.w);
+      const candidate={...b,x:Math.max(0,Math.min(maxX,b.x+b.w*frac))};
       const q=boxCropQuality(ctx,candidate);
       const clearlyBetter=!q.broken&&base.broken&&q.score>=base.score-.01;
       const scoreBetter=q.score>=best.quality.score+.035;
@@ -2003,7 +2004,7 @@
           rawSaved=await saveTrainingBatch(raw);
           if(rawSaved){
             const rows=await loadTrainingSamples();
-            const wanted=[...new Set(labels)];
+            const wanted=[...new Set(labels.filter((_,i)=>!state.pendingBroken[i]))];
             rawVerified=wanted.every(label=>rows.some(row=>row?.label===label&&row?.imageDataUrl));
           }
         }catch(_){rawSaved=false;rawVerified=false;}
