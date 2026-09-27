@@ -34,7 +34,7 @@ const server=http.createServer((req,res)=>{
     const errors=[];page.on('pageerror',e=>errors.push(String(e)));
     await page.goto('http://127.0.0.1:'+port+'/',{waitUntil:'domcontentloaded',timeout:30000});
     await page.waitForSelector('#go-confirm-button',{timeout:12000});
-    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'M7 v82');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'M7 v83');
     const v81HeaderLayout=await page.evaluate(()=>{
       window.showHandResultM7V5?.(Array(14).fill(''));
       const root=document.getElementById('hand-result-overlay-m7v5');
@@ -223,6 +223,23 @@ const server=http.createServer((req,res)=>{
     assert.equal(v80AxisAligned.perspective,false,'v80 YOLO crop must not mark perspective '+JSON.stringify(v80AxisAligned));
     assert(v80AxisAligned.leftRed>v80AxisAligned.leftBlue+80,'v80 left/right orientation changed '+JSON.stringify(v80AxisAligned));
     assert(v80AxisAligned.rightBlue>v80AxisAligned.rightRed+80,'v80 right/left orientation changed '+JSON.stringify(v80AxisAligned));
+
+    const v83YoloClass=await page.evaluate(()=>{
+      const api=window.M7CameraV36;
+      const mapped=['1m','5p','3z','0s','7z','6z'].map(api.yoloLabelToAppTile);
+      const yolo=Array.from({length:14},(_,i)=>({index:i,rawLabel:'9p',label:'9筒',score:.80}));
+      yolo[0]={index:0,rawLabel:'1m',label:'1萬',score:.80};
+      yolo[1]={index:1,rawLabel:'5p',label:'5筒',score:.18};
+      yolo[2]={index:2,rawLabel:'3z',label:'西',score:.14};
+      // Five 9p claims total; only four strongest may stay YOLO.
+      const legacy=Array(14).fill('9索');legacy[2]='西';
+      const chosen=api.chooseYoloPrimaryRecognition(yolo,legacy,true,.15);
+      return {mapped,labels:chosen.labels,sources:chosen.sources,yoloUsed:chosen.yoloUsed,legacyUsed:chosen.legacyUsed,unresolved:chosen.unresolved};
+    });
+    assert.deepEqual(v83YoloClass.mapped,['1萬','5筒','西','5索','中','發'],'v83 YOLO label mapping mismatch '+JSON.stringify(v83YoloClass));
+    assert.equal(v83YoloClass.labels[1],'5筒','v83 .18 confidence should use YOLO at .15 threshold '+JSON.stringify(v83YoloClass));
+    assert.equal(v83YoloClass.sources[2],'legacy','v83 low-confidence YOLO should fallback to legacy '+JSON.stringify(v83YoloClass));
+    assert(v83YoloClass.yoloUsed<=6,'v83 max-four guard should force excess repeated labels to legacy '+JSON.stringify(v83YoloClass));
 
     const cropQuality=await page.evaluate(()=>{
       const canvas=document.createElement('canvas');canvas.width=220;canvas.height=150;
