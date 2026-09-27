@@ -996,3 +996,13 @@
 **安全策:** v83でも手動修正UI・既存学習保存・旧分類器fallbackを残す。YOLO低confidence時は自動確定せず旧分類結果を使用し、両方未確定なら従来通り手動修正する。  
 **次の評価:** 同じ並びの再撮影だけではなく、牌順を入れ替えた実牌14枚でTop1を評価する。主指標はYOLO/最終Top1正解数で、Top3は評価指標にしない。  
 **確度:** v82の分割数・confidence数・速度・軸平行14/14・射影0/14・既存高信頼0はユーザー実機スクリーンショットで確認。YOLO 14/14 class一致は画像上の牌面との目視照合。
+
+
+## M111: v83のstatus簡略化で旧crop診断markerを2つ落とした
+**時期:** M7 v83公開前CI  
+**症状:** M7 source回帰が `crop品質fallback` と `境界trim` の欠落を検出して停止。YOLO class主認識の実装自体とは無関係。  
+**根本原因:** v82の長いnote/statusをv83用に置換した際、v75以降の安定診断markerである `crop品質fallback` / `境界trim` を本文から削除した。過去のM097/M101と同型の回帰。  
+**修正:** `LEGACY_CROP_DIAGNOSTIC_LABEL='crop品質fallback / 境界trim'` を保持し、v83 UI本文は簡潔なままsource regression contractを維持する。  
+**再発防止:** note/statusの全面置換前に既存source assertionの安定marker一覧を機械的に確認し、表示から外す場合でもlegacy定数へ退避してから変更する。  
+**回帰テスト:** 旧marker assertionを弱めず、v83 YOLO class mapping/hybrid回帰とChromium実フローを同時に通す。  
+**確度:** CI assertionとv83差分から確定。
