@@ -942,53 +942,97 @@
     return descriptorFromCanvas(innerRecognitionCanvas(source,96,144));
   }
 
-  function inferenceFeatureViews(source,bleedInfo=null,useSafe=true){
-    if(useSafe){
-      const safe=bleedInfo||estimateBleedSafeShift(source,.12);
-      const windows=[
-        {...safeInsetWindow(source,.12,safe,0,0),trimY:.08},
-        {...safeInsetWindow(source,.12,safe,-.015,0),trimY:.06},
-        {...safeInsetWindow(source,.12,safe,.018,0),trimY:.10},
-        {...safeInsetWindow(source,.12,safe,0,-.018),trimY:.08},
-        {...safeInsetWindow(source,.12,safe,0,.018),trimY:.08}
-      ];
-      return windows.map(v=>descriptorFromCanvas(innerRecognitionWindowCanvas(source,96,144,v.left,v.right,v.trimY)));
+  function chooseRecognitionWindow(source,index=1,count=14,bleedInfo=null){
+    const base={left:.12,right:.88,trimY:.08,reason:'base'};
+    const candidates=[base];
+    const seen=new Set(['.120:.880']);
+    const canTrimLeft=index>0;
+    const canTrimRight=index<count-1;
+    const add=(left,right,reason)=>{
+      left=Math.max(.08,Math.min(.30,left));
+      right=Math.max(.70,Math.min(.92,right));
+      if(right-left<.54)return;
+      const key=`${left.toFixed(3)}:${right.toFixed(3)}`;if(seen.has(key))return;
+      seen.add(key);candidates.push({left,right,trimY:.08,reason});
+    };
+    for(const extra of [.02,.04,.06]){
+      if(canTrimLeft)add(.12+extra,.88,`left-${Math.round(extra*100)}`);
+      if(canTrimRight)add(.12,.88-extra,`right-${Math.round(extra*100)}`);
     }
-    const configs=[
-      [.12,.08,0,0],[.10,.06,0,0],[.14,.10,0,0],[.12,.08,-.025,0],[.12,.08,.025,0]
-    ];
-    return configs.map(([tx,ty,sx,sy])=>descriptorFromCanvas(innerRecognitionCanvas(source,96,144,tx,ty,sx,sy)));
+    if(canTrimLeft&&canTrimRight){
+      add(.14,.86,'both-2');
+      add(.16,.84,'both-4');
+    }
+
+    const safe=bleedInfo||estimateBleedSafeShift(source,.12);
+    const seam=safeInsetWindow(source,.12,safe,0,0);
+    let seamLeft=canTrimLeft?seam.left:.12;
+    let seamRight=canTrimRight?seam.right:.88;
+    if(seam.applied)add(seamLeft,seamRight,'seam-safe');
+
+    const evaluate=win=>{
+      const canvas=innerRecognitionWindowCanvas(source,96,144,win.left,win.right,win.trimY);
+      return {win,canvas,quality:canvasCropQuality(canvas)};
+    };
+    const baseEval=evaluate(base);
+    let best=baseEval;
+    for(const win of candidates.slice(1)){
+      const cand=evaluate(win),bq=baseEval.quality,q=cand.quality;
+      const fixesBroken=bq.broken&&!q.broken&&q.score>=bq.score-.015;
+      const bleedBetter=(q.edgeContamination||0)<=(bq.edgeContamination||0)-.10&&q.score>=bq.score-.015&&!q.broken;
+      const scoreBetter=q.score>=bq.score+.018&&!q.broken&&(q.edgeContamination||0)<=(bq.edgeContamination||0)+.02;
+      if(!(fixesBroken||bleedBetter||scoreBetter))continue;
+      const rank=q.score-(q.edgeContamination||0)*.08-(q.broken?.25:0);
+      const bestRank=best.quality.score-(best.quality.edgeContamination||0)*.08-(best.quality.broken?.25:0);
+      if(best===baseEval||rank>bestRank+.004)best=cand;
+    }
+    const used=best!==baseEval;
+    return {
+      window:best.win,canvas:best.canvas,quality:best.quality,beforeQuality:baseEval.quality,
+      used,fallback:candidates.length>1&&!used,reason:best.win.reason,
+      trimLeft:Math.max(0,best.win.left-.12),trimRight:Math.max(0,.88-best.win.right),
+      candidateCount:candidates.length
+    };
   }
 
-  function analyzeTileBox(ctx,b){
+  function inferenceFeatureViews(source,selectedWindow=null){
+    const base=selectedWindow||{left:.12,right:.88,trimY:.08};
+    const width=base.right-base.left;
+    const inset=Math.min(.015,Math.max(0,(width-.56)/4));
+    const windows=[
+      {left:base.left,right:base.right,trimY:.08},
+      {left:base.left,right:base.right,trimY:.06},
+      {left:base.left,right:base.right,trimY:.10},
+      {left:base.left+inset,right:base.right,trimY:.08},
+      {left:base.left,right:base.right-inset,trimY:.08}
+    ];
+    return windows.map(v=>descriptorFromCanvas(innerRecognitionWindowCanvas(source,96,144,v.left,v.right,v.trimY)));
+  }
+
+  function analyzeTileBox(ctx,b,index=1,count=14){
     const canonical=perspectiveFaceCanvas(ctx,b,96,144);
     const bleedInfo=estimateBleedSafeShift(canonical,.12);
-    const safeWindow=safeInsetWindow(canonical,.12,bleedInfo,0,0);
-    const baseRecognition=innerRecognitionWindowCanvas(canonical,96,144,.12,.88,.08);
-    const safeRecognition=innerRecognitionWindowCanvas(canonical,96,144,safeWindow.left,safeWindow.right,.08);
-    const baseQuality=canvasCropQuality(baseRecognition);
-    const safeQuality=canvasCropQuality(safeRecognition);
-    const safeImproves=safeWindow.applied===true&&(
-      (baseQuality.broken&&!safeQuality.broken&&safeQuality.score>=baseQuality.score-.01)||
-      (safeQuality.score>=baseQuality.score+.018&&!safeQuality.broken)
-    );
-    const recognition=safeImproves?safeRecognition:baseRecognition;
-    const quality=safeImproves?safeQuality:baseQuality;
+    const chosen=chooseRecognitionWindow(canonical,index,count,bleedInfo);
+    const recognition=chosen.canvas;
+    const quality=chosen.quality;
     const trainingImage=canonical.toDataURL('image/jpeg',.92);
     return {
       feature:descriptorFromCanvas(recognition),
-      inferenceFeatures:inferenceFeatureViews(canonical,bleedInfo,safeImproves),
+      inferenceFeatures:inferenceFeatureViews(canonical,chosen.window),
       crop:recognition.toDataURL('image/jpeg',.92),
       trainingImage,
       quality,
+      qualityBefore:chosen.beforeQuality,
       cropBroken:quality.broken===true,
-      qualityFallback:safeWindow.applied===true&&!safeImproves,
+      qualityFallback:chosen.fallback===true,
       bleedShift:Number(bleedInfo.shiftX)||0,
       bleedSide:bleedInfo.side||'none',
       bleedConfidence:Number(bleedInfo.confidence)||0,
-      bleedInsetApplied:safeImproves,
-      bleedTrimLeft:safeImproves?(Number(safeWindow.left)||.12):.12,
-      bleedTrimRight:safeImproves?(Number(1-safeWindow.right)||.12):.12,
+      bleedInsetApplied:chosen.used===true,
+      bleedTrimLeft:Number(chosen.trimLeft)||0,
+      bleedTrimRight:Number(chosen.trimRight)||0,
+      cropTrimReason:chosen.reason||'base',
+      cropCandidateCount:chosen.candidateCount||1,
       perspectiveUsed:canonical.__m7v46Perspective===true
     };
   }
