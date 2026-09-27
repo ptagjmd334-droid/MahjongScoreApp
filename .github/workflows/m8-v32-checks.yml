@@ -51,6 +51,7 @@ on:
       - work/m7-v71-bleed-safe-crops
       - work/m7-v72-asymmetric-safe-inset
       - work/m7-v73-outer-edge-pitch
+      - work/m7-v74-crop-quality-gating
   workflow_dispatch:
 
 jobs:
