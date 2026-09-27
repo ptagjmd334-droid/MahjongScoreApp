@@ -327,7 +327,7 @@ test('v36 camera avoids fixed bright-white threshold and closes camera when hidd
   assert(camera.includes(".realtime-hand-cancel-m7v3')?.click()"));
 });
 
-test('v74 preserves stable learning and adds crop-quality-gated geometry',()=>{
+test('v75 preserves stable learning and crop-quality-gated geometry',()=>{
   const camera=fs.readFileSync(path.join(root,'m7-camera-v36.js'),'utf8');
   assert(camera.includes("MahjongScoreApp_tile_templates_stable1"));
   assert(camera.includes("MahjongScoreApp_tile_templates_stable1_backup"));
@@ -375,7 +375,7 @@ test('v74 preserves stable learning and adds crop-quality-gated geometry',()=>{
   assert(camera.includes('function innerRecognitionWindowCanvas'));
   assert(camera.includes('const bleedInfo=estimateBleedSafeShift(canonical,.12)'));
   assert(camera.includes('bleedSafeCount:tileData.filter'));
-  assert(camera.includes('bleedInsetApplied:safeImproves'));
+  assert(camera.includes('bleedInsetApplied:chosen.used===true'));
   assert(camera.includes('bleedInsets:tileData.map'));
   assert(camera.includes('const outerFit=refineRowOuterEdges(lowCtx,lowRow,14)'));
   assert(camera.includes('function boxCropQuality'));
@@ -395,8 +395,8 @@ test('v74 preserves stable learning and adds crop-quality-gated geometry',()=>{
   assert(camera.includes("reasons[index]='crop-broken'"));
   assert(camera.includes("if(state.pendingBroken[i])continue"));
   assert(camera.includes('crop品質fallback'));
-  assert(camera.includes('壊れcrop'));
-  assert(camera.includes('再分割採用'));
+  assert(camera.includes('crop異常'));
+  assert(camera.includes('局所再分割'));
   assert(camera.includes('core.rankLabelsFastDiscriminative(view,lib'));
   assert(camera.includes('core.combineViewRankings(rankings)'));
   assert(camera.includes('const TOTAL_BUDGET_MS=7500'));
@@ -416,7 +416,7 @@ test('v74 preserves stable learning and adds crop-quality-gated geometry',()=>{
   assert(camera.includes("reason:'template-consensus'"));
   assert(camera.includes("reason:'template-distance'"));
   assert(camera.includes('gridCandidate:gridFit.used===true'));
-  assert(camera.includes('gridUsed:false'));
+  assert(camera.includes("gridUsed:qualityRow.reason==='periodic-candidate'"));
   assert(camera.includes('const row={x:productionLowRow.x*sx,y:productionLowRow.y*sy,w:productionLowRow.w*sx,h:productionLowRow.h*sy}'));
   const picker=fs.readFileSync(path.join(root,'m8-v3.js'),'utf8');
   assert(picker.includes('100dvh'));
