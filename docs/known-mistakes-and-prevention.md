@@ -1018,3 +1018,12 @@
 **再発防止:** object detectorのraw count完全一致を目的化せず、1個の過剰(v82)・1個の不足(v84)は幾何的に一意な場合だけ修復する。2個以上不足、fit曖昧、row geometry不良では引き続きfallbackする。  
 **回帰テスト:** 13枚検出で中央1slot欠落→14へ補完、末尾2牌を1つのdouble-width boxに統合→2分割、幾何を崩した13box→reject。既存15→14 subset、YOLO class mapping、axis-aligned crop、保存・採点回帰も継続。  
 **確度:** count-13とfallbackはユーザー実機スクリーンショットで確定。横長boxがmerge由来という解釈は画像形状に基づく高確度推定。
+
+
+## M113: v84 note文の置換でfirstCalibration三項演算子の閉じ括弧を落とした
+**時期:** M7 v84公開前CI  
+**症状:** JavaScript parse回帰が `Unexpected token ':'` で停止し、Chromium実フロー前に公開をブロックした。  
+**根本原因:** v83のnoteテンプレートをv84文へ置換した際、内側 `(firstCalibration ? ... : ...)` の閉じ括弧まで置換範囲へ含めて削除した。  
+**修正:** v84テンプレートliteral直後へ閉じ括弧を復元。  
+**再発防止:** 長い三項演算子の本文置換では開始/終了delimiterを文字列だけで切らず、置換後にparse testを最初のgateとして必ず通す。  
+**確度:** CI parse errorと該当sourceから確定。
