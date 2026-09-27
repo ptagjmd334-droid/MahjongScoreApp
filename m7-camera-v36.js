@@ -26,6 +26,7 @@
   const MAX_IMAGES_PER_LABEL=10;
   const state={overlay:null,captured:false,pendingFeatures:[],pendingCrops:[],pendingTrainingImages:[],pendingBroken:[],diagnostics:null,predictionDebug:[],confidenceReasons:[],learnedLabelCount:0,librarySource:'',runtimeLibrary:null,storageDiagnostics:null,lastRecognitionMs:0,lastAuxViewsUsed:0,lastAuxFallbackCount:0,lastMicroRefined:0};
   const persistPromises=new WeakMap();
+  const LEGACY_BOUNDARY_DIAGNOSTIC_LABEL='境界signal診断'; // M099: stable legacy diagnostic prefix; v78 no longer displays it.
   const YOLO_MODEL_URL='https://cdn.jsdelivr.net/gh/nikmomo/Mahjong-YOLO@28ffceed232ad95fd019c47a6c51ae7c78791a0e/models/nano/mahjong-yolon-best.onnx';
   const ORT_VERSION='1.22.0';
   const ORT_SCRIPT_URL='https://cdn.jsdelivr.net/npm/onnxruntime-web@'+ORT_VERSION+'/dist/ort.min.js';
