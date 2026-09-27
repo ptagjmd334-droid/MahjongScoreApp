@@ -1514,7 +1514,9 @@
       }
       return Math.max(0,Math.min(1,best/46));
     };
-    const leftSeam=seamStrength(w*.04,w*.23),rightSeam=seamStrength(w*.77,w*.96);
+    // Ignore the extreme outer 10%: a legitimate tile-face/table edge lives there.
+    // Neighbor bleed is an *internal* seam that remains after the normal inner crop.
+    const leftSeam=seamStrength(w*.10,w*.28),rightSeam=seamStrength(w*.72,w*.90);
     const leftContamination=Math.max(leftEdgeWood*.88+leftEdgeDark*.12,leftSeam*.74+leftEdgeWood*.26);
     const rightContamination=Math.max(rightEdgeWood*.88+rightEdgeDark*.12,rightSeam*.74+rightEdgeWood*.26);
     const edgeContamination=Math.max(leftContamination,rightContamination);
