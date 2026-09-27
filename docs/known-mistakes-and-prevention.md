@@ -902,3 +902,5 @@
 **再発防止:** 既知ミスに「安定prefix/markerを残す」がある場合、UI置換・機能廃止でも該当markerをlegacy constant/commentとして先に退避してから旧ブロックを削除する。既存assertionを消す・弱めることで通さない。  
 **回帰テスト:** 既存 `境界signal診断` assertionを変更せず、v78 YOLO wiring assertionとChromium実フローを同時に通す。  
 **確度:** CIログ、M099、v78差分から確定。
+
+**M101追記:** 最初の修正後、同じ旧UI置換で `局所再分割` markerも消えていたことを次のCI assertionが検出した。既存M7 source testの該当assertion群をまとめて確認し、`境界signal診断 / 局所再分割` をlegacy定数として同時保持する形へ修正。`crop品質fallback / crop異常` はv78本文に残っていることも同時確認した。
