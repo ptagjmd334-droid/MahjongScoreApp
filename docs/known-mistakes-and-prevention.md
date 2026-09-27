@@ -914,3 +914,13 @@
 **再発防止:** tensor shapeのaxis推定はサイズ大小だけに依存せず、既知のmodel contractを優先する。fixtureもproduction shapeと異なる小Nを含めてlayout robustnessを確認する。  
 **回帰テスト:** `[1,41,4]` syntheticで3件decode、低confidence1件除外、重複2boxをNMSで1件へ統合し最終2件になることをChromiumで確認する。  
 **確度:** CI stack traceとsynthetic fixtureから確定。
+
+
+## M103: v78 YOLOは実機で14/14を一対一検出し、v79から分割に採用
+**時期:** M7 v78→v79  
+**実機結果:** iPhoneの同一14牌列で `YOLO牌検出: 14個 / 信頼度25%以上14個 / 4視点 / 4470ms`。診断画像でも左から右まで14枚すべてが1牌1boxで、欠落・重複・明確な隣牌巻き込みは見られなかった。各boxの表示confidenceは約0.62〜0.94。  
+**判断:** v76/v77の境界signal（6/13→2/13）とは対照的に、object detectionでは分割問題そのものを安定して解けた。v79からYOLO boxを実際の14crop生成に採用する。YOLOの牌種classはまだ最終判定へ使わず、既存の学習済み分類器へYOLO cropを渡して分割改善だけの効果を測る。  
+**安全策:** YOLO検出がちょうど14個、12個以上がconfidence 0.25以上、median confidence 0.32以上、box幅/高さのばらつき、x中心間隔、y中心spread、aspect、row範囲が安全条件を満たす時だけ採用する。不成立・モデル読込失敗・推論失敗ではv75系cropへ自動fallbackする。採用boxには左右2.5%以下・上下1.5%以下の微小insetのみ適用し、その後のperspective normalization/recognition-window処理は既存ロジックを継続する。  
+**速度:** v78実機の4視点推論は4470ms。現段階は精度優先のため4視点を維持し、分割/認識精度が安定してから視点数・入力サイズ・WebGPU等を速度改善候補として扱う。  
+**回帰テスト:** syntheticな均一14boxはproduction guardで採用、13boxはcount guardで拒否、中心間隔が崩れた14boxはgeometry guardで拒否。YOLOが使えない場合も既存カメラ/学習保存/手動修正/採点フローが残ることをChromium回帰で確認する。  
+**確度:** 14/14、14 high-confidence、4470ms、およびboxの一対一対応はユーザー実機スクリーンショットで確認。
