@@ -1416,15 +1416,16 @@
   }
 
   function boxCropQuality(ctx,b){
-    if(!ctx||!b)return {score:0,broken:true,tileRatio:0,centerRatio:0,sideMin:0,woodRatio:1};
+    if(!ctx||!b)return {score:0,broken:true,tileRatio:0,centerRatio:0,sideMin:0,woodRatio:1,edgeContamination:1};
     const cw=ctx.canvas.width|0,ch=ctx.canvas.height|0;
     const x0=Math.max(0,Math.floor(b.x)),y0=Math.max(0,Math.floor(b.y));
     const x1=Math.min(cw,Math.ceil(b.x+b.w)),y1=Math.min(ch,Math.ceil(b.y+b.h));
     const w=Math.max(1,x1-x0),h=Math.max(1,y1-y0);
-    if(w<4||h<8)return {score:0,broken:true,tileRatio:0,centerRatio:0,sideMin:0,woodRatio:1};
+    if(w<4||h<8)return {score:0,broken:true,tileRatio:0,centerRatio:0,sideMin:0,woodRatio:1,edgeContamination:1};
     const data=ctx.getImageData(x0,y0,w,h).data;
     const step=Math.max(1,Math.floor(Math.min(w,h)/42));
     let total=0,tile=0,wood=0,centerN=0,centerTile=0,leftN=0,leftTile=0,rightN=0,rightTile=0;
+    let edgeLeftN=0,edgeLeftWood=0,edgeLeftDark=0,edgeRightN=0,edgeRightWood=0,edgeRightDark=0;
     for(let y=Math.floor(h*.08);y<h*.92;y+=step){
       for(let x=0;x<w;x+=step){
         const i=(y*w+x)*4,r=data[i],g=data[i+1],bl=data[i+2];
@@ -1432,20 +1433,55 @@
         const neutral=(max-min)/(lum+1);
         const tileLike=lum>=70&&neutral<=.46;
         const woodLike=r>=g+8&&g>=bl+5&&r>=bl+17&&neutral>.16;
+        const darkLike=lum<48;
         total++;if(tileLike)tile++;if(woodLike)wood++;
         const xf=x/Math.max(1,w-1);
         if(xf>=.20&&xf<=.80){centerN++;if(tileLike)centerTile++;}
         if(xf<=.28){leftN++;if(tileLike)leftTile++;}
         if(xf>=.72){rightN++;if(tileLike)rightTile++;}
+        if(xf<=.16){edgeLeftN++;if(woodLike)edgeLeftWood++;if(darkLike)edgeLeftDark++;}
+        if(xf>=.84){edgeRightN++;if(woodLike)edgeRightWood++;if(darkLike)edgeRightDark++;}
       }
     }
     const tileRatio=total?tile/total:0,woodRatio=total?wood/total:1;
     const centerRatio=centerN?centerTile/centerN:0,leftRatio=leftN?leftTile/leftN:0,rightRatio=rightN?rightTile/rightN:0;
     const sideMin=Math.min(leftRatio,rightRatio),sideMean=(leftRatio+rightRatio)/2;
-    let score=centerRatio*.42+sideMin*.22+sideMean*.12+tileRatio*.24-woodRatio*.24;
+    const leftEdgeWood=edgeLeftN?edgeLeftWood/edgeLeftN:0,rightEdgeWood=edgeRightN?edgeRightWood/edgeRightN:0;
+    const leftEdgeDark=edgeLeftN?edgeLeftDark/edgeLeftN:0,rightEdgeDark=edgeRightN?edgeRightDark/edgeRightN:0;
+
+    // v75: score vertical seam evidence only in thin top/bottom bands where tile
+    // glyphs are rare. A strong internal seam near a side is a better neighbor-
+    // bleed signal than dark ink in the center.
+    const seamStrength=(lo,hi)=>{
+      let best=0;
+      const ya1=Math.max(1,Math.floor(h*.06)),yb1=Math.min(h-1,Math.ceil(h*.24));
+      const ya2=Math.max(1,Math.floor(h*.76)),yb2=Math.min(h-1,Math.ceil(h*.94));
+      for(let x=Math.max(2,Math.floor(lo));x<=Math.min(w-3,Math.ceil(hi));x++){
+        let sum=0,n=0;
+        for(const [ya,yb] of [[ya1,yb1],[ya2,yb2]]){
+          for(let y=ya;y<yb;y++){
+            const il=(y*w+x-1)*4,ir=(y*w+x+1)*4;
+            const ll=(data[il]*3+data[il+1]*6+data[il+2])/10;
+            const lr=(data[ir]*3+data[ir+1]*6+data[ir+2])/10;
+            sum+=Math.abs(lr-ll);n++;
+          }
+        }
+        if(n)best=Math.max(best,sum/n);
+      }
+      return Math.max(0,Math.min(1,best/46));
+    };
+    const leftSeam=seamStrength(w*.04,w*.23),rightSeam=seamStrength(w*.77,w*.96);
+    const leftContamination=Math.max(leftEdgeWood*.88+leftEdgeDark*.12,leftSeam*.74+leftEdgeWood*.26);
+    const rightContamination=Math.max(rightEdgeWood*.88+rightEdgeDark*.12,rightSeam*.74+rightEdgeWood*.26);
+    const edgeContamination=Math.max(leftContamination,rightContamination);
+
+    let score=centerRatio*.41+sideMin*.20+sideMean*.11+tileRatio*.28-woodRatio*.22-edgeContamination*.20;
     score=Math.max(0,Math.min(1,score));
-    const broken=centerRatio<.28||tileRatio<.24||sideMin<.08||woodRatio>.58;
-    return {score,broken,tileRatio,centerRatio,sideMin,leftRatio,rightRatio,woodRatio};
+    const broken=centerRatio<.28||tileRatio<.24||sideMin<.08||woodRatio>.58||edgeContamination>.78;
+    return {
+      score,broken,tileRatio,centerRatio,sideMin,leftRatio,rightRatio,woodRatio,
+      edgeContamination,leftContamination,rightContamination,leftEdgeWood,rightEdgeWood,leftSeam,rightSeam
+    };
   }
 
   function canvasCropQuality(canvas){
@@ -1463,13 +1499,16 @@
     const lower=scores[Math.floor(scores.length*.20)]||0;
     const endMean=qualities.length?((qualities[0]?.score||0)+(qualities[qualities.length-1]?.score||0))/2:0;
     const brokenCount=qualities.filter(q=>q.broken).length;
-    const score=mean*.44+median*.24+lower*.20+endMean*.12-brokenCount*.045;
-    return {score,mean,median,lower,endMean,brokenCount,qualities,boxes};
+    const edgeMean=qualities.reduce((s,q)=>s+(q.edgeContamination||0),0)/Math.max(1,qualities.length);
+    const edgeHighCount=qualities.filter(q=>(q.edgeContamination||0)>.58).length;
+    const score=mean*.40+median*.22+lower*.18+endMean*.16-brokenCount*.045-edgeMean*.06-edgeHighCount*.012;
+    return {score,mean,median,lower,endMean,brokenCount,edgeMean,edgeHighCount,qualities,boxes};
   }
 
-  function selectRowByCropQuality(ctx,row,outerFit=null,count=14){
-    if(!ctx||!row)return {row,used:false,reason:'invalid',base:null,best:null};
+  function selectRowByCropQuality(ctx,row,outerFit=null,gridFit=null,count=14){
+    if(!ctx||!row)return {row,used:false,reason:'invalid',base:null,best:null,startDeltaPitch:0,pitchScale:1};
     const candidates=[],seen=new Set();
+    const nominalPitch=row.w/count;
     const add=(candidate,reason)=>{
       if(!candidate||!Number.isFinite(candidate.x)||!Number.isFinite(candidate.w)||candidate.w<=0)return;
       const key=`${Math.round(candidate.x*10)}:${Math.round(candidate.w*10)}`;
@@ -1478,56 +1517,142 @@
     };
     add(row,'base');
     if(outerFit?.used&&outerFit.row)add(outerFit.row,'outer-edge');
-    const seeds=[row];
-    if(outerFit?.used&&outerFit.row)seeds.push(outerFit.row);
-    for(const seed of seeds){
-      const pitch=seed.w/count;
-      for(const dl of [-.14,0,.14]){
-        for(const dr of [-.14,0,.14]){
-          if(dl===0&&dr===0)continue;
-          const left=seed.x+pitch*dl,right=seed.x+seed.w+pitch*dr;
-          const width=right-left;
-          if(width<=0)continue;
-          const scale=width/seed.w;
-          if(scale<.972||scale>1.028)continue;
-          add({...seed,x:left,w:width},'quality-endpoints');
-        }
+
+    // v75: v61's periodic grid is never trusted directly. It is only one
+    // low-freedom candidate when both phase and pitch stay very close to the
+    // located row, and crop quality still has veto power.
+    if(gridFit?.used&&gridFit.row&&Math.abs(gridFit.offsetPitch||0)<=.10&&Math.abs((gridFit.pitchScale||1)-1)<=.015){
+      add(gridFit.row,'periodic-candidate');
+    }
+
+    // Search only start + common pitch. Internal 13 boundaries never move
+    // independently, avoiding the v37 seam-chasing failure.
+    for(const startDelta of [-.10,-.05,.05,.10]){
+      add({...row,x:row.x+nominalPitch*startDelta},'start-candidate');
+    }
+    for(const scale of [.988,.994,1.006,1.012]){
+      add({...row,w:row.w*scale},'pitch-candidate');
+    }
+    for(const startDelta of [-.06,.06]){
+      for(const scale of [.994,1.006]){
+        add({...row,x:row.x+nominalPitch*startDelta,w:row.w*scale},'start-pitch-candidate');
       }
     }
+
     const base=candidates[0];
     let best=base;
     for(const cand of candidates.slice(1)){
-      const bq=best.quality,cq=cand.quality;
-      const clearlyBetter=cq.brokenCount<bq.brokenCount&&cq.score>=bq.score-.012;
-      const scoreBetter=cq.score>bq.score+.025&&cq.brokenCount<=bq.brokenCount;
-      if(clearlyBetter||scoreBetter)best=cand;
+      const bq=base.quality,cq=cand.quality;
+      const fewerBroken=cq.brokenCount<bq.brokenCount&&cq.score>=bq.score-.010&&cq.edgeHighCount<=bq.edgeHighCount+1;
+      const lessBleed=cq.edgeHighCount<bq.edgeHighCount&&cq.score>=bq.score-.010&&cq.brokenCount<=bq.brokenCount;
+      const scoreBetter=cq.score>=bq.score+.020&&cq.brokenCount<=bq.brokenCount&&cq.edgeMean<=bq.edgeMean+.025;
+      if(!(fewerBroken||lessBleed||scoreBetter))continue;
+      const current=best.quality;
+      const candRank=cq.score-cq.brokenCount*.06-cq.edgeHighCount*.018-cq.edgeMean*.04;
+      const bestRank=current.score-current.brokenCount*.06-current.edgeHighCount*.018-current.edgeMean*.04;
+      if(best===base||candRank>bestRank+.004)best=cand;
     }
     const used=best!==base;
+    const pitch=best.row.w/count;
     return {
       row:best.row,used,reason:best.reason,
       base:base.quality,best:best.quality,
       scoreGain:best.quality.score-base.quality.score,
-      brokenBefore:base.quality.brokenCount,brokenAfter:best.quality.brokenCount
+      brokenBefore:base.quality.brokenCount,brokenAfter:best.quality.brokenCount,
+      edgeHighBefore:base.quality.edgeHighCount,edgeHighAfter:best.quality.edgeHighCount,
+      startDeltaPitch:(best.row.x-row.x)/Math.max(1,nominalPitch),
+      pitchScale:pitch/Math.max(1,nominalPitch)
     };
   }
 
   function rescueBrokenBox(ctx,b){
     const base=boxCropQuality(ctx,b);
-    if(!base.broken&&base.score>=.42)return {box:b,used:false,quality:base,before:base};
+    if(!base.broken&&base.score>=.42&&(base.edgeContamination||0)<.56)return {box:b,used:false,quality:base,before:base};
     let best={box:b,quality:base};
-    for(const frac of [-.14,-.08,.08,.14]){
+    for(const frac of [-.06,-.04,-.02,.02,.04,.06]){
       const maxX=Math.max(0,(ctx.canvas.width||0)-b.w);
       const candidate={...b,x:Math.max(0,Math.min(maxX,b.x+b.w*frac))};
       const q=boxCropQuality(ctx,candidate);
       const clearlyBetter=!q.broken&&base.broken&&q.score>=base.score-.01;
+      const bleedBetter=(q.edgeContamination||0)<(base.edgeContamination||0)-.10&&q.score>=base.score-.012;
       const scoreBetter=q.score>=best.quality.score+.035;
-      if(clearlyBetter||scoreBetter)best={box:candidate,quality:q};
+      if(clearlyBetter||bleedBetter||scoreBetter)best={box:candidate,quality:q};
     }
     return {box:best.box,used:best.box!==b,quality:best.quality,before:base};
   }
 
+  function tripletCropQuality(ctx,boxes,index){
+    const ids=[index-1,index,index+1].filter(i=>i>=0&&i<boxes.length);
+    const qualities=ids.map(i=>boxCropQuality(ctx,boxes[i]));
+    return {
+      score:qualities.reduce((s,q)=>s+q.score,0)/Math.max(1,qualities.length),
+      brokenCount:qualities.filter(q=>q.broken).length,
+      edgeMean:qualities.reduce((s,q)=>s+(q.edgeContamination||0),0)/Math.max(1,qualities.length),
+      qualities
+    };
+  }
 
-  function refineRowOuterEdges(ctx,row,count=14){
+  function applyLocalBoundaryDelta(boxes,index,leftDelta=0,rightDelta=0){
+    const out=boxes.map(b=>({...b}));
+    const target=out[index];if(!target)return null;
+    const minW=Math.max(4,target.w*.72);
+    if(index===0)leftDelta=0;
+    if(index===out.length-1)rightDelta=0;
+    if(index>0){
+      out[index-1].w+=leftDelta;
+      target.x+=leftDelta;
+      target.w-=leftDelta;
+    }
+    if(index<out.length-1){
+      target.w+=rightDelta;
+      out[index+1].x+=rightDelta;
+      out[index+1].w-=rightDelta;
+    }
+    if(target.w<minW)return null;
+    if(index>0&&out[index-1].w<minW)return null;
+    if(index<out.length-1&&out[index+1].w<minW)return null;
+    return out;
+  }
+
+  function rescueLocalBoundaries(ctx,boxes){
+    let current=boxes.map(b=>({...b}));
+    const debug=Array.from({length:boxes.length},()=>({used:false,leftPx:0,rightPx:0,beforeScore:null,afterScore:null}));
+    let adoptedCount=0;
+    for(let i=0;i<current.length;i++){
+      const q=boxCropQuality(ctx,current[i]);
+      const suspect=q.broken||q.score<.40||(q.edgeContamination||0)>.52;
+      if(!suspect)continue;
+      const pitch=current[i].w;
+      const baseTriplet=tripletCropQuality(ctx,current,i);
+      let bestBoxes=current,bestTriplet=baseTriplet,bestLeft=0,bestRight=0;
+      const fractions=[-.06,-.04,-.02,.02,.04,.06];
+      const candidates=[];
+      if(i>0)for(const f of fractions)candidates.push([pitch*f,0]);
+      if(i<current.length-1)for(const f of fractions)candidates.push([0,pitch*f]);
+      for(const [dl,dr] of candidates){
+        const next=applyLocalBoundaryDelta(current,i,dl,dr);if(!next)continue;
+        const tq=tripletCropQuality(ctx,next,i);
+        const fewerBroken=tq.brokenCount<baseTriplet.brokenCount&&tq.score>=baseTriplet.score-.010;
+        const lessBleed=tq.edgeMean<=baseTriplet.edgeMean-.075&&tq.score>=baseTriplet.score-.012&&tq.brokenCount<=baseTriplet.brokenCount;
+        const scoreBetter=tq.score>=baseTriplet.score+.030&&tq.brokenCount<=baseTriplet.brokenCount&&tq.edgeMean<=baseTriplet.edgeMean+.015;
+        if(!(fewerBroken||lessBleed||scoreBetter))continue;
+        const rank=tq.score-tq.brokenCount*.07-tq.edgeMean*.05;
+        const bestRank=bestTriplet.score-bestTriplet.brokenCount*.07-bestTriplet.edgeMean*.05;
+        if(bestBoxes===current||rank>bestRank+.004){
+          bestBoxes=next;bestTriplet=tq;bestLeft=dl;bestRight=dr;
+        }
+      }
+      if(bestBoxes!==current){
+        debug[i]={used:true,leftPx:bestLeft,rightPx:bestRight,beforeScore:baseTriplet.score,afterScore:bestTriplet.score,
+          beforeBroken:baseTriplet.brokenCount,afterBroken:bestTriplet.brokenCount,beforeEdge:baseTriplet.edgeMean,afterEdge:bestTriplet.edgeMean};
+        current=bestBoxes;adoptedCount++;
+      }
+    }
+    return {boxes:current,adoptedCount,debug};
+  }
+
+
+  function refineRowOuterEdges(ctx,row,count=14){function refineRowOuterEdges(ctx,row,count=14){
     if(!ctx||!row||!Number.isFinite(row.x)||!Number.isFinite(row.w)||row.w<=0||count<2){
       return {row,used:false,reason:'invalid'};
     }
