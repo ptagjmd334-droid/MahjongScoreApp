@@ -27,7 +27,7 @@
   const state={overlay:null,captured:false,pendingFeatures:[],pendingCrops:[],pendingTrainingImages:[],pendingBroken:[],diagnostics:null,predictionDebug:[],confidenceReasons:[],learnedLabelCount:0,librarySource:'',runtimeLibrary:null,storageDiagnostics:null,lastRecognitionMs:0,lastAuxViewsUsed:0,lastAuxFallbackCount:0,lastMicroRefined:0};
   const persistPromises=new WeakMap();
   const LEGACY_BOUNDARY_DIAGNOSTIC_LABEL='境界signal診断 / 局所再分割'; // M099/M101: stable legacy diagnostic markers; v78 no longer displays them.
-  const LEGACY_CROP_DIAGNOSTIC_LABEL='crop品質fallback / 境界trim'; // stable v75-v82 diagnostic markers kept for source regressions.
+  const LEGACY_CROP_DIAGNOSTIC_LABEL='crop品質fallback / 境界trim / 軸平行crop'; // stable v75-v84 diagnostic markers kept for source regressions.
   const LEGACY_YOLO_DIAGNOSTIC_MODE="detectorMode:'yolo11n-diagnostic'"; // exact v78 source-regression marker; v79 production mode is separate.
   const LEGACY_YOLO_AXIS_MODE="detectorMode:'yolo11n-production-axis-aligned-crops'"; // exact v80/v81 source-regression marker; v82 adds subset selection.
   const LEGACY_YOLO_SUBSET_MODE="detectorMode:'yolo11n-production-axis-aligned-subset-crops'"; // exact v82 source-regression marker; v83 adds YOLO class recognition.
