@@ -401,7 +401,7 @@ test('v73 preserves stable learning, Top4 micro-shift, asymmetric insets, and ou
   assert(camera.includes("reason:'template-distance'"));
   assert(camera.includes('gridCandidate:gridFit.used===true'));
   assert(camera.includes('gridUsed:false'));
-  assert(camera.includes('const row={x:lowRow.x*sx,y:lowRow.y*sy,w:lowRow.w*sx,h:lowRow.h*sy}'));
+  assert(camera.includes('const row={x:productionLowRow.x*sx,y:productionLowRow.y*sy,w:productionLowRow.w*sx,h:productionLowRow.h*sy}'));
   const picker=fs.readFileSync(path.join(root,'m8-v3.js'),'utf8');
   assert(picker.includes('100dvh'));
   assert(picker.includes('grid-template-columns:repeat(12,minmax(0,1fr))'));
