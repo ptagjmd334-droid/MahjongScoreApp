@@ -34,7 +34,7 @@ const server=http.createServer((req,res)=>{
     const errors=[];page.on('pageerror',e=>errors.push(String(e)));
     await page.goto('http://127.0.0.1:'+port+'/',{waitUntil:'domcontentloaded',timeout:30000});
     await page.waitForSelector('#go-confirm-button',{timeout:12000});
-    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'M7 v76');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'M7 v77');
     // v36 analyzes one long row after the shutter instead of requiring 14 live connected components.
     const synthetic=await page.evaluate(()=>{
       const canvas=document.createElement('canvas');canvas.width=840;canvas.height=260;
@@ -90,6 +90,24 @@ const server=http.createServer((req,res)=>{
     }));
     assert.equal(boundarySignalApi.fn,'function','v76 boundary diagnostic helper missing '+JSON.stringify(boundarySignalApi));
     assert.equal(boundarySignalApi.analyze,true,'v76 analyzeGuideCanvas is not wired to boundary diagnostic '+JSON.stringify(boundarySignalApi));
+
+    const dualBandDiagnostic=await page.evaluate(()=>{
+      const api=window.M7CameraV36;
+      const c=document.createElement('canvas');c.width=840;c.height=260;
+      const x=c.getContext('2d');x.fillStyle='#765033';x.fillRect(0,0,840,260);
+      const row={x:70,y:62,w:700,h:126},p=row.w/14;
+      for(let i=0;i<14;i++){
+        x.fillStyle='#dedbd2';x.fillRect(row.x+i*p,row.y,p-1,row.h);
+        // Dark glyph only in the middle; should not beat the full-height seam.
+        x.fillStyle='#171717';x.fillRect(row.x+i*p+p*.48,row.y+44,3,38);
+        if(i>0){x.fillStyle='#5f5b55';x.fillRect(row.x+i*p-1,row.y+3,2,row.h-6);}
+      }
+      return api.boundaryLikelihoodDiagnostics(x,row,14);
+    });
+    assert(dualBandDiagnostic.clearNearCount>=10,
+      'v77 dual-band diagnostic failed to recover synthetic seams '+JSON.stringify(dualBandDiagnostic));
+    assert(dualBandDiagnostic.strongWideCount>=11,
+      'v77 wide dual-band diagnostic is too weak '+JSON.stringify(dualBandDiagnostic));
 
     const cropQuality=await page.evaluate(()=>{
       const canvas=document.createElement('canvas');canvas.width=220;canvas.height=150;

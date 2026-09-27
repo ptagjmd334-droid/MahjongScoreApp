@@ -1927,8 +1927,9 @@
     return boxes;
   }
 
-  // v76 diagnostic only: observe whether real tile boundaries create usable
-  // image evidence. This function NEVER changes row/crop geometry.
+  // v77 diagnostic only: require the same boundary evidence in BOTH the
+  // top and bottom bands, plus vertical continuity. This still NEVER changes
+  // row/crop geometry; it only tests whether classical boundary evidence is usable.
   function boundaryLikelihoodDiagnostics(ctx,row,count=14){
     if(!ctx||!row||!Number.isFinite(row.x)||!Number.isFinite(row.w)||row.w<=0){
       return {ok:false,reason:'invalid-row',clearNearCount:0,strongWideCount:0,peaks:[],image:null};
@@ -1949,56 +1950,98 @@
       const max=Math.max(r,g,b),min=Math.min(r,g,b),l=(r*3+g*6+b)/10;
       return l>=82&&((max-min)/(l+1))<=.55;
     };
-    const bands=[
-      [Math.max(2,Math.floor(h*.07)),Math.max(3,Math.floor(h*.24))],
-      [Math.min(h-3,Math.floor(h*.76)),Math.min(h-2,Math.floor(h*.93))]
-    ];
-    const grad=new Float64Array(w),disc=new Float64Array(w),line=new Float64Array(w),gap=new Float64Array(w);
-    for(let x=5;x<w-5;x++){
+    const topBand=[Math.max(2,Math.floor(h*.07)),Math.max(3,Math.floor(h*.24))];
+    const bottomBand=[Math.min(h-3,Math.floor(h*.76)),Math.min(h-2,Math.floor(h*.93))];
+    const make=()=>new Float64Array(w);
+    const tg=make(),td=make(),tl=make(),tp=make();
+    const bg=make(),bd=make(),bl=make(),bp=make();
+    const continuity=make();
+
+    const measureBand=(x,band)=>{
       let gsum=0,dsum=0,strong=0,n=0,centerWhite=0,sideWhite=0;
-      for(const [ya,yb] of bands){
-        for(let y=ya;y<yb;y++){
-          const l1=lum(x-1,y),r1=lum(x+1,y);
-          const gv=Math.abs(r1-l1);gsum+=gv;if(gv>=18)strong++;
-          const la=(lum(x-4,y)+lum(x-3,y)+lum(x-2,y))/3;
-          const ra=(lum(x+2,y)+lum(x+3,y)+lum(x+4,y))/3;
-          dsum+=Math.abs(ra-la);
-          if(tileLike(x,y))centerWhite++;
-          if(tileLike(x-5,y))sideWhite+=.5;
-          if(tileLike(x+5,y))sideWhite+=.5;
-          n++;
-        }
+      for(let y=band[0];y<band[1];y++){
+        const l1=lum(x-1,y),r1=lum(x+1,y);
+        const gv=Math.abs(r1-l1);gsum+=gv;if(gv>=18)strong++;
+        const la=(lum(x-4,y)+lum(x-3,y)+lum(x-2,y))/3;
+        const ra=(lum(x+2,y)+lum(x+3,y)+lum(x+4,y))/3;
+        dsum+=Math.abs(ra-la);
+        if(tileLike(x,y))centerWhite++;
+        if(tileLike(x-5,y))sideWhite+=.5;
+        if(tileLike(x+5,y))sideWhite+=.5;
+        n++;
       }
-      grad[x]=n?gsum/n:0;
-      disc[x]=n?dsum/n:0;
-      line[x]=n?strong/n:0;
-      gap[x]=n?Math.max(0,(sideWhite-centerWhite)/n):0;
+      return {
+        grad:n?gsum/n:0,disc:n?dsum/n:0,line:n?strong/n:0,
+        gap:n?Math.max(0,(sideWhite-centerWhite)/n):0
+      };
+    };
+
+    for(let x=5;x<w-5;x++){
+      const t=measureBand(x,topBand),bot=measureBand(x,bottomBand);
+      tg[x]=t.grad;td[x]=t.disc;tl[x]=t.line;tp[x]=t.gap;
+      bg[x]=bot.grad;bd[x]=bot.disc;bl[x]=bot.line;bp[x]=bot.gap;
+      let hits=0,n=0;
+      for(let y=Math.max(2,Math.floor(h*.06));y<Math.min(h-2,Math.ceil(h*.94));y+=2){
+        const gv=Math.abs(lum(x+1,y)-lum(x-1,y));
+        if(gv>=15)hits++;
+        n++;
+      }
+      continuity[x]=n?hits/n:0;
     }
-    const normalize=(src)=>{
+
+    const normalize=(src,hiQ=.92)=>{
       const vals=[];
       for(let x=5;x<w-5;x++)vals.push(src[x]);
       vals.sort((a,b)=>a-b);
       const q=p=>vals[Math.max(0,Math.min(vals.length-1,Math.floor((vals.length-1)*p)))]||0;
-      const lo=q(.50),hi=q(.92),span=Math.max(1e-6,hi-lo);
+      const lo=q(.50),hi=q(hiQ),span=Math.max(1e-6,hi-lo);
       const out=new Float64Array(w);
       for(let x=5;x<w-5;x++)out[x]=Math.max(0,Math.min(1.35,(src[x]-lo)/span));
       return out;
     };
-    const ng=normalize(grad),nd=normalize(disc),nl=normalize(line),np=normalize(gap);
-    const raw=new Float64Array(w);
-    for(let x=5;x<w-5;x++)raw[x]=ng[x]*.38+nd[x]*.24+nl[x]*.24+np[x]*.14;
+    const ntg=normalize(tg),ntd=normalize(td),ntl=normalize(tl),ntp=normalize(tp,.88);
+    const nbg=normalize(bg),nbd=normalize(bd),nbl=normalize(bl),nbp=normalize(bp,.88);
+    const nc=normalize(continuity,.90);
+    const raw=new Float64Array(w),dualSupport=new Float64Array(w);
+    for(let x=5;x<w-5;x++){
+      // Geometric mean/min makes a glyph visible in only one band score poorly.
+      const dg=Math.sqrt(ntg[x]*nbg[x]);
+      const dd=Math.sqrt(ntd[x]*nbd[x]);
+      const dl=Math.min(ntl[x],nbl[x]);
+      const dp=Math.sqrt(ntp[x]*nbp[x]);
+      const topSupport=ntg[x]*.42+ntd[x]*.30+ntl[x]*.28;
+      const bottomSupport=nbg[x]*.42+nbd[x]*.30+nbl[x]*.28;
+      const concurrence=Math.min(1.2,Math.min(topSupport,bottomSupport));
+      dualSupport[x]=concurrence;
+      const imbalance=Math.min(1,Math.abs(topSupport-bottomSupport));
+      raw[x]=(dg*.30+dd*.20+dl*.22+nc[x]*.22+dp*.06)*(0.60+Math.min(1,concurrence)*.40)-imbalance*.08;
+    }
     const score=new Float64Array(w);
     for(let x=5;x<w-5;x++){
       let sum=0,weight=0;
-      for(let d=-2;d<=2;d++){const ww=3-Math.abs(d);sum+=raw[x+d]*ww;weight+=ww;}
-      score[x]=weight?sum/weight:raw[x];
+      for(let d=-2;d<=2;d++){const ww=3-Math.abs(d);sum+=Math.max(0,raw[x+d])*ww;weight+=ww;}
+      score[x]=weight?sum/weight:Math.max(0,raw[x]);
     }
     const pitch=w/count;
+    const peakAt=(x)=>{
+      const shoulder=Math.max(2,Math.round(pitch*.07));
+      const local=(score[Math.max(5,x-shoulder)]+score[Math.min(w-6,x+shoulder)])/2;
+      const prominence=Math.max(0,score[x]-local);
+      return score[x]+Math.min(.22,prominence*.45);
+    };
     const bestIn=(center,radius)=>{
       const lo=Math.max(5,Math.floor(center-radius)),hi=Math.min(w-6,Math.ceil(center+radius));
       let bx=Math.round(center),bs=-Infinity;
-      for(let x=lo;x<=hi;x++)if(score[x]>bs){bs=score[x];bx=x;}
-      return {x:bx,score:Number((Math.max(0,bs)).toFixed(4)),offsetPitch:Number(((bx-center)/pitch).toFixed(4))};
+      for(let x=lo;x<=hi;x++){
+        const v=peakAt(x);
+        if(v>bs){bs=v;bx=x;}
+      }
+      return {
+        x:bx,score:Number((Math.max(0,bs)).toFixed(4)),
+        offsetPitch:Number(((bx-center)/pitch).toFixed(4)),
+        concurrence:Number((dualSupport[bx]||0).toFixed(4)),
+        continuity:Number((continuity[bx]||0).toFixed(4))
+      };
     };
     const peaks=[];
     for(let i=1;i<count;i++){
@@ -2008,53 +2051,53 @@
       peaks.push({
         index:i,expectedX:Number((x0+expected).toFixed(1)),
         nearX:Number((x0+near.x).toFixed(1)),nearScore:near.score,nearOffsetPitch:near.offsetPitch,
-        peakX:Number((x0+wide.x).toFixed(1)),peakScore:wide.score,offsetPitch:wide.offsetPitch
+        nearConcurrence:near.concurrence,nearContinuity:near.continuity,
+        peakX:Number((x0+wide.x).toFixed(1)),peakScore:wide.score,offsetPitch:wide.offsetPitch,
+        concurrence:wide.concurrence,continuity:wide.continuity
       });
     }
-    const clearNearCount=peaks.filter(p=>p.nearScore>=.42).length;
-    const strongWideCount=peaks.filter(p=>p.peakScore>=.42).length;
-    const strong=peaks.filter(p=>p.peakScore>=.42);
+    const isStrong=p=>p.peakScore>=.40&&p.concurrence>=.24&&p.continuity>=.10;
+    const isNearStrong=p=>p.nearScore>=.40&&p.nearConcurrence>=.24&&p.nearContinuity>=.10;
+    const clearNearCount=peaks.filter(isNearStrong).length;
+    const strongWideCount=peaks.filter(isStrong).length;
+    const strong=peaks.filter(isStrong);
     const meanAbsOffsetPitch=strong.length?strong.reduce((s,p)=>s+Math.abs(p.offsetPitch),0)/strong.length:0;
     const offsets=strong.map(p=>p.offsetPitch).sort((a,b)=>a-b);
     const commonOffsetPitch=offsets.length?offsets[Math.floor(offsets.length/2)]:0;
 
     const diag=document.createElement('canvas');diag.width=ctx.canvas.width;diag.height=ctx.canvas.height;
     const dctx=diag.getContext('2d');dctx.drawImage(ctx.canvas,0,0);
-    dctx.save();
-    dctx.lineWidth=1.5;
-    // Current v75 boundaries: red.
+    dctx.save();dctx.lineWidth=1.5;
     dctx.strokeStyle='rgba(255,70,70,.92)';
     for(let i=1;i<count;i++){
       const x=x0+pitch*i;dctx.beginPath();dctx.moveTo(x,y0);dctx.lineTo(x,y1);dctx.stroke();
     }
-    // Observed local peaks: cyan. These are diagnostic only.
     dctx.strokeStyle='rgba(40,220,255,.95)';
     for(const p of peaks){
-      if(p.peakScore<.32)continue;
+      if(!isStrong(p))continue;
       dctx.beginPath();dctx.moveTo(p.peakX,y0);dctx.lineTo(p.peakX,y1);dctx.stroke();
     }
     const gh=Math.max(28,Math.round(h*.24)),gy=Math.max(0,y1-gh);
     dctx.fillStyle='rgba(0,0,0,.58)';dctx.fillRect(x0,gy,w,gh);
     dctx.strokeStyle='rgba(110,255,140,.95)';dctx.lineWidth=1.5;dctx.beginPath();
     for(let x=5;x<w-5;x++){
-      const px=x0+x,py=gy+gh-3-Math.min(1,score[x])*Math.max(8,gh-7);
+      const px=x0+x,py=gy+gh-3-Math.min(1,peakAt(x))*Math.max(8,gh-7);
       if(x===5)dctx.moveTo(px,py);else dctx.lineTo(px,py);
     }
     dctx.stroke();
     dctx.fillStyle='rgba(255,255,255,.96)';
     dctx.font='bold 10px -apple-system,BlinkMacSystemFont,sans-serif';
-    dctx.fillText(`v76 boundary signal  ±5%:${clearNearCount}/13  wide:${strongWideCount}/13  common:${commonOffsetPitch>=0?'+':''}${commonOffsetPitch.toFixed(3)} tile`,x0+5,gy+12);
+    dctx.fillText(`v77 dual-band signal  ±5%:${clearNearCount}/13  wide:${strongWideCount}/13  common:${commonOffsetPitch>=0?'+':''}${commonOffsetPitch.toFixed(3)} tile`,x0+5,gy+12);
     dctx.restore();
 
     return {
-      ok:true,reason:'diagnostic-only',clearNearCount,strongWideCount,
+      ok:true,reason:'dual-band-continuity-diagnostic',clearNearCount,strongWideCount,
       meanAbsOffsetPitch:Number(meanAbsOffsetPitch.toFixed(4)),
       commonOffsetPitch:Number(commonOffsetPitch.toFixed(4)),
       pitch:Number(pitch.toFixed(3)),peaks,
       image:diag.toDataURL('image/jpeg',.88)
     };
   }
-
 
   function analyzeGuideCanvas(highCanvas){
     const highCtx=highCanvas.getContext('2d',{willReadFrequently:true});
@@ -2210,15 +2253,15 @@
       if(note)note.textContent=features.length===14
         ?(firstCalibration
           ?'この保存領域には学習データがありません。今回だけ14枚を正しく指定してください。「この手牌で進む」を押した時に保存完了を確認してから次へ進みます。'
-          :`v76は境界signal診断版です。14cropの位置はv75のまま変更せず、上下帯から境界らしさだけを観測します。赤線=現在の13境界、青線=近傍signalピーク、緑線=boundary likelihood。±5%内の明確なsignal ${analysis.boundarySignal?.clearNearCount||0}/13、広め探索で強いsignal ${analysis.boundarySignal?.strongWideCount||0}/13、共通ずれ ${Number(analysis.boundarySignal?.commonOffsetPitch||0).toFixed(3)}牌。分類器・学習保存・trim・局所補正はv75を維持。高信頼候補 ${auto}枚。保留理由: ${confidenceReasonSummary()}。認識 ${Math.max(0,state.lastRecognitionMs||0)}ms / row補正 ${analysis.rowCorrectionUsed?'ON':'OFF'} / 開始 ${Number(analysis.rowStartDeltaPitch||0).toFixed(3)}牌 / pitch ${Number(analysis.rowPitchScale||1).toFixed(4)} / 境界trim ${analysis.boundaryTrimCount||0}/14 / 局所再分割 ${analysis.resplitAdoptedCount||0}/14 / crop異常 ${analysis.cropAbnormalCount||0}/14 / crop品質fallback ${analysis.cropQualityFallbackCount||0}/14。`)
+          :`v77は境界signal診断 v2版です。14cropの位置はv75のまま変更せず、上帯と下帯の両方で同じxにedgeが出ること＋縦方向の連続性を要求します。赤線=現在の13境界、青線=両帯一致したsignal peak、緑線=boundary likelihood。±5%内の明確なsignal ${analysis.boundarySignal?.clearNearCount||0}/13、広め探索で強いsignal ${analysis.boundarySignal?.strongWideCount||0}/13、共通ずれ ${Number(analysis.boundarySignal?.commonOffsetPitch||0).toFixed(3)}牌。分類器・学習保存・trim・局所補正はv75を維持。高信頼候補 ${auto}枚。保留理由: ${confidenceReasonSummary()}。認識 ${Math.max(0,state.lastRecognitionMs||0)}ms / row補正 ${analysis.rowCorrectionUsed?'ON':'OFF'} / 開始 ${Number(analysis.rowStartDeltaPitch||0).toFixed(3)}牌 / pitch ${Number(analysis.rowPitchScale||1).toFixed(4)} / 境界trim ${analysis.boundaryTrimCount||0}/14 / 局所再分割 ${analysis.resplitAdoptedCount||0}/14 / crop異常 ${analysis.cropAbnormalCount||0}/14 / crop品質fallback ${analysis.cropQualityFallbackCount||0}/14。`)
         :'白枠内から牌列を特定できませんでした。撮影画像を確認し、14枠を手動入力するか「読み取り直す」で再撮影してください。';
       if(analysis.boundaryDiagnosticImage){
         const old=root.querySelector('.m7v76-boundary-diagnostic');if(old)old.remove();
         const wrap=document.createElement('div');wrap.className='m7v76-boundary-diagnostic';
         wrap.style.cssText='margin:4px 8px 6px;padding:4px 6px;border:1px solid rgba(0,0,0,.18);border-radius:8px;background:#fff;color:#222;font:700 10px/1.25 -apple-system,BlinkMacSystemFont,sans-serif;';
         const label=document.createElement('div');
-        label.textContent=`境界signal診断：±5% ${analysis.boundarySignal?.clearNearCount||0}/13　広め ${analysis.boundarySignal?.strongWideCount||0}/13　共通ずれ ${Number(analysis.boundarySignal?.commonOffsetPitch||0).toFixed(3)}牌（赤=現在境界 / 青=signal peak / 緑=likelihood）`;
-        const img=document.createElement('img');img.src=analysis.boundaryDiagnosticImage;img.alt='M7 v76 境界signal診断';img.style.cssText='display:block;width:100%;max-height:86px;object-fit:contain;margin-top:3px;background:#111;';
+        label.textContent=`境界signal診断 v2：±5% ${analysis.boundarySignal?.clearNearCount||0}/13　広め ${analysis.boundarySignal?.strongWideCount||0}/13　共通ずれ ${Number(analysis.boundarySignal?.commonOffsetPitch||0).toFixed(3)}牌（赤=現在境界 / 青=signal peak / 緑=likelihood）`;
+        const img=document.createElement('img');img.src=analysis.boundaryDiagnosticImage;img.alt='M7 v77 境界signal診断 v2';img.style.cssText='display:block;width:100%;max-height:86px;object-fit:contain;margin-top:3px;background:#111;';
         wrap.append(label,img);
         root.querySelector('.hand-result-head-m7v5')?.insertAdjacentElement('afterend',wrap);
       }
