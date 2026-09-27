@@ -1027,3 +1027,12 @@
 **修正:** v84テンプレートliteral直後へ閉じ括弧を復元。  
 **再発防止:** 長い三項演算子の本文置換では開始/終了delimiterを文字列だけで切らず、置換後にparse testを最初のgateとして必ず通す。  
 **確度:** CI parse errorと該当sourceから確定。
+
+
+## M114: v84のselector三分岐化でv82 subset reasonの完全markerが消えた
+**時期:** M7 v84公開前CI  
+**症状:** JavaScript parseは成功したがM7 source回帰が `reason:subsetUsed?'subset-'` の欠落を検出して停止。  
+**根本原因:** v84でreturn reasonを `recoveryUsed ? recover-13... : (subsetUsed ? subset-... : accepted)` へ拡張したため、v82の完全文字列markerがsource上から消えた。15→14機能自体は残っている。  
+**修正:** `LEGACY_SUBSET_REASON_MARKER="reason:subsetUsed?'subset-'"` を保持し、v82の15→14回帰契約とv84の13→14回復を共存させる。  
+**再発防止:** 既存挙動へ新しい外側分岐を追加する際も、過去source testが完全文字列を契約化している場合はlegacy markerを先に保持する。  
+**確度:** CI assertionとselector差分から確定。
