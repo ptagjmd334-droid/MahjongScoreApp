@@ -34,7 +34,7 @@ const server=http.createServer((req,res)=>{
     const errors=[];page.on('pageerror',e=>errors.push(String(e)));
     await page.goto('http://127.0.0.1:'+port+'/',{waitUntil:'domcontentloaded',timeout:30000});
     await page.waitForSelector('#go-confirm-button',{timeout:12000});
-    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'M7 v84');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'M7 v85');
     const v81HeaderLayout=await page.evaluate(()=>{
       window.showHandResultM7V5?.(Array(14).fill(''));
       const root=document.getElementById('hand-result-overlay-m7v5');
@@ -268,6 +268,32 @@ const server=http.createServer((req,res)=>{
     assert.equal(v83YoloClass.labels[1],'5筒','v83 .18 confidence should use YOLO at .15 threshold '+JSON.stringify(v83YoloClass));
     assert.equal(v83YoloClass.sources[2],'legacy','v83 low-confidence YOLO should fallback to legacy '+JSON.stringify(v83YoloClass));
     assert(v83YoloClass.yoloUsed<=6,'v83 max-four guard should force excess repeated labels to legacy '+JSON.stringify(v83YoloClass));
+
+    const v85ProductionFastPath=await page.evaluate(()=>{
+      const api=window.M7CameraV36;
+      const yolo=Array.from({length:14},(_,i)=>({index:i,label:(i<4?'1萬':String((i%9)+1)+'筒'),rawLabel:'',score:.82}));
+      const complete=api.chooseYoloPrimaryRecognition(yolo,[],true,.15);
+      const low=yolo.map((x,i)=>i===5?{...x,score:.10}:x);
+      const incomplete=api.chooseYoloPrimaryRecognition(low,[],true,.15);
+      const root=document.createElement('div');
+      root.innerHTML='<div class="hand-result-head-m7v5"></div>';
+      document.body.appendChild(root);
+      const details=api.mountDetectorDiagnostic(root);
+      const result={
+        completeRun:api.shouldRunLegacyClassifier(complete,14),
+        incompleteRun:api.shouldRunLegacyClassifier(incomplete,14),
+        fallbackRun:api.shouldRunLegacyClassifier(api.chooseYoloPrimaryRecognition([],[],false,.15),14),
+        tag:details.tagName,open:details.open,
+        summary:details.querySelector('.m7v78-detector-label')?.textContent||''
+      };
+      root.remove();
+      return result;
+    });
+    assert.equal(v85ProductionFastPath.completeRun,false,'v85 must skip legacy classifier when YOLO resolves all 14 '+JSON.stringify(v85ProductionFastPath));
+    assert.equal(v85ProductionFastPath.incompleteRun,true,'v85 must keep legacy fallback for unresolved YOLO '+JSON.stringify(v85ProductionFastPath));
+    assert.equal(v85ProductionFastPath.fallbackRun,true,'v85 must keep legacy classifier when YOLO is not adopted '+JSON.stringify(v85ProductionFastPath));
+    assert.equal(v85ProductionFastPath.tag,'DETAILS','v85 detector diagnostics should use native details '+JSON.stringify(v85ProductionFastPath));
+    assert.equal(v85ProductionFastPath.open,false,'v85 detector diagnostics should be collapsed by default '+JSON.stringify(v85ProductionFastPath));
 
     const cropQuality=await page.evaluate(()=>{
       const canvas=document.createElement('canvas');canvas.width=220;canvas.height=150;
