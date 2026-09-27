@@ -2948,7 +2948,7 @@
       if(note)note.textContent=features.length===14
         ?(firstCalibration
           ?'この保存領域には学習データがありません。今回だけ14枚を正しく指定してください。「この手牌で進む」を押した時に保存完了を確認してから次へ進みます。'
-          :`v84はYOLO牌種認識を維持しつつ、検出が13boxの時だけ安全な14牌復元を追加した版です。通常より明確に横長なboxは2牌へ分割し、それ以外は13中心を14等間隔slotへ当てはめて一意な空き1slotだけ補完します。幾何fitが悪い・候補が曖昧なら従来通りfallbackします。補完boxはYOLO牌種を捏造せず旧分類器/手動修正へ回します。YOLO分割 ${analysis.detectorAdopted?'採用':'fallback'}${analysis.detectorAdoptionReason?`(${analysis.detectorAdoptionReason})`:''} / YOLO牌種 ${primary.yoloUsed}/14 / 旧分類fallback ${primary.legacyUsed}/14 / 未確定 ${primary.unresolved}/14 / 軸平行crop ${analysis.detectorAdopted?'14/14':'0/14'}。`
+          :`v84はYOLO牌種認識を維持しつつ、検出が13boxの時だけ安全な14牌復元を追加した版です。通常より明確に横長なboxは2牌へ分割し、それ以外は13中心を14等間隔slotへ当てはめて一意な空き1slotだけ補完します。幾何fitが悪い・候補が曖昧なら従来通りfallbackします。補完boxはYOLO牌種を捏造せず旧分類器/手動修正へ回します。YOLO分割 ${analysis.detectorAdopted?'採用':'fallback'}${analysis.detectorAdoptionReason?`(${analysis.detectorAdoptionReason})`:''} / YOLO牌種 ${primary.yoloUsed}/14 / 旧分類fallback ${primary.legacyUsed}/14 / 未確定 ${primary.unresolved}/14 / 軸平行crop ${analysis.detectorAdopted?'14/14':'0/14'}。`)
         :'白枠内から牌列を特定できませんでした。撮影画像を確認し、14枠を手動入力するか「読み取り直す」で再撮影してください。';
       if(analysis.yoloDetectorResult||analysis.detectorAdoptionReason){
         renderDetectorResult(root,analysis.yoloDetectorResult,analysis.detectorAdopted===true,analysis.detectorAdoptionReason||'');
