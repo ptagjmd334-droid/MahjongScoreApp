@@ -1396,6 +1396,95 @@
   }
 
 
+  function refineRowOuterEdges(ctx,row,count=14){
+    if(!ctx||!row||!Number.isFinite(row.x)||!Number.isFinite(row.w)||row.w<=0||count<2){
+      return {row,used:false,reason:'invalid'};
+    }
+    const cw=ctx.canvas.width|0,ch=ctx.canvas.height|0;
+    const pitch=row.w/count;
+    if(cw<40||ch<20||pitch<6)return {row,used:false,reason:'small'};
+    const y0=Math.max(0,Math.floor(row.y)),y1=Math.min(ch,Math.ceil(row.y+row.h));
+    const h=Math.max(1,y1-y0);
+    const scanX0=Math.max(0,Math.floor(row.x-pitch*.40));
+    const scanX1=Math.min(cw-1,Math.ceil(row.x+row.w+pitch*.40));
+    if(scanX1-scanX0<count*5||h<12)return {row,used:false,reason:'range'};
+
+    const data=ctx.getImageData(0,0,cw,ch).data;
+    const raw=new Float64Array(cw);
+    // v73 only looks at thin top/bottom bands where mahjong glyphs are rare.
+    // This estimates the outer white-tile span without chasing repeated symbols.
+    const bands=[
+      [Math.max(y0+1,Math.floor(y0+h*.05)),Math.min(y1-1,Math.ceil(y0+h*.18))],
+      [Math.max(y0+1,Math.floor(y0+h*.82)),Math.min(y1-1,Math.ceil(y0+h*.95))]
+    ];
+    for(let x=scanX0;x<=scanX1;x++){
+      let tile=0,n=0;
+      for(const [ya,yb] of bands){
+        for(let y=ya;y<yb;y++){
+          const i=(y*cw+x)*4,r=data[i],g=data[i+1],b=data[i+2];
+          const max=Math.max(r,g,b),min=Math.min(r,g,b),lum=(r*3+g*6+b)/10;
+          const neutral=(max-min)/(lum+1);
+          if(lum>=72&&neutral<=.48)tile++;
+          n++;
+        }
+      }
+      raw[x]=n?tile/n:0;
+    }
+    const sm=smooth(raw,Math.max(1,Math.round(pitch*.045)));
+    const threshold=.43;
+    const gapLimit=Math.max(2,Math.round(pitch*.16));
+    let best=null,start=-1,last=-1,gap=0,scoreSum=0,scoreN=0;
+    const finish=()=>{
+      if(start<0||last<start){start=-1;last=-1;gap=0;scoreSum=0;scoreN=0;return;}
+      const width=last-start+1;
+      const overlap=Math.max(0,Math.min(last,row.x+row.w)-Math.max(start,row.x));
+      const overlapRatio=width?overlap/width:0;
+      const scale=width/row.w;
+      const mean=scoreN?scoreSum/scoreN:0;
+      if(overlapRatio>.80&&scale>=.90&&scale<=1.05){
+        const candidate={start,last,width,mean,overlapRatio,scale};
+        if(!best||candidate.width>best.width||(candidate.width===best.width&&candidate.mean>best.mean))best=candidate;
+      }
+      start=-1;last=-1;gap=0;scoreSum=0;scoreN=0;
+    };
+    for(let x=scanX0;x<=scanX1;x++){
+      const v=sm[x]||0;
+      if(v>=threshold){
+        if(start<0)start=x;
+        last=x;gap=0;scoreSum+=v;scoreN++;
+      }else if(start>=0){
+        gap++;
+        if(gap<=gapLimit){scoreSum+=v;scoreN++;}
+        else finish();
+      }
+    }
+    finish();
+    if(!best)return {row,used:false,reason:'no-outer-span'};
+
+    const pad=Math.max(1,pitch*.025);
+    let left=Math.max(0,best.start-pad);
+    let right=Math.min(cw,best.last+1+pad);
+    const width=right-left;
+    const scale=width/row.w;
+    // Keep this correction deliberately low freedom: only outer endpoints move,
+    // and reject large changes that could represent a different bright object.
+    if(scale<.925||scale>1.025){
+      return {row,used:false,reason:'outer-scale-guard',candidateScale:scale,mean:best.mean};
+    }
+    const refined={...row,x:left,w:width};
+    const oldPitch=row.w/count,newPitch=width/count;
+    const leftMove=(left-row.x)/oldPitch;
+    const rightMove=(right-(row.x+row.w))/oldPitch;
+    const meaningful=Math.abs(leftMove)>=.035||Math.abs(rightMove)>=.035||Math.abs(newPitch/oldPitch-1)>=.004;
+    if(!meaningful)return {row,used:false,reason:'outer-no-change',candidateScale:scale,mean:best.mean};
+    return {
+      row:refined,used:true,reason:'outer-edge-span',
+      leftMovePitch:leftMove,rightMovePitch:rightMove,
+      pitchScale:newPitch/oldPitch,meanSupport:best.mean
+    };
+  }
+
+
   function fitGlobalRowGrid(ctx,row,count=14){
     if(!ctx||!row||!Number.isFinite(row.x)||!Number.isFinite(row.w)||row.w<=0||count<2){
       return {row,used:false,reason:'invalid'};
@@ -1545,13 +1634,16 @@
     lowCtx.drawImage(highCanvas,0,0,low.width,low.height);
     const lowRow=locateTileRow(lowCtx);
     if(!lowRow)return {row:null,boxes:[],features:[],crops:[],trainingImages:[],perspectiveCount:0,gridUsed:false,gridFit:null,photo:highCanvas.toDataURL('image/jpeg',.80)};
-    // v62: v61 real-device A/B showed the global periodic correction can lock
-    // onto repeated glyph structure and make crops much worse. Keep measuring the
-    // candidate fit for diagnostics, but production crops return to the verified
-    // equal split of the detected row until a safer alignment method is proven.
+    // v73: v72 crops drift progressively and the final slot can include table,
+    // which points to row endpoint/pitch error rather than only per-tile bleed.
+    // Refine ONLY the outer white-tile span using thin top/bottom bands, then
+    // keep an equal 14-way split. The old periodic glyph-seeking grid remains
+    // diagnostic-only because v61 proved it can lock onto symbols.
     const gridFit=fitGlobalRowGrid(lowCtx,lowRow,14);
+    const outerFit=refineRowOuterEdges(lowCtx,lowRow,14);
+    const productionLowRow=outerFit.used?outerFit.row:lowRow;
     const sx=highCanvas.width/low.width,sy=highCanvas.height/low.height;
-    const row={x:lowRow.x*sx,y:lowRow.y*sy,w:lowRow.w*sx,h:lowRow.h*sy};
+    const row={x:productionLowRow.x*sx,y:productionLowRow.y*sy,w:productionLowRow.w*sx,h:productionLowRow.h*sy};
     const boxes=splitRow(row,14);
     const tileData=boxes.map(b=>analyzeTileBox(highCtx,b));
     return {
@@ -1566,6 +1658,14 @@
       bleedInsets:tileData.map(x=>({left:Number((x.bleedTrimLeft||.12).toFixed(4)),right:Number((x.bleedTrimRight||.12).toFixed(4))})),
       gridUsed:false,
       gridCandidate:gridFit.used===true,
+      outerFitUsed:outerFit.used===true,
+      outerFit:{
+        reason:outerFit.reason||'',
+        leftMovePitch:Number.isFinite(outerFit.leftMovePitch)?Number(outerFit.leftMovePitch.toFixed(4)):null,
+        rightMovePitch:Number.isFinite(outerFit.rightMovePitch)?Number(outerFit.rightMovePitch.toFixed(4)):null,
+        pitchScale:Number.isFinite(outerFit.pitchScale)?Number(outerFit.pitchScale.toFixed(4)):null,
+        meanSupport:Number.isFinite(outerFit.meanSupport)?Number(outerFit.meanSupport.toFixed(4)):null
+      },
       gridFit:{
         reason:gridFit.reason||'',
         gain:Number.isFinite(gridFit.gain)?Number(gridFit.gain.toFixed(4)):null,
@@ -1624,7 +1724,7 @@
       if(note)note.textContent=features.length===14
         ?(firstCalibration
           ?'この保存領域には学習データがありません。今回だけ14枚を正しく指定してください。「この手牌で進む」を押した時に保存完了を確認してから次へ進みます。'
-          :`精度優先版です。隣牌が混ざる側は固定幅cropを横移動せず、その側だけ非対称に削ってから再拡大します。その後に高速5視点中央値合意＋Top4微調整を行います。高信頼候補 ${auto}枚。保留理由: ${confidenceReasonSummary()}。認識 ${Math.max(0,state.lastRecognitionMs||0)}ms / 境界除去 ${analysis.bleedSafeCount||0}/14 / 補助view ${state.lastAuxViewsUsed||0} / 微調整 ${state.lastMicroRefined||0}${state.lastAuxFallbackCount?' / 時間上限fallback':''}。`)
+          :`精度優先版です。まず牌列の左右端を牌面だけの帯域から補正して14等分のpitchずれを抑え、その後に隣牌側の非対称trim、高速5視点中央値合意＋Top4微調整を行います。高信頼候補 ${auto}枚。保留理由: ${confidenceReasonSummary()}。認識 ${Math.max(0,state.lastRecognitionMs||0)}ms / 外周補正 ${analysis.outerFitUsed?'ON':'OFF'} / 境界除去 ${analysis.bleedSafeCount||0}/14 / 補助view ${state.lastAuxViewsUsed||0} / 微調整 ${state.lastMicroRefined||0}${state.lastAuxFallbackCount?' / 時間上限fallback':''}。`)
         :'白枠内から牌列を特定できませんでした。撮影画像を確認し、14枠を手動入力するか「読み取り直す」で再撮影してください。';
       const status=root.querySelector('.hand-result-status-m7v5');
       if(status&&auto<14)status.textContent=features.length===14
@@ -1666,7 +1766,8 @@
       state.diagnostics={
         sourceWidth:Math.round(capture.source.w),sourceHeight:Math.round(capture.source.h),
         rowFound:!!analysis.row,row:analysis.row?{...analysis.row}:null,
-        gridUsed:false,gridCandidate:analysis.gridCandidate===true,gridFit:analysis.gridFit||null
+        gridUsed:false,gridCandidate:analysis.gridCandidate===true,gridFit:analysis.gridFit||null,
+        outerFitUsed:analysis.outerFitUsed===true,outerFit:analysis.outerFit||null
       };
       window.M7V36LastDiagnostics=state.diagnostics;
       // Existing cancel owns the MediaStream and removes the camera overlay.
@@ -1797,6 +1898,6 @@
   },true);
 
   window.M7CameraV36=Object.freeze({
-    sourceRectForCover,locateTileRow,splitRow,fitGlobalRowGrid,splitRowBySeams,analyzeGuideCanvas,featureFromBox,tileFaceRect,descriptorFromCanvas,detectFaceGeometry,detectFaceQuad,canonicalizeCanvas,orientedFaceCanvas,perspectiveFaceCanvas,warpQuadToCanvas,trainingImageDataUrl,estimateBleedSafeShift,safeInsetWindow,innerRecognitionCanvas,innerRecognitionWindowCanvas,innerFeatureFromCanonical,inferenceFeatureViews,analyzeTileBox,loadTrainingSamples,rebuildLibraryFromTrainingImages,loadLibrary,activeLibrary,saveLibrary,saveLibraryDetailed,persistVerifiedHand,persistFailureText,loadLegacyLibrary,legacyLibraryKeys,convertLegacyDirectFeature,cropResampleFeatureMap,confidenceAssessment,confidentCandidate,confidenceReasonSummary,renderPickerPhoto,renderPickerSuggestions,pickerCurrentIndex,schedulePickerSuggestionSync,attachPickerSuggestionObserver
+    sourceRectForCover,locateTileRow,splitRow,refineRowOuterEdges,fitGlobalRowGrid,splitRowBySeams,analyzeGuideCanvas,featureFromBox,tileFaceRect,descriptorFromCanvas,detectFaceGeometry,detectFaceQuad,canonicalizeCanvas,orientedFaceCanvas,perspectiveFaceCanvas,warpQuadToCanvas,trainingImageDataUrl,estimateBleedSafeShift,safeInsetWindow,innerRecognitionCanvas,innerRecognitionWindowCanvas,innerFeatureFromCanonical,inferenceFeatureViews,analyzeTileBox,loadTrainingSamples,rebuildLibraryFromTrainingImages,loadLibrary,activeLibrary,saveLibrary,saveLibraryDetailed,persistVerifiedHand,persistFailureText,loadLegacyLibrary,legacyLibraryKeys,convertLegacyDirectFeature,cropResampleFeatureMap,confidenceAssessment,confidentCandidate,confidenceReasonSummary,renderPickerPhoto,renderPickerSuggestions,pickerCurrentIndex,schedulePickerSuggestionSync,attachPickerSuggestionObserver
   });
 })();

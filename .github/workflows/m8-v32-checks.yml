@@ -50,6 +50,7 @@ on:
       - work/m7-v70-microshift-refine
       - work/m7-v71-bleed-safe-crops
       - work/m7-v72-asymmetric-safe-inset
+      - work/m7-v73-outer-edge-pitch
   workflow_dispatch:
 
 jobs:

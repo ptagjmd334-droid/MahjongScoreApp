@@ -310,7 +310,7 @@ test('camera v36 is loaded before ui-fixes so verified clicks train the active c
   assert(index.indexOf('script.js')<index.indexOf('m7-recognition-core.js'));
   assert(index.indexOf('m7-recognition-core.js')<index.indexOf('m7-camera-v36.js'));
   assert(index.indexOf('m7-camera-v36.js')<index.indexOf('ui-fixes.js'));
-  assert(index.includes('M7 v72'));
+  assert(index.includes('M7 v73'));
 });
 
 test('legacy live detector and demo fill yield to the active camera owner',()=>{
@@ -327,7 +327,7 @@ test('v36 camera avoids fixed bright-white threshold and closes camera when hidd
   assert(camera.includes(".realtime-hand-cancel-m7v3')?.click()"));
 });
 
-test('v72 preserves stable learning, Top4 micro-shift, and asymmetric bleed-safe insets',()=>{
+test('v73 preserves stable learning, Top4 micro-shift, asymmetric insets, and outer-edge pitch correction',()=>{
   const camera=fs.readFileSync(path.join(root,'m7-camera-v36.js'),'utf8');
   assert(camera.includes("MahjongScoreApp_tile_templates_stable1"));
   assert(camera.includes("MahjongScoreApp_tile_templates_stable1_backup"));
@@ -371,11 +371,15 @@ test('v72 preserves stable learning, Top4 micro-shift, and asymmetric bleed-safe
   assert(camera.includes('function inferenceFeatureViews'));
   assert(camera.includes('function estimateBleedSafeShift'));
   assert(camera.includes('function safeInsetWindow'));
+  assert(camera.includes('function refineRowOuterEdges'));
   assert(camera.includes('function innerRecognitionWindowCanvas'));
   assert(camera.includes('const bleedInfo=estimateBleedSafeShift(canonical,.12)'));
   assert(camera.includes('bleedSafeCount:tileData.filter'));
   assert(camera.includes('bleedInsetApplied:safeWindow.applied===true'));
   assert(camera.includes('bleedInsets:tileData.map'));
+  assert(camera.includes('const outerFit=refineRowOuterEdges(lowCtx,lowRow,14)'));
+  assert(camera.includes('const productionLowRow=outerFit.used?outerFit.row:lowRow'));
+  assert(camera.includes('outerFitUsed:outerFit.used===true'));
   assert(camera.includes('境界除去'));
   assert(camera.includes('core.rankLabelsFastDiscriminative(view,lib'));
   assert(camera.includes('core.combineViewRankings(rankings)'));
@@ -397,7 +401,7 @@ test('v72 preserves stable learning, Top4 micro-shift, and asymmetric bleed-safe
   assert(camera.includes("reason:'template-distance'"));
   assert(camera.includes('gridCandidate:gridFit.used===true'));
   assert(camera.includes('gridUsed:false'));
-  assert(camera.includes('const row={x:lowRow.x*sx,y:lowRow.y*sy,w:lowRow.w*sx,h:lowRow.h*sy}'));
+  assert(camera.includes('const row={x:productionLowRow.x*sx,y:productionLowRow.y*sy,w:productionLowRow.w*sx,h:productionLowRow.h*sy}'));
   const picker=fs.readFileSync(path.join(root,'m8-v3.js'),'utf8');
   assert(picker.includes('100dvh'));
   assert(picker.includes('grid-template-columns:repeat(12,minmax(0,1fr))'));
