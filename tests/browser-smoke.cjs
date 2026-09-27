@@ -34,7 +34,7 @@ const server=http.createServer((req,res)=>{
     const errors=[];page.on('pageerror',e=>errors.push(String(e)));
     await page.goto('http://127.0.0.1:'+port+'/',{waitUntil:'domcontentloaded',timeout:30000});
     await page.waitForSelector('#go-confirm-button',{timeout:12000});
-    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'M7 v73');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'M7 v74');
     // v36 analyzes one long row after the shutter instead of requiring 14 live connected components.
     const synthetic=await page.evaluate(()=>{
       const canvas=document.createElement('canvas');canvas.width=840;canvas.height=260;
@@ -80,9 +80,45 @@ const server=http.createServer((req,res)=>{
         pitchScale:fit.pitchScale??null
       };
     });
-    assert(outerEdge.used,'v73 outer-edge fit did not engage '+JSON.stringify(outerEdge));
-    assert(outerEdge.afterLeft<outerEdge.beforeLeft,'v73 outer-edge fit did not improve row start '+JSON.stringify(outerEdge));
-    assert(outerEdge.afterPitch<outerEdge.beforePitch,'v73 outer-edge fit did not improve row pitch '+JSON.stringify(outerEdge));
+    assert(outerEdge.used,'v74 outer-edge fit did not engage '+JSON.stringify(outerEdge));
+    assert(outerEdge.afterLeft<outerEdge.beforeLeft,'v74 outer-edge fit did not improve row start '+JSON.stringify(outerEdge));
+    assert(outerEdge.afterPitch<outerEdge.beforePitch,'v74 outer-edge fit did not improve row pitch '+JSON.stringify(outerEdge));
+
+    const cropQuality=await page.evaluate(()=>{
+      const canvas=document.createElement('canvas');canvas.width=220;canvas.height=150;
+      const ctx=canvas.getContext('2d');ctx.fillStyle='#7a4d2d';ctx.fillRect(0,0,220,150);
+      ctx.fillStyle='#d8d6cf';ctx.fillRect(20,18,82,116);
+      ctx.fillStyle='#1a1a1a';ctx.fillRect(54,50,9,45);
+      const good=window.M7CameraV36.boxCropQuality(ctx,{x:16,y:12,w:90,h:124});
+      const bad=window.M7CameraV36.boxCropQuality(ctx,{x:128,y:12,w:82,h:124});
+      return {good,bad};
+    });
+    assert(cropQuality.good.score>cropQuality.bad.score+.20,
+      'v74 crop quality does not prefer a tile face over table '+JSON.stringify(cropQuality));
+    assert.equal(cropQuality.good.broken,false,'v74 marked synthetic tile as broken '+JSON.stringify(cropQuality));
+    assert.equal(cropQuality.bad.broken,true,'v74 failed to reject table-only crop '+JSON.stringify(cropQuality));
+
+    const qualityRow=await page.evaluate(()=>{
+      const canvas=document.createElement('canvas');canvas.width=840;canvas.height=260;
+      const ctx=canvas.getContext('2d');ctx.fillStyle='#70472b';ctx.fillRect(0,0,840,260);
+      const start=110,pitch=43,top=74,height=114;
+      ctx.fillStyle='#d8d6cf';ctx.fillRect(start,top,pitch*14,height);
+      ctx.fillStyle='#1a1a1a';
+      for(let i=0;i<14;i++)ctx.fillRect(start+i*pitch+18,110,5,38);
+      const noisy={x:start-5,y:68,w:pitch*14+18,h:128};
+      const outer=window.M7CameraV36.refineRowOuterEdges(ctx,noisy,14);
+      const selected=window.M7CameraV36.selectRowByCropQuality(ctx,noisy,outer,14);
+      return {
+        used:selected.used,reason:selected.reason,
+        before:selected.base?.score,after:selected.best?.score,
+        brokenBefore:selected.brokenBefore,brokenAfter:selected.brokenAfter,
+        row:selected.row
+      };
+    });
+    assert(qualityRow.after>=qualityRow.before-.012,
+      'v74 selected a lower-quality row without broken-count benefit '+JSON.stringify(qualityRow));
+    assert(qualityRow.brokenAfter<=qualityRow.brokenBefore,
+      'v74 row quality selection increased broken crops '+JSON.stringify(qualityRow));
 
     const globalGrid=await page.evaluate(()=>{
       const canvas=document.createElement('canvas');canvas.width=840;canvas.height=260;
