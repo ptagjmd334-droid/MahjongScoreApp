@@ -436,6 +436,10 @@ test('v75 preserves stable learning and crop-quality-gated geometry',()=>{
   assert(camera.includes('function yoloRecognitionFromBoxes'));
   assert(camera.includes('function chooseYoloPrimaryRecognition'));
   assert(camera.includes('function yoloDuplicateVisualConflicts'));
+  assert(camera.includes('function yoloLegacySuitConflicts'));
+  assert(camera.includes('function shouldRunLegacyVerifier'));
+  assert(camera.includes('a.n===b.n&&a.family!==b.family'));
+  assert(camera.includes('yoloLegacySuitConflictIndexes'));
   assert(camera.includes('YOLO_DUPLICATE_CLOSE_DISTANCE=.145'));
   assert(camera.includes('YOLO_DUPLICATE_OUTLIER_DISTANCE=.22'));
   assert(camera.includes('YOLO_DUPLICATE_SCORE_GAP=.06'));
