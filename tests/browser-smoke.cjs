@@ -34,8 +34,8 @@ const server=http.createServer((req,res)=>{
     const errors=[];page.on('pageerror',e=>errors.push(String(e)));
     await page.goto('http://127.0.0.1:'+port+'/',{waitUntil:'domcontentloaded',timeout:30000});
     await page.waitForSelector('#go-confirm-button',{timeout:12000});
-    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'MAKI v90');
-    assert.equal(await page.$eval('#app-build-badge',e=>e.hidden),true,'v89 build badge must be hidden in normal production mode');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'MAKI v91');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.hidden),false,'v91 build badge should be visible during development');
     const v89DebugBadge=await page.evaluate(()=>{
       history.replaceState({},'',location.pathname+'?debug=1');
       const enabled=window.MAKIDebugV89?.apply?.();
@@ -107,6 +107,16 @@ const server=http.createServer((req,res)=>{
     assert(v88FriendlyErrors.incomplete.includes('14枚すべて'),'v88 incomplete save guidance missing '+JSON.stringify(v88FriendlyErrors));
     assert(v88FriendlyErrors.invalid.includes('14枚すべて'),'v88 M8 invalid-hand guidance missing '+JSON.stringify(v88FriendlyErrors));
     assert(v88FriendlyErrors.tooMany.includes('最大4枚'),'v88 M8 duplicate guidance missing '+JSON.stringify(v88FriendlyErrors));
+
+    const duplicateGuard=await page.evaluate(()=>{
+      const api=window.M7CameraV36;
+      const yolo=Array.from({length:14},(_,i)=>({label:i===3||i===6||i===7?'4萬':'東',score:.9}));
+      const same=Array(4).fill(0),farA=Array(4).fill(1),farB=Array(4).fill(-1);
+      const features=Array.from({length:14},()=>same.slice());
+      features[3]=same.slice();features[6]=farA;features[7]=farB;
+      return api.yoloDuplicateVisualConflicts(yolo,features,true,.15,.145);
+    });
+    assert(duplicateGuard.includes(3)&&duplicateGuard.includes(6)&&duplicateGuard.includes(7),'v91 duplicate-label guard must flag visually inconsistent same-label tiles '+JSON.stringify(duplicateGuard));
 
     const v90VisibleLabels=await page.evaluate(()=>{
       const hand=['1萬','2萬','3萬','4萬','5萬','6萬','7萬','8萬','9萬','東','東','東','發','發'];

@@ -40,6 +40,7 @@
   const LEGACY_YOLO_PRIMARY_CLASS_MODE="detectorMode:'yolo11n-primary-class-hybrid'"; // exact v83 source-regression marker; v84 adds safe 13→14 recovery.
   const LEGACY_YOLO_RECOVER13_MODE="detectorMode:'yolo11n-primary-class-recover13'"; // exact v84 source-regression marker; v85 adds production fast-path/UI cleanup.
   const YOLO_CLASS_USE_THRESHOLD=.15;
+  const YOLO_DUPLICATE_VISUAL_DISTANCE=.145;
   const LEGACY_YOLO_PRODUCTION_MODE="detectorMode:'yolo11n-production-crops'"; // exact v79 source-regression marker; v80 uses axis-aligned crops.
   const YOLO_MODEL_URL='https://cdn.jsdelivr.net/gh/nikmomo/Mahjong-YOLO@28ffceed232ad95fd019c47a6c51ae7c78791a0e/models/nano/mahjong-yolon-best.onnx';
   const ORT_VERSION='1.22.0';
@@ -2487,15 +2488,37 @@
     }));
   }
 
-  function chooseYoloPrimaryRecognition(yoloRecognition,legacyPredicted=[],detectorAdopted=false,threshold=YOLO_CLASS_USE_THRESHOLD){
+  function yoloDuplicateVisualConflicts(yoloRecognition,features,detectorAdopted=false,scoreThreshold=YOLO_CLASS_USE_THRESHOLD,distanceThreshold=YOLO_DUPLICATE_VISUAL_DISTANCE){
+    const yolo=Array.isArray(yoloRecognition)?yoloRecognition:[];
+    const feats=Array.isArray(features)?features:[];
+    if(!detectorAdopted||yolo.length!==14||feats.length!==14)return [];
+    const groups={};
+    for(let i=0;i<14;i++){
+      const r=yolo[i]||{};
+      if(!r.label||Number(r.score)<scoreThreshold||!feats[i])continue;
+      (groups[r.label]||(groups[r.label]=[])).push(i);
+    }
+    const conflicts=new Set();
+    for(const indexes of Object.values(groups)){
+      if(indexes.length<2)continue;
+      for(let a=0;a<indexes.length;a++)for(let b=a+1;b<indexes.length;b++){
+        const ia=indexes[a],ib=indexes[b];
+        const d=core.featureDistance(feats[ia],feats[ib]);
+        if(Number.isFinite(d)&&d>distanceThreshold){conflicts.add(ia);conflicts.add(ib);}
+      }
+    }
+    return [...conflicts].sort((a,b)=>a-b);
+  }
+
+  function chooseYoloPrimaryRecognition(yoloRecognition,legacyPredicted=[],detectorAdopted=false,threshold=YOLO_CLASS_USE_THRESHOLD,blockedYoloIndexes=[]){
     const yolo=Array.isArray(yoloRecognition)?yoloRecognition:[];
     const legacy=Array.isArray(legacyPredicted)?legacyPredicted:[];
     const labels=Array(14).fill(''),sources=Array(14).fill('unresolved');
-    const candidates=[];
+    const candidates=[],blocked=new Set(Array.isArray(blockedYoloIndexes)?blockedYoloIndexes:[]);
     if(detectorAdopted&&yolo.length===14){
       for(let i=0;i<14;i++){
         const r=yolo[i]||{};
-        if(r.label&&Number(r.score)>=threshold)candidates.push({i,label:r.label,score:Number(r.score)});
+        if(!blocked.has(i)&&r.label&&Number(r.score)>=threshold)candidates.push({i,label:r.label,score:Number(r.score)});
       }
     }
     const byLabel={};
@@ -2514,7 +2537,7 @@
         labels[i]=legacy[i];sources[i]='legacy';legacyUsed++;
       }
     }
-    return {labels,sources,yoloUsed,legacyUsed,unresolved:labels.filter(x=>!x).length,threshold};
+    return {labels,sources,yoloUsed,legacyUsed,unresolved:labels.filter(x=>!x).length,threshold,blockedYoloIndexes:[...blocked].sort((a,b)=>a-b)};
   }
 
   function applyDetectorProductionCrops(highCanvas,baseAnalysis,detectorResult){
@@ -3007,24 +3030,27 @@
     state.pendingTrainingImages=trainingImages.slice(0,14);
     state.pendingBroken=(analysis.cropBroken||[]).slice(0,14);
     window.M7V36PendingFeatures=state.pendingFeatures;
-    const yoloFirst=chooseYoloPrimaryRecognition(analysis.yoloRecognition||[],[],analysis.detectorAdopted===true);
+    const duplicateGuardIndexes=yoloDuplicateVisualConflicts(analysis.yoloRecognition||[],features,analysis.detectorAdopted===true);
+    const yoloFirst=chooseYoloPrimaryRecognition(analysis.yoloRecognition||[],[],analysis.detectorAdopted===true,YOLO_CLASS_USE_THRESHOLD,duplicateGuardIndexes);
     let legacyPredicted=Array(14).fill('');
     let legacyClassifierRan=false;
     let primary=yoloFirst;
     if(shouldRunLegacyClassifier(yoloFirst,features.length)){
       legacyPredicted=predict(features,analysis.inferenceViews||[],state.pendingBroken);
       while(legacyPredicted.length<14)legacyPredicted.push('');
-      primary=chooseYoloPrimaryRecognition(analysis.yoloRecognition||[],legacyPredicted,analysis.detectorAdopted===true);
+      primary=chooseYoloPrimaryRecognition(analysis.yoloRecognition||[],legacyPredicted,analysis.detectorAdopted===true,YOLO_CLASS_USE_THRESHOLD,duplicateGuardIndexes);
       legacyClassifierRan=true;
     }else{
       resetLegacyPredictionStateForYolo();
     }
     const predicted=primary.labels.slice(0,14);
     analysis.yoloPrimary=primary;
+    analysis.yoloDuplicateGuardIndexes=duplicateGuardIndexes.slice();
     analysis.legacyClassifierRan=legacyClassifierRan;
     if(window.M7V36LastDiagnostics){
       window.M7V36LastDiagnostics.predictions=(state.predictionDebug||[]).map(x=>x.slice());
       window.M7V36LastDiagnostics.yoloPrimary={...primary,labels:primary.labels.slice(),sources:primary.sources.slice()};
+      window.M7V36LastDiagnostics.yoloDuplicateGuardIndexes=duplicateGuardIndexes.slice();
       window.M7V36LastDiagnostics.legacyClassifierRan=legacyClassifierRan;
       window.M7V36LastDiagnostics.legacyRecognitionMs=state.lastRecognitionMs||0;
     }
@@ -3268,6 +3294,6 @@
   },true);
 
   window.M7CameraV36=Object.freeze({
-    sourceRectForCover,locateTileRow,splitRow,boxCropQuality,canvasCropQuality,rowCropQuality,selectRowByCropQuality,rescueBrokenBox,tripletCropQuality,applyLocalBoundaryDelta,rescueLocalBoundaries,detectorWindows,detectorIoU,detectorNms,decodeYoloOutput,runYoloTileDetectorDiagnostic,detectorGeometryEvaluation,detectorSubsetCandidates,detectorMissingSlotFit,detectorRecoverThirteenCandidates,selectDetectorProductionBoxes,yoloLabelToAppTile,shouldRunLegacyClassifier,mountDetectorDiagnostic,yoloRecognitionFromBoxes,chooseYoloPrimaryRecognition,axisAlignedYoloFaceCanvas,analyzeYoloTileBox,applyDetectorProductionCrops,renderDetectorResult,detectorFailureUserText,boundaryLikelihoodDiagnostics,refineRowOuterEdges,fitGlobalRowGrid,splitRowBySeams,analyzeGuideCanvas,featureFromBox,tileFaceRect,descriptorFromCanvas,detectFaceGeometry,detectFaceQuad,canonicalizeCanvas,orientedFaceCanvas,perspectiveFaceCanvas,warpQuadToCanvas,trainingImageDataUrl,estimateBleedSafeShift,safeInsetWindow,chooseRecognitionWindow,innerRecognitionCanvas,innerRecognitionWindowCanvas,innerFeatureFromCanonical,inferenceFeatureViews,analyzeTileBox,loadTrainingSamples,rebuildLibraryFromTrainingImages,loadLibrary,activeLibrary,saveLibrary,saveLibraryDetailed,persistVerifiedHand,persistFailureText,persistFailureUserText,loadLegacyLibrary,legacyLibraryKeys,convertLegacyDirectFeature,cropResampleFeatureMap,confidenceAssessment,confidentCandidate,confidenceReasonSummary,renderPickerPhoto,renderPickerSuggestions,pickerCurrentIndex,schedulePickerSuggestionSync,attachPickerSuggestionObserver
+    sourceRectForCover,locateTileRow,splitRow,boxCropQuality,canvasCropQuality,rowCropQuality,selectRowByCropQuality,rescueBrokenBox,tripletCropQuality,applyLocalBoundaryDelta,rescueLocalBoundaries,detectorWindows,detectorIoU,detectorNms,decodeYoloOutput,runYoloTileDetectorDiagnostic,detectorGeometryEvaluation,detectorSubsetCandidates,detectorMissingSlotFit,detectorRecoverThirteenCandidates,selectDetectorProductionBoxes,yoloLabelToAppTile,shouldRunLegacyClassifier,mountDetectorDiagnostic,yoloRecognitionFromBoxes,yoloDuplicateVisualConflicts,chooseYoloPrimaryRecognition,axisAlignedYoloFaceCanvas,analyzeYoloTileBox,applyDetectorProductionCrops,renderDetectorResult,detectorFailureUserText,boundaryLikelihoodDiagnostics,refineRowOuterEdges,fitGlobalRowGrid,splitRowBySeams,analyzeGuideCanvas,featureFromBox,tileFaceRect,descriptorFromCanvas,detectFaceGeometry,detectFaceQuad,canonicalizeCanvas,orientedFaceCanvas,perspectiveFaceCanvas,warpQuadToCanvas,trainingImageDataUrl,estimateBleedSafeShift,safeInsetWindow,chooseRecognitionWindow,innerRecognitionCanvas,innerRecognitionWindowCanvas,innerFeatureFromCanonical,inferenceFeatureViews,analyzeTileBox,loadTrainingSamples,rebuildLibraryFromTrainingImages,loadLibrary,activeLibrary,saveLibrary,saveLibraryDetailed,persistVerifiedHand,persistFailureText,persistFailureUserText,loadLegacyLibrary,legacyLibraryKeys,convertLegacyDirectFeature,cropResampleFeatureMap,confidenceAssessment,confidentCandidate,confidenceReasonSummary,renderPickerPhoto,renderPickerSuggestions,pickerCurrentIndex,schedulePickerSuggestionSync,attachPickerSuggestionObserver
   });
 })();
