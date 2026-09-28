@@ -34,7 +34,7 @@ const server=http.createServer((req,res)=>{
     const errors=[];page.on('pageerror',e=>errors.push(String(e)));
     await page.goto('http://127.0.0.1:'+port+'/',{waitUntil:'domcontentloaded',timeout:30000});
     await page.waitForSelector('#go-confirm-button',{timeout:12000});
-    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'M7 v87');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'M7 v88');
     const m8BridgeV87=await page.evaluate(()=>{
       const hand=['1萬','1萬','1萬','2萬','3萬','4萬','2筒','3筒','4筒','6索','7索','8索','東','東'];
       window.m8WinningTileV7='9萬';window.m8SuggestedFuV21=50;window.m8SuggestedHanV23=3;
@@ -74,6 +74,28 @@ const server=http.createServer((req,res)=>{
     assert(m8BridgeV87.title.includes('アガリ形です'),'v87 did not open M8 analysis for a valid winning hand '+JSON.stringify(m8BridgeV87));
     assert.equal(m8BridgeV87.invalidRejected,true,'v87 accepted a 13-tile hand into M8 state '+JSON.stringify(m8BridgeV87));
     assert.equal(m8BridgeV87.invalidKept,true,'v87 invalid hand mutated the last valid M8 hand '+JSON.stringify(m8BridgeV87));
+
+    const v88FriendlyErrors=await page.evaluate(()=>{
+      const camera=window.M7CameraV36;
+      return {
+        model:camera.detectorFailureUserText('model-load-failed'),
+        count13:camera.detectorFailureUserText('count-13'),
+        count17:camera.detectorFailureUserText('count-17'),
+        ambiguous:camera.detectorFailureUserText('subset-ambiguous'),
+        quota:camera.persistFailureUserText({reason:'durable-store-failed',storage:{error:'QuotaExceededError'}}),
+        incomplete:camera.persistFailureUserText({reason:'labels-incomplete'}),
+        invalid:window.MAKIV88?.verifiedHandFailureText({reason:'invalid-tiles'})||'',
+        tooMany:window.MAKIV88?.verifiedHandFailureText({reason:'too-many-5筒'})||''
+      };
+    });
+    assert(v88FriendlyErrors.model.includes('通信状態'),'v88 model failure is not actionable '+JSON.stringify(v88FriendlyErrors));
+    assert(v88FriendlyErrors.count13.includes('14枚'),'v88 count-13 guidance missing '+JSON.stringify(v88FriendlyErrors));
+    assert(v88FriendlyErrors.count17.includes('14枚だけ'),'v88 excess detection guidance missing '+JSON.stringify(v88FriendlyErrors));
+    assert(v88FriendlyErrors.ambiguous.includes('横一列'),'v88 ambiguous guidance missing '+JSON.stringify(v88FriendlyErrors));
+    assert(v88FriendlyErrors.quota.includes('空き容量'),'v88 quota guidance missing '+JSON.stringify(v88FriendlyErrors));
+    assert(v88FriendlyErrors.incomplete.includes('14枚すべて'),'v88 incomplete save guidance missing '+JSON.stringify(v88FriendlyErrors));
+    assert(v88FriendlyErrors.invalid.includes('14枚すべて'),'v88 M8 invalid-hand guidance missing '+JSON.stringify(v88FriendlyErrors));
+    assert(v88FriendlyErrors.tooMany.includes('最大4枚'),'v88 M8 duplicate guidance missing '+JSON.stringify(v88FriendlyErrors));
 
     assert.equal(await page.title(),'MAKI｜麻雀対局管理');
     assert.equal(await page.$eval('.setup-header h1',e=>e.textContent.trim()),'MAKI');

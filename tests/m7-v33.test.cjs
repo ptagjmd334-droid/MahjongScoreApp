@@ -312,10 +312,17 @@ test('camera v36 is loaded before ui-fixes so verified clicks train the active c
   assert(index.indexOf('script.js')<index.indexOf('m7-recognition-core.js'));
   assert(index.indexOf('m7-recognition-core.js')<index.indexOf('m7-camera-v36.js'));
   assert(index.indexOf('m7-camera-v36.js')<index.indexOf('ui-fixes.js'));
-  assert(index.includes('M7 v87'));
+  assert(index.includes('M7 v88'));
   assert(uiFixes.includes('publishVerifiedHandM8V87'));
   assert(uiFixes.includes('acceptVerifiedHandM8V87'));
   assert(uiFixes.includes("maki:verified-hand"));
+  assert(uiFixes.includes('verifiedHandFailureTextV88'));
+  assert(uiFixes.includes('window.MAKIV88'));
+  const camera=fs.readFileSync(path.join(root,'m7-camera-v36.js'),'utf8');
+  assert(camera.includes('function detectorFailureUserText'));
+  assert(camera.includes('function persistFailureUserText'));
+  assert(camera.includes("detectorMode:'yolo11n-production-fastpath-v88'"));
+  assert(camera.includes("detectorMode:'yolo11n-production-fastpath'"));
   assert(script.includes('acceptVerifiedHandM8V87'));
 
   assert(index.includes('<title>MAKI｜麻雀対局管理</title>'));
