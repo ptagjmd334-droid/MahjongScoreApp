@@ -130,6 +130,17 @@ const server=http.createServer((req,res)=>{
     assert.deepEqual(duplicateGuard.incoherentWeakTriple,[3,6,7],'v92 should stop an incoherent weak 3+ duplicate group '+JSON.stringify(duplicateGuard));
     assert.deepEqual(duplicateGuard.incoherentStrongTriple,[],'v92 should not overrule uniformly strong YOLO labels on appearance alone '+JSON.stringify(duplicateGuard));
 
+    const suitVerifier=await page.evaluate(()=>{
+      const api=window.M7CameraV36;
+      const yolo=Array.from({length:14},()=>({label:'東',score:.9}));
+      const legacy=Array(14).fill('');
+      yolo[4]={label:'5筒',score:.92};legacy[4]='5萬';
+      yolo[5]={label:'6萬',score:.91};legacy[5]='6萬';
+      yolo[6]={label:'7萬',score:.90};legacy[6]='8萬';
+      return api.yoloLegacySuitConflicts(yolo,legacy,true);
+    });
+    assert.deepEqual(suitVerifier,[4],'v93 must catch same-number cross-suit disagreement but ignore same-suit number disagreement '+JSON.stringify(suitVerifier));
+
     const v90VisibleLabels=await page.evaluate(()=>{
       const hand=['1萬','2萬','3萬','4萬','5萬','6萬','7萬','8萬','9萬','東','東','東','發','發'];
       window.showHandResultM7V5(hand);
