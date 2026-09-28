@@ -40,7 +40,10 @@
   const LEGACY_YOLO_PRIMARY_CLASS_MODE="detectorMode:'yolo11n-primary-class-hybrid'"; // exact v83 source-regression marker; v84 adds safe 13→14 recovery.
   const LEGACY_YOLO_RECOVER13_MODE="detectorMode:'yolo11n-primary-class-recover13'"; // exact v84 source-regression marker; v85 adds production fast-path/UI cleanup.
   const YOLO_CLASS_USE_THRESHOLD=.15;
-  const YOLO_DUPLICATE_VISUAL_DISTANCE=.145;
+  const YOLO_DUPLICATE_CLOSE_DISTANCE=.145;
+  const YOLO_DUPLICATE_OUTLIER_DISTANCE=.22;
+  const YOLO_DUPLICATE_SCORE_GAP=.06;
+  const YOLO_DUPLICATE_LOW_SCORE=.50;
   const LEGACY_YOLO_PRODUCTION_MODE="detectorMode:'yolo11n-production-crops'"; // exact v79 source-regression marker; v80 uses axis-aligned crops.
   const YOLO_MODEL_URL='https://cdn.jsdelivr.net/gh/nikmomo/Mahjong-YOLO@28ffceed232ad95fd019c47a6c51ae7c78791a0e/models/nano/mahjong-yolon-best.onnx';
   const ORT_VERSION='1.22.0';
@@ -2488,7 +2491,7 @@
     }));
   }
 
-  function yoloDuplicateVisualConflicts(yoloRecognition,features,detectorAdopted=false,scoreThreshold=YOLO_CLASS_USE_THRESHOLD,distanceThreshold=YOLO_DUPLICATE_VISUAL_DISTANCE){
+  function yoloDuplicateVisualConflicts(yoloRecognition,features,detectorAdopted=false,scoreThreshold=YOLO_CLASS_USE_THRESHOLD,closeDistance=YOLO_DUPLICATE_CLOSE_DISTANCE,outlierDistance=YOLO_DUPLICATE_OUTLIER_DISTANCE){
     const yolo=Array.isArray(yoloRecognition)?yoloRecognition:[];
     const feats=Array.isArray(features)?features:[];
     if(!detectorAdopted||yolo.length!==14||feats.length!==14)return [];
@@ -2500,11 +2503,45 @@
     }
     const conflicts=new Set();
     for(const indexes of Object.values(groups)){
-      if(indexes.length<2)continue;
+      // A pair can be a perfectly legitimate pair (雀頭 etc.). v91 learned that
+      // two-image appearance variance alone is not enough evidence to block it.
+      if(indexes.length<3)continue;
+      let closest=null;
+      const pairs=[];
       for(let a=0;a<indexes.length;a++)for(let b=a+1;b<indexes.length;b++){
         const ia=indexes[a],ib=indexes[b];
-        const d=core.featureDistance(feats[ia],feats[ib]);
-        if(Number.isFinite(d)&&d>distanceThreshold){conflicts.add(ia);conflicts.add(ib);}
+        const distance=core.featureDistance(feats[ia],feats[ib]);
+        if(!Number.isFinite(distance))continue;
+        const pair={ia,ib,distance};
+        pairs.push(pair);
+        if(!closest||distance<closest.distance)closest=pair;
+      }
+      if(!closest)continue;
+      const scored=indexes.map(i=>({i,score:Number(yolo[i]?.score)||0})).sort((a,b)=>b.score-a.score);
+      const maxScore=scored[0]?.score||0,minScore=scored[scored.length-1]?.score||0;
+
+      if(closest.distance<=closeDistance){
+        // At least two crops look like the same physical tile type. Keep that
+        // coherent pair and only challenge a visually distant, weaker outlier.
+        const anchors=[closest.ia,closest.ib];
+        const anchorScore=Math.max(Number(yolo[anchors[0]]?.score)||0,Number(yolo[anchors[1]]?.score)||0);
+        for(const i of indexes){
+          if(anchors.includes(i))continue;
+          const ds=anchors.map(a=>core.featureDistance(feats[i],feats[a])).filter(Number.isFinite);
+          const minDistance=ds.length?Math.min(...ds):Infinity;
+          const score=Number(yolo[i]?.score)||0;
+          if(minDistance>outlierDistance&&(score<YOLO_DUPLICATE_LOW_SCORE||anchorScore-score>=YOLO_DUPLICATE_SCORE_GAP)){
+            conflicts.add(i);
+          }
+        }
+        continue;
+      }
+
+      // No visually coherent pair exists in a 3+ duplicate group. Only stop the
+      // group when confidence also says at least one member is weak; this avoids
+      // repeating v91's over-reaction to legitimate 東東東 under crop/lighting variance.
+      if(minScore<YOLO_DUPLICATE_LOW_SCORE||maxScore-minScore>=YOLO_DUPLICATE_SCORE_GAP){
+        for(const i of indexes)conflicts.add(i);
       }
     }
     return [...conflicts].sort((a,b)=>a-b);
