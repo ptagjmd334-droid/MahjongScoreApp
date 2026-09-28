@@ -30,6 +30,7 @@
   const LEGACY_CROP_DIAGNOSTIC_LABEL='crop品質fallback / 境界trim / 軸平行crop'; // stable v75-v84 diagnostic markers kept for source regressions.
   const LEGACY_YOLO_CLASS_UI_LABEL='YOLO牌種'; // stable v83-v84 source marker; v85 production status is simplified.
   const LEGACY_SAVE_CONFIRMATION_LABEL='保存完了を確認してから次へ進みます'; // stable calibration source marker; v85 copy is shorter.
+  const LEGACY_YOLO_FASTPATH_MODE="detectorMode:'yolo11n-production-fastpath'"; // exact v85 source marker; v88 only improves production errors.
   const LEGACY_YOLO_DIAGNOSTIC_MODE="detectorMode:'yolo11n-diagnostic'"; // exact v78 source-regression marker; v79 production mode is separate.
   const LEGACY_YOLO_AXIS_MODE="detectorMode:'yolo11n-production-axis-aligned-crops'"; // exact v80/v81 source-regression marker; v82 adds subset selection.
   const LEGACY_YOLO_SUBSET_MODE="detectorMode:'yolo11n-production-axis-aligned-subset-crops'"; // exact v82 source-regression marker; v83 adds YOLO class recognition.
@@ -2577,7 +2578,12 @@
     if(!result?.ok){
       const code=result?.error||reason||'unknown';
       label.textContent='認識詳細：fallback';
-      if(body)body.textContent='YOLO牌分割を使えませんでした：'+code+' / 既存crop・手動修正へfallback';
+      if(body){
+        const msg=document.createElement('div');msg.className='maki-recognition-error-v88';
+        msg.textContent=detectorFailureUserText(code,result);
+        const tech=document.createElement('small');tech.textContent='詳細コード: '+code;
+        body.append(msg,tech);
+      }
       wrap.open=true;
       return;
     }
@@ -2603,6 +2609,34 @@
     if(raw.includes('fetch')||raw.includes('Load model'))return 'model-load-failed';
     if(raw.includes('WebAssembly')||raw.includes('wasm'))return 'wasm-init-failed';
     return raw.slice(0,120);
+  }
+
+  function detectorFailureUserText(reason,result=null){
+    const code=String(reason||result?.error||'unknown');
+    if(code==='model-load-failed'||code.includes('ort-script')){
+      return 'AIモデルを読み込めませんでした。通信状態を確認して「読み取り直す」を押してください。';
+    }
+    if(code==='wasm-init-failed'){
+      return 'この端末でAI処理を開始できませんでした。ページを再読み込みして、もう一度撮影してください。';
+    }
+    if(/^count-\d+$/.test(code)){
+      const n=Number(code.slice(6));
+      if(n<14)return '14枚すべてが白枠内に入るよう、牌を重ねず横一列に並べて撮り直してください。';
+      return '牌以外の物や重複検出が入りました。14枚だけを横一列にして撮り直してください。';
+    }
+    if(code==='recover-13-no-valid'){
+      return '14枚のうち1枚以上を安定して分けられませんでした。牌同士を少し離し、14枚を横一列にして撮り直してください。';
+    }
+    if(code==='subset-ambiguous'||code==='subset-no-valid'){
+      return '14枚の区切りを一意に決められませんでした。牌の重なりをなくして、横一列に並べ直してください。';
+    }
+    if(['geometry','x-spacing','y-spread','size-variance','row-range','aspect'].includes(code)){
+      return '牌列の位置や間隔を確認できませんでした。14枚を同じ向きで、白枠の中央に横一列で置いてください。';
+    }
+    if(code==='source-small'||code==='row-too-small'){
+      return '牌が小さすぎます。スマホを少し近づけて、14枚が白枠内に収まる距離で撮影してください。';
+    }
+    return '牌を安定して認識できませんでした。「読み取り直す」で再撮影するか、結果画面で手動修正してください。';
   }
 
   function mountDetectorDiagnostic(root){
@@ -2638,7 +2672,11 @@
       if(!root.isConnected)return;
       const code=detectorErrorCode(error);
       label.textContent='認識詳細：fallback';
-      if(body)body.textContent='YOLO牌検出を開始できませんでした：'+code+' / 既存crop・手動修正は利用できます';
+      if(body){
+        const msg=document.createElement('div');msg.className='maki-recognition-error-v88';msg.textContent=detectorFailureUserText(code);
+        const tech=document.createElement('small');tech.textContent='詳細コード: '+code;
+        body.append(msg,tech);
+      }
       wrap.open=true;
       if(window.M7V36LastDiagnostics)window.M7V36LastDiagnostics.yoloDetector={ok:false,error:code};
     });
@@ -3070,7 +3108,7 @@
         cropQualityFallbackCount:analysis.cropQualityFallbackCount||0,brokenCropCount:analysis.brokenCropCount||0,
         boundaryTrimCount:analysis.boundaryTrimCount||0,resplitAdoptedCount:analysis.resplitAdoptedCount||0,
         localBoundaryDebug:analysis.localBoundaryDebug||[],cropQualities:analysis.cropQualities||[],boundarySignal:analysis.boundarySignal||null,
-        detectorMode:'yolo11n-production-fastpath',detectorAdopted:analysis.detectorAdopted===true,yoloAxisAligned:analysis.detectorAdopted===true,
+        detectorMode:'yolo11n-production-fastpath-v88',detectorAdopted:analysis.detectorAdopted===true,yoloAxisAligned:analysis.detectorAdopted===true,
         detectorAdoptionReason:analysis.detectorAdoptionReason||'',detectorGeometry:analysis.detectorGeometry||null,
         yoloDetector:analysis.yoloDetectorResult?{...analysis.yoloDetectorResult,image:undefined}:null,
         legacyClassifierRan:false,legacyRecognitionMs:0
@@ -3122,6 +3160,21 @@
     if(storage?.firstError&&storage.firstError!==storage.error)parts.push('first='+storage.firstError);
     if(storage?.cleanup?.length)parts.push('cleanup='+storage.cleanup.length);
     return '保存失敗コード: '+parts.join(' / ');
+  }
+
+  function persistFailureUserText(result){
+    const reason=String(result?.reason||'unknown');
+    const storage=result?.storage||state.storageDiagnostics||{};
+    const detail=String(storage?.error||storage?.firstError||'').toLowerCase();
+    if(reason==='labels-incomplete')return '14枚すべての牌を確認・修正してから、もう一度「この手牌で進む」を押してください。';
+    if(reason==='features-missing'||reason.startsWith('feature-invalid-'))return '認識データが不足しています。「読み取り直す」からもう一度撮影してください。';
+    if(reason==='result-missing')return '結果画面を確認できませんでした。読み取り直してから、もう一度進んでください。';
+    if(reason==='persist-exception')return '保存処理でエラーが発生しました。入力は残っているので、もう一度「この手牌で進む」を押してください。';
+    if(reason==='durable-store-failed'||reason==='primary-readback-label-mismatch'||detail.includes('quota')){
+      return '学習データを端末へ保存できませんでした。ブラウザの空き容量を確認してから、もう一度お試しください。入力した14枚は画面に残ります。';
+    }
+    if(reason==='raw-images-missing')return '学習用画像を保存できませんでした。入力は残っているので、読み取り直してから再度お試しください。';
+    return '学習データを保存できませんでした。14枚の入力は残っているので、もう一度お試しください。';
   }
 
   async function persistVerifiedHand(root=document.getElementById('hand-result-overlay-m7v5')){
@@ -3201,12 +3254,12 @@
       if(!result.ok&&root.isConnected){
         if(status)status.textContent='学習データの保存に失敗しました';
         const note=root.querySelector('.hand-result-note-m7v5');
-        if(note)note.textContent='保存に失敗したため、この画面を閉じません。14枚の入力は残っています。 '+persistFailureText(result);
+        if(note)note.textContent=persistFailureUserText(result)+' '+persistFailureText(result);
       }
     });
   },true);
 
   window.M7CameraV36=Object.freeze({
-    sourceRectForCover,locateTileRow,splitRow,boxCropQuality,canvasCropQuality,rowCropQuality,selectRowByCropQuality,rescueBrokenBox,tripletCropQuality,applyLocalBoundaryDelta,rescueLocalBoundaries,detectorWindows,detectorIoU,detectorNms,decodeYoloOutput,runYoloTileDetectorDiagnostic,detectorGeometryEvaluation,detectorSubsetCandidates,detectorMissingSlotFit,detectorRecoverThirteenCandidates,selectDetectorProductionBoxes,yoloLabelToAppTile,shouldRunLegacyClassifier,mountDetectorDiagnostic,yoloRecognitionFromBoxes,chooseYoloPrimaryRecognition,axisAlignedYoloFaceCanvas,analyzeYoloTileBox,applyDetectorProductionCrops,renderDetectorResult,boundaryLikelihoodDiagnostics,refineRowOuterEdges,fitGlobalRowGrid,splitRowBySeams,analyzeGuideCanvas,featureFromBox,tileFaceRect,descriptorFromCanvas,detectFaceGeometry,detectFaceQuad,canonicalizeCanvas,orientedFaceCanvas,perspectiveFaceCanvas,warpQuadToCanvas,trainingImageDataUrl,estimateBleedSafeShift,safeInsetWindow,chooseRecognitionWindow,innerRecognitionCanvas,innerRecognitionWindowCanvas,innerFeatureFromCanonical,inferenceFeatureViews,analyzeTileBox,loadTrainingSamples,rebuildLibraryFromTrainingImages,loadLibrary,activeLibrary,saveLibrary,saveLibraryDetailed,persistVerifiedHand,persistFailureText,loadLegacyLibrary,legacyLibraryKeys,convertLegacyDirectFeature,cropResampleFeatureMap,confidenceAssessment,confidentCandidate,confidenceReasonSummary,renderPickerPhoto,renderPickerSuggestions,pickerCurrentIndex,schedulePickerSuggestionSync,attachPickerSuggestionObserver
+    sourceRectForCover,locateTileRow,splitRow,boxCropQuality,canvasCropQuality,rowCropQuality,selectRowByCropQuality,rescueBrokenBox,tripletCropQuality,applyLocalBoundaryDelta,rescueLocalBoundaries,detectorWindows,detectorIoU,detectorNms,decodeYoloOutput,runYoloTileDetectorDiagnostic,detectorGeometryEvaluation,detectorSubsetCandidates,detectorMissingSlotFit,detectorRecoverThirteenCandidates,selectDetectorProductionBoxes,yoloLabelToAppTile,shouldRunLegacyClassifier,mountDetectorDiagnostic,yoloRecognitionFromBoxes,chooseYoloPrimaryRecognition,axisAlignedYoloFaceCanvas,analyzeYoloTileBox,applyDetectorProductionCrops,renderDetectorResult,detectorFailureUserText,boundaryLikelihoodDiagnostics,refineRowOuterEdges,fitGlobalRowGrid,splitRowBySeams,analyzeGuideCanvas,featureFromBox,tileFaceRect,descriptorFromCanvas,detectFaceGeometry,detectFaceQuad,canonicalizeCanvas,orientedFaceCanvas,perspectiveFaceCanvas,warpQuadToCanvas,trainingImageDataUrl,estimateBleedSafeShift,safeInsetWindow,chooseRecognitionWindow,innerRecognitionCanvas,innerRecognitionWindowCanvas,innerFeatureFromCanonical,inferenceFeatureViews,analyzeTileBox,loadTrainingSamples,rebuildLibraryFromTrainingImages,loadLibrary,activeLibrary,saveLibrary,saveLibraryDetailed,persistVerifiedHand,persistFailureText,persistFailureUserText,loadLegacyLibrary,legacyLibraryKeys,convertLegacyDirectFeature,cropResampleFeatureMap,confidenceAssessment,confidentCandidate,confidenceReasonSummary,renderPickerPhoto,renderPickerSuggestions,pickerCurrentIndex,schedulePickerSuggestionSync,attachPickerSuggestionObserver
   });
 })();
