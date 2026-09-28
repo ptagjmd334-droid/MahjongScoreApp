@@ -88,7 +88,8 @@ console.log("ui-fixes.js loaded");
     return {ok:true,tiles:copy};
   }
 
-  const LEGACY_M7_SAVE_FAILURE_LABEL_V88='学習データの保存に失敗しました'; // source-regression marker; v88 user copy is actionable.\n  function verifiedHandFailureTextV88(result){
+  const LEGACY_M7_SAVE_FAILURE_LABEL_V88='学習データの保存に失敗しました'; // source-regression marker; v88 user copy is actionable.
+  function verifiedHandFailureTextV88(result){
     const reason=String(result?.reason||'unknown');
     if(reason==='invalid-tiles')return '14枚すべての牌を確認してください。未選択の牌や認識できない牌が残っています。';
     if(reason.startsWith('too-many-'))return reason.slice(9)+'が5枚以上になっています。同じ牌は最大4枚なので、該当する牌を修正してください。';
