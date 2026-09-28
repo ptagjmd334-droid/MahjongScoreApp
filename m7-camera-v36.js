@@ -96,6 +96,12 @@
       font-size:12px;font-weight:900;line-height:1;color:#b43;background:rgba(255,255,255,.86);
       border-radius:999px;padding:3px 5px
     }
+    #hand-result-overlay-m7v5 .hand-result-tile-m7v5.m7v36-crop[data-tile]::before{
+      content:attr(data-tile);position:absolute;left:4px;right:4px;bottom:4px;z-index:4;
+      padding:3px 2px;border-radius:6px;background:rgba(0,0,0,.78);color:#fff;
+      font:900 11px/1.1 -apple-system,BlinkMacSystemFont,sans-serif;text-align:center;
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none
+    }
     #hand-result-overlay-m7v5 .m7v53-top1{
       position:absolute;left:2px;right:2px;bottom:2px;z-index:2;
       padding:2px 1px;border-radius:4px;background:rgba(0,0,0,.72);color:#fff;
