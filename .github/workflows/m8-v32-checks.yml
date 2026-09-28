@@ -64,6 +64,7 @@ on:
       - work/m7-v84-recover-13-to-14
       - work/m7-v85-production-fastpath-ui
       - work/maki-v86-branding-icon-ui
+      - work/maki-v87-hand-to-m8-bridge
   workflow_dispatch:
 
 jobs:
