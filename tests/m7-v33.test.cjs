@@ -312,7 +312,7 @@ test('camera v36 is loaded before ui-fixes so verified clicks train the active c
   assert(index.indexOf('script.js')<index.indexOf('m7-recognition-core.js'));
   assert(index.indexOf('m7-recognition-core.js')<index.indexOf('m7-camera-v36.js'));
   assert(index.indexOf('m7-camera-v36.js')<index.indexOf('ui-fixes.js'));
-  assert(index.includes('MAKI v90'));
+  assert(index.includes('MAKI v91'));
   assert(uiFixes.includes('publishVerifiedHandM8V87'));
   assert(uiFixes.includes('acceptVerifiedHandM8V87'));
   assert(uiFixes.includes("maki:verified-hand"));
@@ -325,7 +325,9 @@ test('camera v36 is loaded before ui-fixes so verified clicks train the active c
   assert(camera.includes('14枚を認識中…'));
   assert(camera.includes('補助認識使用'));
   assert(camera.includes('LEGACY_PRODUCTION_LOADING_LABEL_V89'));
+  assert(index.includes('MAKIDebugV91'));
   assert(index.includes('MAKIDebugV89'));
+  assert(!index.includes('id="app-build-badge" hidden'),'development badge must stay visible in v91');
   assert(camera.includes("detectorMode:'yolo11n-production-fastpath'"));
   assert(script.includes('acceptVerifiedHandM8V87'));
 
@@ -427,6 +429,9 @@ test('v75 preserves stable learning and crop-quality-gated geometry',()=>{
   assert(camera.includes('function yoloLabelToAppTile'));
   assert(camera.includes('function yoloRecognitionFromBoxes'));
   assert(camera.includes('function chooseYoloPrimaryRecognition'));
+  assert(camera.includes('function yoloDuplicateVisualConflicts'));
+  assert(camera.includes('YOLO_DUPLICATE_VISUAL_DISTANCE=.145'));
+  assert(camera.includes('blockedYoloIndexes'));
   assert(camera.includes('YOLO_CLASS_USE_THRESHOLD=.15'));
   assert(camera.includes("detectorMode:'yolo11n-primary-class-hybrid'"));
   assert(camera.includes("detectorMode:'yolo11n-production-axis-aligned-subset-crops'"));
