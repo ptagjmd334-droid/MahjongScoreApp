@@ -1092,3 +1092,14 @@
 **再発防止:** source assertionとbrowser assertionを区別し、ブラウザがDOM文言を確認している項目はlegacy定数だけで代替しない。  
 **回帰テスト:** shutter→14編集枠→初回学習noteに保存完了確認→保存→raw/Library復元まで既存Chromiumフローを通す。  
 **確度:** Chromium assertionと結果DOMから確定。
+
+
+## M121: 認識済み14牌のM8受け渡しが複数listenerの実行順に依存していた
+**時期:** MAKI v86→v87（牌なしコード監査）  
+**症状/構造:** `ui-fixes.js` のM8 v4 handlerは、保存成功後に結果overlayを閉じてM8判定を開く際 `stopImmediatePropagation()` を使う。一方、`m8-v8` / `m8-v19` 等にも `.hand-result-ok-m7v5` のcapture listenerがあり、`m8LastTilesV8` / `m8HandStateV18/V19` への同期を別listenerへ依存していた。登録順が変わると「画面には14枚あるが計算側が0枚」のM029系を再発し得る。  
+**修正:** v87で、永続化成功直後の同一handler内に `publishVerifiedHandM8V87()` を追加し、検証済み14牌を `lastRecognizedHandM7`、`m8LastTilesV8`、`m8HandStateV18`、`m8HandStateV19` へ明示同期してからM8判定を開く。新しい手牌に古い和了牌・符・翻・面子内訳が混ざらないよう派生状態も同時resetする。  
+**安全策:** 14枚ちょうど、34種の既知牌だけ、同一牌4枚以下を満たす場合だけpublish。13枚や不正牌は前回の正しいM8状態を壊さずrejectする。既存の保存完了待ちを維持し、保存失敗時はM8へ進めない。  
+**連携イベント:** publish成功時に `maki:verified-hand` を発火し、今後のUIをDOM監視ではなく明示イベントで接続できる足場を作る。  
+**UI整理:** 結果画面の「実牌テスト後に接続」「次工程でアガリ判定へ接続」という開発中placeholder文言を撤去し、確認済み14枚がM8へ接続済みであることを表示する。  
+**回帰テスト:** Chromiumで正常な14枚をbridgeへ渡し、M8の4状態参照先が同一14枚になること、旧和了牌/符/翻/面子状態がresetされること、M8判定がアガリ形を表示すること、13枚入力をrejectして直前の正しい状態を保持することを確認。  
+**確度:** listener登録順と `stopImmediatePropagation` の構造はコード上確定。実機でのM029再発は未観測のため予防修正。
