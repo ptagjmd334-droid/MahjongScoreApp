@@ -15094,7 +15094,7 @@ function showSimpleHomeV1() {
     <div class="simple-home-card-v1">
 
       <h1>
-        麻雀対局管理
+        MAKI
       </h1>
 
 
@@ -16332,7 +16332,7 @@ function showSimpleHomeV1() {
     <div class="simple-home-card-v1">
 
       <h1>
-        麻雀対局管理
+        MAKI
       </h1>
 
 
