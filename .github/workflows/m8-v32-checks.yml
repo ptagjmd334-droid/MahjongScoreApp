@@ -69,6 +69,7 @@ on:
       - work/maki-v89-production-polish
       - work/maki-v90-visible-recognition-labels
       - work/maki-v91-duplicate-label-guard
+      - work/maki-v92-duplicate-guard-tuning
   workflow_dispatch:
 
 jobs:
