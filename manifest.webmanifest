@@ -1,6 +1,6 @@
 {
-  "name": "麻雀対局管理アプリ",
-  "short_name": "麻雀対局管理",
+  "name": "MAKI",
+  "short_name": "MAKI",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
@@ -23,5 +23,6 @@
       "type": "image/png",
       "purpose": "any maskable"
     }
-  ]
+  ],
+  "description": "麻雀対局管理・牌認識アプリ"
 }
