@@ -34,7 +34,7 @@ const server=http.createServer((req,res)=>{
     const errors=[];page.on('pageerror',e=>errors.push(String(e)));
     await page.goto('http://127.0.0.1:'+port+'/',{waitUntil:'domcontentloaded',timeout:30000});
     await page.waitForSelector('#go-confirm-button',{timeout:12000});
-    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'MAKI v89');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'MAKI v90');
     assert.equal(await page.$eval('#app-build-badge',e=>e.hidden),true,'v89 build badge must be hidden in normal production mode');
     const v89DebugBadge=await page.evaluate(()=>{
       history.replaceState({},'',location.pathname+'?debug=1');
@@ -108,6 +108,21 @@ const server=http.createServer((req,res)=>{
     assert(v88FriendlyErrors.invalid.includes('14枚すべて'),'v88 M8 invalid-hand guidance missing '+JSON.stringify(v88FriendlyErrors));
     assert(v88FriendlyErrors.tooMany.includes('最大4枚'),'v88 M8 duplicate guidance missing '+JSON.stringify(v88FriendlyErrors));
 
+    const v90VisibleLabels=await page.evaluate(()=>{
+      const hand=['1萬','2萬','3萬','4萬','5萬','6萬','7萬','8萬','9萬','東','東','東','發','發'];
+      window.showHandResultM7V5(hand);
+      const root=document.getElementById('hand-result-overlay-m7v5');
+      const buttons=[...root.querySelectorAll('.hand-result-tile-m7v5')];
+      buttons.forEach((b,i)=>{b.classList.add('m7v36-crop');b.style.backgroundImage='linear-gradient(#ddd,#ddd)';});
+      const labels=buttons.map(b=>getComputedStyle(b,'::before').content.replace(/^["']|["']$/g,''));
+      const aria=buttons.map(b=>b.getAttribute('aria-label'));
+      const judge=window.judgeMahjongWinM8V4(hand);
+      root.remove();
+      return {labels,aria,judge};
+    });
+    assert.deepEqual(v90VisibleLabels.labels,['1萬','2萬','3萬','4萬','5萬','6萬','7萬','8萬','9萬','東','東','東','發','發'],'v90 visible recognition labels mismatch '+JSON.stringify(v90VisibleLabels));
+    assert.deepEqual(v90VisibleLabels.aria,v90VisibleLabels.labels,'v90 result aria labels mismatch '+JSON.stringify(v90VisibleLabels));
+    assert.equal(v90VisibleLabels.judge?.win,true,'reference hand 123/456/789m + 東東東 + 發發 must be a winning hand '+JSON.stringify(v90VisibleLabels));
     assert.equal(await page.title(),'MAKI｜麻雀対局管理');
     assert.equal(await page.$eval('.setup-header h1',e=>e.textContent.trim()),'MAKI');
     const manifestBrand=JSON.parse(fs.readFileSync(path.join(root,'manifest.webmanifest'),'utf8'));

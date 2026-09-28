@@ -67,6 +67,7 @@ on:
       - work/maki-v87-hand-to-m8-bridge
       - work/maki-v88-production-errors-integration
       - work/maki-v89-production-polish
+      - work/maki-v90-visible-recognition-labels
   workflow_dispatch:
 
 jobs:
