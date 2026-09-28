@@ -43,7 +43,11 @@ const server=http.createServer((req,res)=>{
     for(const size of [180,192,512]){
       const p=path.join(root,'icon-'+size+'.png');
       assert(fs.existsSync(p),'MAKI icon missing '+p);
-      assert(fs.statSync(p).size>10000,'MAKI icon looks empty/suspicious '+p);
+      const bytes=fs.readFileSync(p);
+      assert(bytes.length>1000,'MAKI icon looks empty/suspicious '+p);
+      assert.equal(bytes.toString('ascii',1,4),'PNG','MAKI icon is not PNG '+p);
+      assert.equal(bytes.readUInt32BE(16),size,'MAKI icon width mismatch '+p);
+      assert.equal(bytes.readUInt32BE(20),size,'MAKI icon height mismatch '+p);
     }
 
     const v81HeaderLayout=await page.evaluate(()=>{
