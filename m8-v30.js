@@ -78,7 +78,7 @@
    const labels=[];
    if(fv!==null)labels.push(f.fu===null?'符：アプリ未確定':f.fu===fv?'符：一致':'符：差あり（アプリ'+f.fu+'符 / 実卓'+fv+'符）');
    if(hv!==null)labels.push(f.han===null?'翻：アプリ未確定':f.han===hv?'翻：一致':'翻：差あり（アプリ'+f.han+'翻 / 実卓'+hv+'翻）');
-   const report=['麻雀対局管理アプリ M8 v31 実卓照合',header(f),'手牌：'+f.tiles.join(' '),
+   const report=['MAKI M8 v31 実卓照合',header(f),'手牌：'+f.tiles.join(' '),
      '実卓：'+(fv??'未入力')+'符 / '+(hv??'未入力')+'翻','比較：'+labels.join(' / '),'メモ：'+(memo.value.trim()||'なし')].join('\n');
    try{
      const savedAt=new Date().toISOString();
