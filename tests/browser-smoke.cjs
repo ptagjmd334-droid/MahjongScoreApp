@@ -36,7 +36,6 @@ const server=http.createServer((req,res)=>{
     await page.waitForSelector('#go-confirm-button',{timeout:12000});
     assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'MAKI v91');
     assert.equal(await page.$eval('#app-build-badge',e=>e.hidden),false,'v91 build badge should be visible during development');
-    assert.equal(await page.$eval('#app-build-badge',e=>e.hidden),true,'v89 build badge must be hidden in normal production mode');
     const v89DebugBadge=await page.evaluate(()=>{
       history.replaceState({},'',location.pathname+'?debug=1');
       const enabled=window.MAKIDebugV89?.apply?.();
