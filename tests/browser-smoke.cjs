@@ -34,7 +34,18 @@ const server=http.createServer((req,res)=>{
     const errors=[];page.on('pageerror',e=>errors.push(String(e)));
     await page.goto('http://127.0.0.1:'+port+'/',{waitUntil:'domcontentloaded',timeout:30000});
     await page.waitForSelector('#go-confirm-button',{timeout:12000});
-    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'M7 v85');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'M7 v86');
+    assert.equal(await page.title(),'MAKI｜麻雀対局管理');
+    assert.equal(await page.$eval('.setup-header h1',e=>e.textContent.trim()),'MAKI');
+    const manifestBrand=JSON.parse(fs.readFileSync(path.join(root,'manifest.webmanifest'),'utf8'));
+    assert.equal(manifestBrand.name,'MAKI');
+    assert.equal(manifestBrand.short_name,'MAKI');
+    for(const size of [180,192,512]){
+      const p=path.join(root,'icon-'+size+'.png');
+      assert(fs.existsSync(p),'MAKI icon missing '+p);
+      assert(fs.statSync(p).size>10000,'MAKI icon looks empty/suspicious '+p);
+    }
+
     const v81HeaderLayout=await page.evaluate(()=>{
       window.showHandResultM7V5?.(Array(14).fill(''));
       const root=document.getElementById('hand-result-overlay-m7v5');
