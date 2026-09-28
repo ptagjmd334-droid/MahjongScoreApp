@@ -310,7 +310,12 @@ test('camera v36 is loaded before ui-fixes so verified clicks train the active c
   assert(index.indexOf('script.js')<index.indexOf('m7-recognition-core.js'));
   assert(index.indexOf('m7-recognition-core.js')<index.indexOf('m7-camera-v36.js'));
   assert(index.indexOf('m7-camera-v36.js')<index.indexOf('ui-fixes.js'));
-  assert(index.includes('M7 v86'));
+  assert(index.includes('M7 v87'));
+  assert(uiFixes.includes('publishVerifiedHandM8V87'));
+  assert(uiFixes.includes('acceptVerifiedHandM8V87'));
+  assert(uiFixes.includes("maki:verified-hand"));
+  assert(script.includes('acceptVerifiedHandM8V87'));
+
   assert(index.includes('<title>MAKI｜麻雀対局管理</title>'));
   assert(index.includes('<h1>MAKI</h1>'));
 
