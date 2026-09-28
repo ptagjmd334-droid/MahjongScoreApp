@@ -331,7 +331,6 @@ test('camera v36 is loaded before ui-fixes so verified clicks train the active c
 
   assert(index.includes('<title>MAKI｜麻雀対局管理</title>'));
   assert(index.includes('<h1>MAKI</h1>'));
-  const camera=fs.readFileSync(path.join(root,'m7-camera-v36.js'),'utf8');
   assert(camera.includes("content:attr(data-tile)"));
   assert(script.includes("setAttribute('aria-label',name)"));
 
