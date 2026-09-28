@@ -66,6 +66,7 @@ on:
       - work/maki-v86-branding-icon-ui
       - work/maki-v87-hand-to-m8-bridge
       - work/maki-v88-production-errors-integration
+      - work/maki-v89-production-polish
   workflow_dispatch:
 
 jobs:

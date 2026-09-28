@@ -34,7 +34,18 @@ const server=http.createServer((req,res)=>{
     const errors=[];page.on('pageerror',e=>errors.push(String(e)));
     await page.goto('http://127.0.0.1:'+port+'/',{waitUntil:'domcontentloaded',timeout:30000});
     await page.waitForSelector('#go-confirm-button',{timeout:12000});
-    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'M7 v88');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'MAKI v89');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.hidden),true,'v89 build badge must be hidden in normal production mode');
+    const v89DebugBadge=await page.evaluate(()=>{
+      history.replaceState({},'',location.pathname+'?debug=1');
+      const enabled=window.MAKIDebugV89?.apply?.();
+      const hidden=document.getElementById('app-build-badge')?.hidden;
+      history.replaceState({},'',location.pathname);
+      window.MAKIDebugV89?.apply?.();
+      return {enabled,hidden};
+    });
+    assert.equal(v89DebugBadge.enabled,true,'v89 debug query should enable build badge '+JSON.stringify(v89DebugBadge));
+    assert.equal(v89DebugBadge.hidden,false,'v89 debug build badge stayed hidden '+JSON.stringify(v89DebugBadge));
     const m8BridgeV87=await page.evaluate(()=>{
       const hand=['1萬','1萬','1萬','2萬','3萬','4萬','2筒','3筒','4筒','6索','7索','8索','東','東'];
       window.m8WinningTileV7='9萬';window.m8SuggestedFuV21=50;window.m8SuggestedHanV23=3;

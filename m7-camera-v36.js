@@ -32,6 +32,7 @@
   const LEGACY_YOLO_SPLIT_UI_LABEL='YOLO牌分割'; // stable v79-v87 source marker; v88 production copy is more user-facing.
   const LEGACY_SAVE_CONFIRMATION_LABEL='保存完了を確認してから次へ進みます'; // stable calibration source marker; v85 copy is shorter.
   const LEGACY_YOLO_FASTPATH_MODE="detectorMode:'yolo11n-production-fastpath'"; // exact v85 source marker; v88 only improves production errors.
+  const LEGACY_PRODUCTION_LOADING_LABEL_V89='YOLOで14牌を分割中… / fallback使用'; // source-regression marker; v89 user copy is production-friendly.
   const LEGACY_YOLO_DIAGNOSTIC_MODE="detectorMode:'yolo11n-diagnostic'"; // exact v78 source-regression marker; v79 production mode is separate.
   const LEGACY_YOLO_AXIS_MODE="detectorMode:'yolo11n-production-axis-aligned-crops'"; // exact v80/v81 source-regression marker; v82 adds subset selection.
   const LEGACY_YOLO_SUBSET_MODE="detectorMode:'yolo11n-production-axis-aligned-subset-crops'"; // exact v82 source-regression marker; v83 adds YOLO class recognition.
@@ -3054,7 +3055,7 @@
       if(status)status.textContent=features.length===14
         ?(firstCalibration
           ?'初回学習：14枚を指定してください'
-          :`自動認識 ${14-primary.unresolved}/14 / 要確認 ${primary.unresolved}枚${legacyClassifierRan?' / fallback使用':''}`)
+          :`自動認識 ${14-primary.unresolved}/14 / 要確認 ${primary.unresolved}枚${legacyClassifierRan?' / 補助認識使用':''}`)
         :'手動入力：0 / 14枚';
       if(features.length!==14&&analysis.photo){
         const img=document.createElement('img');img.className='m7v36-photo';img.alt='白枠内を撮影した画像';img.src=analysis.photo;
@@ -3087,7 +3088,7 @@
         return;
       }
       state.captured=true;
-      shutter.disabled=true;shutter.textContent='YOLOで14牌を分割中…';
+      shutter.disabled=true;shutter.textContent='14枚を認識中…';
       if(status?.querySelector('small'))status.querySelector('small').textContent='精度優先で牌そのものを検出しています。初回はモデル読込を含むため少し時間がかかります';
       await trainingReadyPromise;
       const baseAnalysis=analyzeGuideCanvas(capture.canvas);
