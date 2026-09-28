@@ -34,7 +34,47 @@ const server=http.createServer((req,res)=>{
     const errors=[];page.on('pageerror',e=>errors.push(String(e)));
     await page.goto('http://127.0.0.1:'+port+'/',{waitUntil:'domcontentloaded',timeout:30000});
     await page.waitForSelector('#go-confirm-button',{timeout:12000});
-    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'M7 v86');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'M7 v87');
+    const m8BridgeV87=await page.evaluate(()=>{
+      const hand=['1萬','1萬','1萬','2萬','3萬','4萬','2筒','3筒','4筒','6索','7索','8索','東','東'];
+      window.m8WinningTileV7='9萬';window.m8SuggestedFuV21=50;window.m8SuggestedHanV23=3;
+      window.m8MeldStateV21={'1萬':'pon'};window.m8CachedHandV15={tiles:['old']};
+      let eventTiles=null;
+      const onHand=e=>{eventTiles=e.detail?.tiles?.slice()||null;};
+      window.addEventListener('maki:verified-hand',onHand,{once:true});
+      const accepted=window.acceptVerifiedHandM8V87(hand,{show:true});
+      const title=document.querySelector('#m8-result-v1 h2')?.textContent||'';
+      const state={
+        accepted:accepted.ok===true,
+        sameLast:Array.isArray(window.m8LastTilesV8)&&window.m8LastTilesV8.join('|')===hand.join('|'),
+        same18:Array.isArray(window.m8HandStateV18?.tiles)&&window.m8HandStateV18.tiles.join('|')===hand.join('|'),
+        same19:Array.isArray(window.m8HandStateV19?.tiles)&&window.m8HandStateV19.tiles.join('|')===hand.join('|'),
+        win:window.m8WinningTileV7,fu:window.m8SuggestedFuV21,han:window.m8SuggestedHanV23,
+        meldKeys:Object.keys(window.m8MeldStateV21||{}).length,cached:window.m8CachedHandV15,
+        eventSame:Array.isArray(eventTiles)&&eventTiles.join('|')===hand.join('|'),
+        title
+      };
+      const before=window.m8LastTilesV8.slice();
+      const invalid=window.acceptVerifiedHandM8V87(hand.slice(0,13),{show:false});
+      state.invalidRejected=invalid.ok===false;
+      state.invalidKept=window.m8LastTilesV8.join('|')===before.join('|');
+      document.getElementById('m8-result-v1')?.remove();
+      return state;
+    });
+    assert.equal(m8BridgeV87.accepted,true,'v87 verified hand bridge rejected a valid 14-tile hand '+JSON.stringify(m8BridgeV87));
+    assert.equal(m8BridgeV87.sameLast,true,'v87 did not publish m8LastTilesV8 '+JSON.stringify(m8BridgeV87));
+    assert.equal(m8BridgeV87.same18,true,'v87 did not publish m8HandStateV18 '+JSON.stringify(m8BridgeV87));
+    assert.equal(m8BridgeV87.same19,true,'v87 did not publish m8HandStateV19 '+JSON.stringify(m8BridgeV87));
+    assert.equal(m8BridgeV87.win,null,'v87 kept a stale winning tile '+JSON.stringify(m8BridgeV87));
+    assert.equal(m8BridgeV87.fu,null,'v87 kept stale fu '+JSON.stringify(m8BridgeV87));
+    assert.equal(m8BridgeV87.han,null,'v87 kept stale han '+JSON.stringify(m8BridgeV87));
+    assert.equal(m8BridgeV87.meldKeys,0,'v87 kept stale meld state '+JSON.stringify(m8BridgeV87));
+    assert.equal(m8BridgeV87.cached,null,'v87 kept stale cached hand '+JSON.stringify(m8BridgeV87));
+    assert.equal(m8BridgeV87.eventSame,true,'v87 verified-hand event missing/wrong '+JSON.stringify(m8BridgeV87));
+    assert(m8BridgeV87.title.includes('アガリ形です'),'v87 did not open M8 analysis for a valid winning hand '+JSON.stringify(m8BridgeV87));
+    assert.equal(m8BridgeV87.invalidRejected,true,'v87 accepted a 13-tile hand into M8 state '+JSON.stringify(m8BridgeV87));
+    assert.equal(m8BridgeV87.invalidKept,true,'v87 invalid hand mutated the last valid M8 hand '+JSON.stringify(m8BridgeV87));
+
     assert.equal(await page.title(),'MAKI｜麻雀対局管理');
     assert.equal(await page.$eval('.setup-header h1',e=>e.textContent.trim()),'MAKI');
     const manifestBrand=JSON.parse(fs.readFileSync(path.join(root,'manifest.webmanifest'),'utf8'));

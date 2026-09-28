@@ -22571,7 +22571,7 @@ if (
 
 /* ========================================
    M7 認識結果確認 Ver.5
-   実牌なしでも確認できる結果UI。牌種認識は実牌テスト後に接続する。
+   認識結果の確認UI。確定した14枚はM8のアガリ判定へ接続する。
    ======================================== */
 (() => {
   const TILE_OPTIONS_M7V5 = [
@@ -22615,13 +22615,13 @@ if (
     overlay.innerHTML=`<div class="hand-result-card-m7v5">
       <div class="hand-result-head-m7v5"><div><b>認識した手牌を確認</b><small>間違っている牌だけタップして修正できます</small></div><span class="hand-result-status-m7v5">0 / 14枚を確認済み</span></div>
       <div class="hand-result-tiles-m7v5"></div>
-      <div class="hand-result-note-m7v5">※ 現在は画面の土台確認です。実牌テスト後、認識した牌名を自動でここへ入れます。</div>
+      <div class="hand-result-note-m7v5">14枚を確認してください。間違っている牌だけタップして修正できます。</div>
       <div class="hand-result-actions-m7v5"><button type="button" class="hand-result-back-m7v5">読み取り直す</button><button type="button" class="hand-result-ok-m7v5" disabled>この手牌で進む</button></div>
     </div>`;
     const row=overlay.querySelector('.hand-result-tiles-m7v5');
     values.forEach((name,i)=>{const b=document.createElement('button');b.type='button';b.className='hand-result-tile-m7v5';b.textContent=name||'?';if(name)b.dataset.tile=name;b.onclick=()=>openTilePickerM7V5(i,b);row.appendChild(b);});
     overlay.querySelector('.hand-result-back-m7v5').onclick=()=>{closeResultM7V5(); document.getElementById('open-realtime-hand-camera-m7v3')?.click();};
-    overlay.querySelector('.hand-result-ok-m7v5').onclick=()=>{const result=[...overlay.querySelectorAll('.hand-result-tile-m7v5')].map(b=>b.dataset.tile); window.lastRecognizedHandM7=result; closeResultM7V5(); alert('手牌14枚を確認しました。\n次の工程でアガリ判定へ接続します。');};
+    overlay.querySelector('.hand-result-ok-m7v5').onclick=()=>{const result=[...overlay.querySelectorAll('.hand-result-tile-m7v5')].map(b=>b.dataset.tile);window.lastRecognizedHandM7=result;closeResultM7V5();if(typeof window.acceptVerifiedHandM8V87==='function')window.acceptVerifiedHandM8V87(result);else alert('手牌14枚を確認しました。');};
     document.body.appendChild(overlay); updateResultStatusM7V5();
   };
 

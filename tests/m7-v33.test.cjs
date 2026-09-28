@@ -306,11 +306,18 @@ test('13/14 candidate position stability requires similar positions',()=>{
 
 test('camera v36 is loaded before ui-fixes so verified clicks train the active camera module',()=>{
   const index=fs.readFileSync(path.join(root,'index.html'),'utf8');
+  const uiFixes=fs.readFileSync(path.join(root,'ui-fixes.js'),'utf8');
+  const script=fs.readFileSync(path.join(root,'script.js'),'utf8');
   for(const name of ['script.js','m7-recognition-core.js','m7-camera-v36.js','ui-fixes.js'])assert(index.includes(name));
   assert(index.indexOf('script.js')<index.indexOf('m7-recognition-core.js'));
   assert(index.indexOf('m7-recognition-core.js')<index.indexOf('m7-camera-v36.js'));
   assert(index.indexOf('m7-camera-v36.js')<index.indexOf('ui-fixes.js'));
-  assert(index.includes('M7 v86'));
+  assert(index.includes('M7 v87'));
+  assert(uiFixes.includes('publishVerifiedHandM8V87'));
+  assert(uiFixes.includes('acceptVerifiedHandM8V87'));
+  assert(uiFixes.includes("maki:verified-hand"));
+  assert(script.includes('acceptVerifiedHandM8V87'));
+
   assert(index.includes('<title>MAKI｜麻雀対局管理</title>'));
   assert(index.includes('<h1>MAKI</h1>'));
 
