@@ -34,8 +34,8 @@ const server=http.createServer((req,res)=>{
     const errors=[];page.on('pageerror',e=>errors.push(String(e)));
     await page.goto('http://127.0.0.1:'+port+'/',{waitUntil:'domcontentloaded',timeout:30000});
     await page.waitForSelector('#go-confirm-button',{timeout:12000});
-    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'MAKI v91');
-    assert.equal(await page.$eval('#app-build-badge',e=>e.hidden),false,'v91 build badge should be visible during development');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'MAKI v92');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.hidden),false,'v92 build badge should be visible during development');
     const v89DebugBadge=await page.evaluate(()=>{
       history.replaceState({},'',location.pathname+'?debug=1');
       const enabled=window.MAKIDebugV89?.apply?.();
@@ -110,13 +110,25 @@ const server=http.createServer((req,res)=>{
 
     const duplicateGuard=await page.evaluate(()=>{
       const api=window.M7CameraV36;
-      const yolo=Array.from({length:14},(_,i)=>({label:i===3||i===6||i===7?'4萬':'東',score:.9}));
-      const same=Array(4).fill(0),farA=Array(4).fill(1),farB=Array(4).fill(-1);
-      const features=Array.from({length:14},()=>same.slice());
-      features[3]=same.slice();features[6]=farA;features[7]=farB;
-      return api.yoloDuplicateVisualConflicts(yolo,features,true,.15,.145);
+      const mk=(group,scores,values)=>{
+        const yolo=Array.from({length:14},(_,i)=>({label:'東',score:.9}));
+        const features=Array.from({length:14},()=>Array(4).fill(0));
+        group.forEach((idx,j)=>{yolo[idx]={label:'4萬',score:scores[j]};features[idx]=Array(4).fill(values[j]);});
+        return api.yoloDuplicateVisualConflicts(yolo,features,true,.15,.145,.22);
+      };
+      return {
+        farPair:mk([3,7],[.9,.3],[0,1]),
+        coherentTriple:mk([3,6,7],[.90,.88,.86],[0,.03,.05]),
+        oneOutlier:mk([3,6,7],[.90,.88,.40],[0,.02,1]),
+        incoherentWeakTriple:mk([3,6,7],[.92,.56,.34],[0,1,-1]),
+        incoherentStrongTriple:mk([3,6,7],[.92,.90,.89],[0,1,-1])
+      };
     });
-    assert(duplicateGuard.includes(3)&&duplicateGuard.includes(6)&&duplicateGuard.includes(7),'v91 duplicate-label guard must flag visually inconsistent same-label tiles '+JSON.stringify(duplicateGuard));
+    assert.deepEqual(duplicateGuard.farPair,[],'v92 must not reject a legitimate pair from appearance variance '+JSON.stringify(duplicateGuard));
+    assert.deepEqual(duplicateGuard.coherentTriple,[],'v92 must keep a coherent triplet '+JSON.stringify(duplicateGuard));
+    assert.deepEqual(duplicateGuard.oneOutlier,[7],'v92 should challenge only the weak visual outlier '+JSON.stringify(duplicateGuard));
+    assert.deepEqual(duplicateGuard.incoherentWeakTriple,[3,6,7],'v92 should stop an incoherent weak 3+ duplicate group '+JSON.stringify(duplicateGuard));
+    assert.deepEqual(duplicateGuard.incoherentStrongTriple,[],'v92 should not overrule uniformly strong YOLO labels on appearance alone '+JSON.stringify(duplicateGuard));
 
     const v90VisibleLabels=await page.evaluate(()=>{
       const hand=['1萬','2萬','3萬','4萬','5萬','6萬','7萬','8萬','9萬','東','東','東','發','發'];
