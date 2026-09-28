@@ -50,7 +50,7 @@
   <div id="landscape-orientation-guard" aria-hidden="true"><div class="landscape-orientation-card"><div class="landscape-phone-icon">↻</div><strong>横向きにしてください</strong><span>このアプリは横画面専用です</span></div></div>
   <div id="app-build-badge" hidden style="position:fixed;left:max(8px,env(safe-area-inset-left));bottom:max(6px,env(safe-area-inset-bottom));z-index:1000000;background:rgba(0,0,0,.72);color:#fff;border-radius:999px;padding:4px 9px;font:700 11px/1.2 -apple-system,BlinkMacSystemFont,sans-serif;pointer-events:none;opacity:.88">MAKI v90</div>
   <script>
-    (()=>{const badge=document.getElementById('app-build-badge');if(!badge)return;const debug=new URLSearchParams(location.search).get('debug')==='1';badge.hidden=!debug;window.MAKIDebugV90={apply(){const on=new URLSearchParams(location.search).get('debug')==='1';badge.hidden=!on;return on;}};})();
+    (()=>{const badge=document.getElementById('app-build-badge');if(!badge)return;const debug=new URLSearchParams(location.search).get('debug')==='1';badge.hidden=!debug;window.MAKIDebugV90={apply(){const on=new URLSearchParams(location.search).get('debug')==='1';badge.hidden=!on;return on;}};window.MAKIDebugV89=window.MAKIDebugV90;})();
   </script>
   <script src="script.js?v=m7v90"></script>
   <script src="m7-recognition-core.js?v=m7v90"></script>
