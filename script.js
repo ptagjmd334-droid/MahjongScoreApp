@@ -22592,7 +22592,7 @@ if (
     const grid=picker.querySelector('.tile-picker-grid-m7v5');
     TILE_OPTIONS_M7V5.forEach(name=>{
       const b=document.createElement('button'); b.type='button'; b.textContent=name;
-      b.onclick=()=>{ tileButton.textContent=name; tileButton.dataset.tile=name; picker.remove(); updateResultStatusM7V5(); };
+      b.onclick=()=>{ tileButton.textContent=name; tileButton.dataset.tile=name; tileButton.setAttribute('aria-label',name); picker.remove(); updateResultStatusM7V5(); };
       grid.appendChild(b);
     });
     picker.querySelector('.tile-picker-cancel-m7v5').onclick=()=>picker.remove();
@@ -22619,7 +22619,7 @@ if (
       <div class="hand-result-actions-m7v5"><button type="button" class="hand-result-back-m7v5">読み取り直す</button><button type="button" class="hand-result-ok-m7v5" disabled>この手牌で進む</button></div>
     </div>`;
     const row=overlay.querySelector('.hand-result-tiles-m7v5');
-    values.forEach((name,i)=>{const b=document.createElement('button');b.type='button';b.className='hand-result-tile-m7v5';b.textContent=name||'?';if(name)b.dataset.tile=name;b.onclick=()=>openTilePickerM7V5(i,b);row.appendChild(b);});
+    values.forEach((name,i)=>{const b=document.createElement('button');b.type='button';b.className='hand-result-tile-m7v5';b.textContent=name||'?';if(name){b.dataset.tile=name;b.setAttribute('aria-label',name);}else b.setAttribute('aria-label',(i+1)+'枚目 未確定');b.onclick=()=>openTilePickerM7V5(i,b);row.appendChild(b);});
     overlay.querySelector('.hand-result-back-m7v5').onclick=()=>{closeResultM7V5(); document.getElementById('open-realtime-hand-camera-m7v3')?.click();};
     overlay.querySelector('.hand-result-ok-m7v5').onclick=()=>{const result=[...overlay.querySelectorAll('.hand-result-tile-m7v5')].map(b=>b.dataset.tile);window.lastRecognizedHandM7=result;closeResultM7V5();if(typeof window.acceptVerifiedHandM8V87==='function')window.acceptVerifiedHandM8V87(result);else alert('手牌14枚を確認しました。');};
     document.body.appendChild(overlay); updateResultStatusM7V5();
