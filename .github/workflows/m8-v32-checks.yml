@@ -78,6 +78,7 @@ on:
       - work/maki-v98-camera-bootstrap-hotfix
       - work/maki-v99-triplet-guard
       - work/maki-v100-duplicate-pair-runner-guard
+      - work/maki-v101-camera-tap-shield
   workflow_dispatch:
 
 jobs:
