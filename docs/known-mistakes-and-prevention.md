@@ -1240,3 +1240,11 @@
 **原因:** 認識完了後、camera overlayを先にremoveし、約90ms後にhand result overlayを生成する遷移gapがある。iPhoneの連続tapで後続pointer/clickがこのgap中に下層UIへ落ち得る。  
 **修正:** v101でcamera→result遷移に透明full-screen tap shieldを挿入し、さらに一定時間riichi-buttonへのpointerup/click/touchendをcapture段階で遮断。shutter側のpointer/touch伝播も停止。  
 **再発防止:** フルスクリーンoverlayを閉じるUIでは「overlay Aをremove→非同期でoverlay Bを表示」という空白時間を作らず、tap-through防止shieldか入力cooldownを必ず入れる。  
+
+
+## M139: 字牌刻子に数牌用の高score保護条件をそのまま適用した
+**時期:** MAKI v101→v102  
+**実機症状:** 西西西をYOLOが0.58/0.49/0.55、中央西のmargin 0.49・票1/1・投票差1.00で一貫して西と認識しているのに、中央西だけ13/14へ落ちた。  
+**原因:** duplicate visual guardの一般triplet保護はmin score>=0.60・anchor>=0.82を要求しており、字牌の絶対scoreが低めなケースを保護できなかった。minScore 0.49がYOLO_DUPLICATE_LOW_SCORE 0.50を僅かに下回り、最弱1枚をblockした。  
+**修正:** v102で隣接する同一字牌3枚専用の保護条件を追加。min score>=0.45、min margin>=0.40、max score>=0.55、score spread<=0.12なら正しい字牌刻子として扱う。  
+**再発防止:** 数牌と字牌でscore分布が異なる実機傾向を前提にし、group保護条件は牌種familyごとに調整する。安全策を緩める場合はpair検知やsorted-run検知など他のsilent false positive防止条件は維持する。  

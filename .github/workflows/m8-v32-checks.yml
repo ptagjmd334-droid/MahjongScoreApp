@@ -79,6 +79,7 @@ on:
       - work/maki-v99-triplet-guard
       - work/maki-v100-duplicate-pair-runner-guard
       - work/maki-v101-camera-tap-shield
+      - work/maki-v102-honor-triplet-protection
   workflow_dispatch:
 
 jobs:
