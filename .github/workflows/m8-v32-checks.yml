@@ -71,6 +71,7 @@ on:
       - work/maki-v91-duplicate-label-guard
       - work/maki-v92-duplicate-guard-tuning
       - work/maki-v93-home-install-branding
+      - work/maki-v94-conservative-disagreement-guard
   workflow_dispatch:
 
 jobs:
