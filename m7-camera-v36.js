@@ -107,6 +107,10 @@
       right:max(16px,env(safe-area-inset-right))!important;left:auto!important;
       bottom:max(12px,env(safe-area-inset-bottom))!important;z-index:10
     }
+    #m7v101-camera-tap-shield{
+      position:fixed;inset:0;z-index:10250;background:transparent;
+      pointer-events:auto;touch-action:none
+    }
     #hand-result-overlay-m7v5 .hand-result-tiles-m7v5{
       align-items:center!important
     }
@@ -171,6 +175,37 @@
     }
   `;
   document.head.appendChild(style);
+
+  let cameraTapShieldTimer=null;
+  let cameraTapGuardUntil=0;
+  function armCameraTapShield(duration=900){
+    const now=Date.now();
+    cameraTapGuardUntil=Math.max(cameraTapGuardUntil,now+Math.max(300,duration+700));
+    window.MAKICameraTapGuardUntilV101=cameraTapGuardUntil;
+    let shield=document.getElementById('m7v101-camera-tap-shield');
+    if(!shield){
+      shield=document.createElement('div');
+      shield.id='m7v101-camera-tap-shield';
+      shield.setAttribute('aria-hidden','true');
+      const swallow=e=>{e.preventDefault();e.stopImmediatePropagation();};
+      ['pointerdown','pointerup','click','touchstart','touchend'].forEach(type=>
+        shield.addEventListener(type,swallow,{capture:true,passive:false})
+      );
+      document.body.appendChild(shield);
+    }
+    clearTimeout(cameraTapShieldTimer);
+    cameraTapShieldTimer=setTimeout(()=>document.getElementById('m7v101-camera-tap-shield')?.remove(),Math.max(300,duration));
+  }
+  function blockRiichiAfterCameraTap(e){
+    if(Date.now()>cameraTapGuardUntil)return;
+    const target=e.target;
+    if(!(target instanceof Element)||!target.closest('.riichi-button'))return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+  }
+  document.addEventListener('pointerup',blockRiichiAfterCameraTap,true);
+  document.addEventListener('click',blockRiichiAfterCameraTap,true);
+  document.addEventListener('touchend',blockRiichiAfterCameraTap,{capture:true,passive:false});
 
   function nonEmptyLibrary(x){
     return !!(x&&typeof x==='object'&&Object.values(x).some(list=>Array.isArray(list)&&list.length));
@@ -3458,6 +3493,7 @@
     const shutter=document.createElement('button');shutter.type='button';shutter.className='m7v36-shutter';shutter.textContent='撮影して読み取る';
     overlay.appendChild(shutter);
     const video=overlay.querySelector('.realtime-hand-video-m7v3');
+    ['pointerdown','pointerup','touchstart','touchend'].forEach(type=>shutter.addEventListener(type,e=>e.stopPropagation(),{passive:true}));
     shutter.addEventListener('click',async e=>{
       e.preventDefault();e.stopPropagation();
       if(state.captured)return;
@@ -3499,6 +3535,9 @@
         legacyClassifierRan:false,legacyRecognitionMs:0
       };
       window.M7V36LastDiagnostics=state.diagnostics;
+      // Prevent rapid/repeated shutter taps from landing on the lower player's
+      // riichi button during the camera→result transition on iPhone.
+      armCameraTapShield(900);
       // Existing cancel owns the MediaStream and removes the camera overlay.
       overlay.querySelector('.realtime-hand-cancel-m7v3')?.click();
       showResult(analysis,null);
