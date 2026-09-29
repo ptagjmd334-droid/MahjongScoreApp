@@ -124,7 +124,7 @@ const server=http.createServer((req,res)=>{
         incoherentStrongTriple:mk([3,6,7],[.92,.90,.89],[0,1,-1])
       };
     });
-    assert.deepEqual(duplicateGuard.farPair,[],'v92 must not reject a legitimate pair from appearance variance '+JSON.stringify(duplicateGuard));
+    assert.deepEqual(duplicateGuard.farPair,[7],'v96 should challenge only the weaker member of a wildly inconsistent same-label pair '+JSON.stringify(duplicateGuard));
     assert.deepEqual(duplicateGuard.coherentTriple,[],'v92 must keep a coherent triplet '+JSON.stringify(duplicateGuard));
     assert.deepEqual(duplicateGuard.oneOutlier,[7],'v92 should challenge only the weak visual outlier '+JSON.stringify(duplicateGuard));
     assert.deepEqual(duplicateGuard.incoherentWeakTriple,[3,6,7],'v92 should stop an incoherent weak 3+ duplicate group '+JSON.stringify(duplicateGuard));
