@@ -82,6 +82,7 @@ on:
       - work/maki-v102-honor-triplet-protection
       - work/maki-v103-honor-triplet-low-score
       - work/maki-v104-honor-pair-perspective
+      - work/maki-v105-honor-triplet-two-anchor
   workflow_dispatch:
 
 jobs:

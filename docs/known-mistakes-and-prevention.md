@@ -1264,3 +1264,11 @@
 **原因:** duplicate visual guardの2枚pair分岐はcrop feature distanceが大きいと、score/margin差が小さい場合に両方blockする。斜め撮影の透視・影で同一牌のcrop外観差が大きくなった。  
 **修正:** v104で隣接する同一字牌pairに限定して高confidence保護を追加。min score>=0.75、min margin>=0.65、max score>=0.78、score差<=0.10なら外観差だけではblockしない。  
 **再発防止:** 撮影角度による見た目差と誤分類を分離して扱う。高confidenceの同一字牌pairを救う一方、弱いpairや数牌pairの安全策は維持する。  
+
+
+## M142: 撮影角度だけを主因と見なしてしまった
+**時期:** MAKI v104→v105  
+**実機症状:** 真上撮影でも12/14が発生し、別の真上寄り詳細では西西西が0.81/0.36/0.67で中央西だけ13/14へ落ちた。  
+**原因:** 斜め撮影での失敗が目立ったためperspectiveを主因と見たが、実際には真上でも1枚だけYOLO scoreが下がり、字牌刻子保護のmin score/min margin 0.40を下回るとduplicate guardがfalse rejectした。  
+**修正:** v105で隣接する同一字牌3枚に「2強anchor + 1弱tile」の保護を追加。2枚がscore>=0.65、弱い1枚もscore/margin>=0.35なら通す。  
+**再発防止:** 撮影条件と後段判定を分離して評価する。『真上なら必ず成功』とは扱わず、実測scoreとguard理由で診断する。  

@@ -72,6 +72,10 @@
   const YOLO_HONOR_PAIR_MIN_MARGIN=.65;
   const YOLO_HONOR_PAIR_ANCHOR_SCORE=.78;
   const YOLO_HONOR_PAIR_MAX_SPREAD=.10;
+  const YOLO_HONOR_TRIPLET_WEAK_MIN_SCORE=.35;
+  const YOLO_HONOR_TRIPLET_WEAK_MIN_MARGIN=.35;
+  const YOLO_HONOR_TRIPLET_STRONG_ANCHOR_SCORE=.65;
+  const YOLO_HONOR_TRIPLET_STRONG_ANCHORS=2;
   const LEGACY_YOLO_PRODUCTION_MODE="detectorMode:'yolo11n-production-crops'"; // exact v79 source-regression marker; v80 uses axis-aligned crops.
   const YOLO_MODEL_URL='https://cdn.jsdelivr.net/gh/nikmomo/Mahjong-YOLO@28ffceed232ad95fd019c47a6c51ae7c78791a0e/models/nano/mahjong-yolon-best.onnx';
   const ORT_VERSION='1.22.0';
@@ -2704,12 +2708,18 @@
         maxScore>=YOLO_DUPLICATE_TRIPLET_ANCHOR_SCORE;
       const groupLabel=String(yolo[indexes[0]]?.label||'');
       const contiguousTriplet=indexes.length===3&&indexes[1]===indexes[0]+1&&indexes[2]===indexes[1]+1;
-      const honorTriplet=contiguousTriplet&&/^(東|南|西|北|白|發|中)$/.test(groupLabel)&&
+      const honorLabel=/^(東|南|西|北|白|發|中)$/.test(groupLabel);
+      const honorTriplet=contiguousTriplet&&honorLabel&&
         minScore>=YOLO_HONOR_TRIPLET_MIN_SCORE&&
         minMargin>=YOLO_HONOR_TRIPLET_MIN_MARGIN&&
         maxScore>=YOLO_HONOR_TRIPLET_ANCHOR_SCORE&&
         (maxScore-minScore)<=YOLO_HONOR_TRIPLET_MAX_SPREAD;
-      if((minScore>=YOLO_DUPLICATE_STRONG_GROUP_SCORE&&minMargin>=YOLO_DUPLICATE_STRONG_GROUP_MARGIN)||strongTriplet||honorTriplet){
+      const strongAnchorCount=scored.filter(d=>d.score>=YOLO_HONOR_TRIPLET_STRONG_ANCHOR_SCORE).length;
+      const honorTripletTwoAnchor=contiguousTriplet&&honorLabel&&
+        minScore>=YOLO_HONOR_TRIPLET_WEAK_MIN_SCORE&&
+        minMargin>=YOLO_HONOR_TRIPLET_WEAK_MIN_MARGIN&&
+        strongAnchorCount>=YOLO_HONOR_TRIPLET_STRONG_ANCHORS;
+      if((minScore>=YOLO_DUPLICATE_STRONG_GROUP_SCORE&&minMargin>=YOLO_DUPLICATE_STRONG_GROUP_MARGIN)||strongTriplet||honorTriplet||honorTripletTwoAnchor){
         continue;
       }
 
