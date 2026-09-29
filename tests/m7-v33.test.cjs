@@ -312,7 +312,7 @@ test('camera v36 is loaded before ui-fixes so verified clicks train the active c
   assert(index.indexOf('script.js')<index.indexOf('m7-recognition-core.js'));
   assert(index.indexOf('m7-recognition-core.js')<index.indexOf('m7-camera-v36.js'));
   assert(index.indexOf('m7-camera-v36.js')<index.indexOf('ui-fixes.js'));
-  assert(index.includes('MAKI v99'));
+  assert(index.includes('MAKI v110'));
   assert(uiFixes.includes('publishVerifiedHandM8V87'));
   assert(uiFixes.includes('acceptVerifiedHandM8V87'));
   assert(uiFixes.includes("maki:verified-hand"));
@@ -345,7 +345,7 @@ test('camera v36 is loaded before ui-fixes so verified clicks train the active c
   assert(index.includes('MAKIDebugV92'));
   assert(index.includes('MAKIDebugV91'));
   assert(index.includes('MAKIDebugV89'));
-  assert(!index.includes('id="app-build-badge" hidden'),'development badge must stay visible in v109');
+  assert(!index.includes('id="app-build-badge" hidden'),'development badge must stay visible in v110');
   assert(camera.includes("detectorMode:'yolo11n-production-fastpath'"));
   assert(script.includes('acceptVerifiedHandM8V87'));
 
@@ -534,10 +534,10 @@ test('v75 preserves stable learning and crop-quality-gated geometry',()=>{
   assert(camera.includes("recovery:'missing-slot-2'"));
   assert(camera.includes("reason:'recover-12-no-valid'"));
   assert(camera.includes('function detectorRecoverThirteenCandidates'));
-  assert(camera.includes("reason:recoveryUsed?'recover-13-to-14-'"));
+  assert(camera.includes("reason:recoveryUsed?('recover-'+raw.length+'-to-'+count+'-'+recovery.type)"));
   assert(camera.includes("detectorMode:'yolo11n-primary-class-recover13'"));
   assert(camera.includes("detectorMode:'yolo11n-primary-class-hybrid'"));
-  assert(camera.includes('不足1box補完'));
+  assert(camera.includes("' / 不足'+recoveredCount+'box補完'"));
   assert(camera.includes('function shouldRunLegacyClassifier'));
   assert(camera.includes('function resetLegacyPredictionStateForYolo'));
   assert(camera.includes("detectorMode:'yolo11n-production-fastpath'"));
