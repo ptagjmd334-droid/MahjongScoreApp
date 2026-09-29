@@ -325,6 +325,7 @@ test('camera v36 is loaded before ui-fixes so verified clicks train the active c
   assert(camera.includes('14枚を認識中…'));
   assert(camera.includes('補助認識使用'));
   assert(camera.includes('LEGACY_PRODUCTION_LOADING_LABEL_V89'));
+  assert(index.includes('MAKIDebugV110'));
   assert(index.includes('MAKIDebugV109'));
   assert(index.includes('MAKIDebugV108'));
   assert(index.includes('MAKIDebugV107'));
@@ -349,10 +350,10 @@ test('camera v36 is loaded before ui-fixes so verified clicks train the active c
   assert(script.includes('acceptVerifiedHandM8V87'));
 
   assert(index.includes('<title>MAKI｜麻雀対局管理</title>'));
-  assert(index.includes('manifest.webmanifest?v=m7v109'));
+  assert(index.includes('manifest.webmanifest?v=m7v110'));
   assert(index.includes('apple-mobile-web-app-title" content="MAKI"'));
   assert(index.includes('application-name" content="MAKI"'));
-  assert(index.includes('icon-180.png?v=m7v109'));
+  assert(index.includes('icon-180.png?v=m7v110'));
   assert(index.includes('<h1>MAKI</h1>'));
   assert(camera.includes("content:attr(data-tile)"));
   assert(script.includes("setAttribute('aria-label',name)"));
@@ -467,6 +468,8 @@ test('v75 preserves stable learning and crop-quality-gated geometry',()=>{
   assert(camera.includes('function recoverWhiteDragonGaps'));
   assert(camera.includes("const acceptedWhite=labels[i]==='白'&&r.label==='白'"));
   assert(camera.includes("sources[i]='white-recovery'"));
+  assert(camera.includes("sources[i]='white-recovery-anchor'"));
+  assert(camera.includes('whiteWeakAnchorIndexes'));
   assert(camera.includes('const honorTripletTwoAnchor='));
   assert(camera.includes('const balancedHonorPair='));
   assert(camera.includes('const anchoredHonorPair='));
@@ -525,7 +528,11 @@ test('v75 preserves stable learning and crop-quality-gated geometry',()=>{
   assert(camera.includes("detectorMode:'yolo11n-primary-class-hybrid'"));
   assert(camera.includes("detectorMode:'yolo11n-production-axis-aligned-subset-crops'"));
   assert(camera.includes('YOLO牌種'));
+  assert(camera.includes('function detectorMissingSlotsFit'));
   assert(camera.includes('function detectorMissingSlotFit'));
+  assert(camera.includes('function detectorRecoverTwelveCandidates'));
+  assert(camera.includes("recovery:'missing-slot-2'"));
+  assert(camera.includes("reason:'recover-12-no-valid'"));
   assert(camera.includes('function detectorRecoverThirteenCandidates'));
   assert(camera.includes("reason:recoveryUsed?'recover-13-to-14-'"));
   assert(camera.includes("detectorMode:'yolo11n-primary-class-recover13'"));
