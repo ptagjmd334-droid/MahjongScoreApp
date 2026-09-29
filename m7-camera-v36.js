@@ -68,6 +68,10 @@
   const YOLO_HONOR_TRIPLET_MIN_MARGIN=.40;
   const YOLO_HONOR_TRIPLET_ANCHOR_SCORE=.55;
   const YOLO_HONOR_TRIPLET_MAX_SPREAD=.18;
+  const YOLO_HONOR_PAIR_MIN_SCORE=.75;
+  const YOLO_HONOR_PAIR_MIN_MARGIN=.65;
+  const YOLO_HONOR_PAIR_ANCHOR_SCORE=.78;
+  const YOLO_HONOR_PAIR_MAX_SPREAD=.10;
   const LEGACY_YOLO_PRODUCTION_MODE="detectorMode:'yolo11n-production-crops'"; // exact v79 source-regression marker; v80 uses axis-aligned crops.
   const YOLO_MODEL_URL='https://cdn.jsdelivr.net/gh/nikmomo/Mahjong-YOLO@28ffceed232ad95fd019c47a6c51ae7c78791a0e/models/nano/mahjong-yolon-best.onnx';
   const ORT_VERSION='1.22.0';
@@ -2660,11 +2664,18 @@
       // only the clearly weaker score/margin member.
       if(indexes.length===2){
         const ia=indexes[0],ib=indexes[1];
+        const sa=Number(yolo[ia]?.score)||0,sb=Number(yolo[ib]?.score)||0;
+        const ma=Number.isFinite(Number(yolo[ia]?.classMargin))?Number(yolo[ia].classMargin):0;
+        const mb=Number.isFinite(Number(yolo[ib]?.classMargin))?Number(yolo[ib].classMargin):0;
+        const pairLabel=String(yolo[ia]?.label||'');
+        const contiguousHonorPair=ib===ia+1&&/^(東|南|西|北|白|發|中)$/.test(pairLabel)&&
+          Math.min(sa,sb)>=YOLO_HONOR_PAIR_MIN_SCORE&&
+          Math.min(ma,mb)>=YOLO_HONOR_PAIR_MIN_MARGIN&&
+          Math.max(sa,sb)>=YOLO_HONOR_PAIR_ANCHOR_SCORE&&
+          Math.abs(sa-sb)<=YOLO_HONOR_PAIR_MAX_SPREAD;
+        if(contiguousHonorPair)continue;
         const distance=core.featureDistance(feats[ia],feats[ib]);
         if(Number.isFinite(distance)&&distance>YOLO_DUPLICATE_PAIR_FAR_DISTANCE){
-          const sa=Number(yolo[ia]?.score)||0,sb=Number(yolo[ib]?.score)||0;
-          const ma=Number.isFinite(Number(yolo[ia]?.classMargin))?Number(yolo[ia].classMargin):0;
-          const mb=Number.isFinite(Number(yolo[ib]?.classMargin))?Number(yolo[ib].classMargin):0;
           if(Math.abs(sa-sb)>=YOLO_DUPLICATE_PAIR_SCORE_GAP)conflicts.add(sa<sb?ia:ib);
           else if(Math.abs(ma-mb)>=YOLO_DUPLICATE_PAIR_MARGIN_GAP)conflicts.add(ma<mb?ia:ib);
           else {conflicts.add(ia);conflicts.add(ib);}
