@@ -52,6 +52,8 @@
   const YOLO_DUPLICATE_PAIR_FAR_DISTANCE=.30;
   const YOLO_DUPLICATE_PAIR_SCORE_GAP=.08;
   const YOLO_DUPLICATE_PAIR_MARGIN_GAP=.04;
+  const YOLO_DUPLICATE_PAIR_STRONG_MIN_SCORE=.75;
+  const YOLO_DUPLICATE_PAIR_STRONG_MIN_MARGIN=.65;
   const YOLO_VERIFIER_SAME_FAMILY_MARGIN=.18;
   const YOLO_VERIFIER_SAME_FAMILY_SCORE=.58;
   const YOLO_VERIFIER_CROSS_FAMILY_MARGIN=.075;
@@ -2689,7 +2691,10 @@
           Math.min(sa,sb)>=YOLO_HONOR_PAIR_ANCHOR_WEAK_MIN_SCORE&&
           Math.min(ma,mb)>=YOLO_HONOR_PAIR_ANCHOR_WEAK_MIN_MARGIN&&
           Math.max(sa,sb)>=YOLO_HONOR_PAIR_STRONG_ANCHOR_SCORE;
-        if(balancedHonorPair||anchoredHonorPair)continue;
+        const strongSameLabelPair=
+          Math.min(sa,sb)>=YOLO_DUPLICATE_PAIR_STRONG_MIN_SCORE&&
+          Math.min(ma,mb)>=YOLO_DUPLICATE_PAIR_STRONG_MIN_MARGIN;
+        if(balancedHonorPair||anchoredHonorPair||strongSameLabelPair)continue;
         const distance=core.featureDistance(feats[ia],feats[ib]);
         if(Number.isFinite(distance)&&distance>YOLO_DUPLICATE_PAIR_FAR_DISTANCE){
           if(Math.abs(sa-sb)>=YOLO_DUPLICATE_PAIR_SCORE_GAP)conflicts.add(sa<sb?ia:ib);
