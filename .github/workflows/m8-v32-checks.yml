@@ -83,6 +83,7 @@ on:
       - work/maki-v103-honor-triplet-low-score
       - work/maki-v104-honor-pair-perspective
       - work/maki-v105-honor-triplet-two-anchor
+      - work/maki-v106-random-order-duplicates
   workflow_dispatch:
 
 jobs:
