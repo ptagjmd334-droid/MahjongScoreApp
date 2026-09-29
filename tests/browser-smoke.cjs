@@ -34,8 +34,8 @@ const server=http.createServer((req,res)=>{
     const errors=[];page.on('pageerror',e=>errors.push(String(e)));
     await page.goto('http://127.0.0.1:'+port+'/',{waitUntil:'domcontentloaded',timeout:30000});
     await page.waitForSelector('#go-confirm-button',{timeout:12000});
-    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'MAKI v99');
-    assert.equal(await page.$eval('#app-build-badge',e=>e.hidden),false,'v99 build badge should be visible during development');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'MAKI v100');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.hidden),false,'v100 build badge should be visible during development');
     assert(await page.evaluate(()=>!!window.M7V36CameraOwner),'v98 camera owner must bootstrap');
     await page.evaluate(()=>{
       const overlay=document.createElement('div');
@@ -162,6 +162,20 @@ const server=http.createServer((req,res)=>{
     });
     assert.deepEqual(v99NorthTriplet,[],'v99 must preserve a confident 北北北 triplet with one medium-score member '+JSON.stringify(v99NorthTriplet));
 
+    const v100SortedSuit=await page.evaluate(()=>{
+      const api=window.M7CameraV36;
+      const make=ranks=>[
+        ...ranks.map(r=>({label:r+'萬',score:.9,classMargin:.8})),
+        ...Array.from({length:14-ranks.length},()=>({label:'東',score:.9,classMargin:.8}))
+      ];
+      return {
+        wrong:api.yoloSortedSuitOrderConflicts(make([1,2,3,4,5,6,7,4,9]),true),
+        correct:api.yoloSortedSuitOrderConflicts(make([1,2,3,4,5,6,7,8,9]),true)
+      };
+    });
+    assert.deepEqual(v100SortedSuit.wrong,[7],'v100 must block the isolated duplicated-rank inversion in a long sorted suit run '+JSON.stringify(v100SortedSuit));
+    assert.deepEqual(v100SortedSuit.correct,[],'v100 must keep a correctly sorted complete suit run '+JSON.stringify(v100SortedSuit));
+
     const v97Consensus=await page.evaluate(()=>{
       const api=window.M7CameraV36;
       const base={x:10,y:10,w:20,h:30};
@@ -245,10 +259,10 @@ const server=http.createServer((req,res)=>{
     assert.equal(manifestBrand.name,'MAKI');
     assert.equal(manifestBrand.short_name,'MAKI');
     assert.equal(manifestBrand.id,'./');
-    assert(manifestBrand.icons.every(x=>String(x.src).includes('v=m7v99')),'v99 manifest icons must use fresh cache keys '+JSON.stringify(manifestBrand.icons));
+    assert(manifestBrand.icons.every(x=>String(x.src).includes('v=m7v100')),'v100 manifest icons must use fresh cache keys '+JSON.stringify(manifestBrand.icons));
     assert.equal(await page.$eval('meta[name="apple-mobile-web-app-title"]',e=>e.content),'MAKI');
     assert.equal(await page.$eval('meta[name="application-name"]',e=>e.content),'MAKI');
-    assert((await page.$eval('link[rel="apple-touch-icon"]',e=>e.getAttribute('href'))).includes('v=m7v99'));
+    assert((await page.$eval('link[rel="apple-touch-icon"]',e=>e.getAttribute('href'))).includes('v=m7v100'));
     for(const size of [180,192,512]){
       const p=path.join(root,'icon-'+size+'.png');
       assert(fs.existsSync(p),'MAKI icon missing '+p);
