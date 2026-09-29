@@ -89,6 +89,7 @@ on:
       - work/maki-v109-strong-pair-protection
       - work/maki-v110-recover-12-to-14
       - work/maki-v111-score-hand-entry
+      - work/maki-v112-13hybrid-white-run
   workflow_dispatch:
 
 jobs:

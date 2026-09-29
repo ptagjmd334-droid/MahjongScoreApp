@@ -34,8 +34,8 @@ const server=http.createServer((req,res)=>{
     const errors=[];page.on('pageerror',e=>errors.push(String(e)));
     await page.goto('http://127.0.0.1:'+port+'/',{waitUntil:'domcontentloaded',timeout:30000});
     await page.waitForSelector('#go-confirm-button',{timeout:12000});
-    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'MAKI v111');
-    assert.equal(await page.$eval('#app-build-badge',e=>e.hidden),false,'v111 build badge should be visible during development');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'MAKI v112');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.hidden),false,'v112 build badge should be visible during development');
     assert(await page.evaluate(()=>!!window.M7V36CameraOwner),'v98 camera owner must bootstrap');
     await page.evaluate(()=>{
       const overlay=document.createElement('div');
@@ -403,6 +403,95 @@ const server=http.createServer((req,res)=>{
     });
     assert.deepEqual(v110WeakWhiteSafety.labels.slice(9,12),['','',''],'v110 must not promote a weak white when synthetic crops are visually different '+JSON.stringify(v110WeakWhiteSafety));
 
+    const v112RecoverThirteenHybrid=await page.evaluate(()=>{
+      const api=window.M7CameraV36;
+      const count=14,pitch=50,w=42,h=70,x0=100,y=40;
+      const missing=new Set([10,11]);
+      const boxes=[];
+      for(let i=0;i<count;i++){
+        if(missing.has(i))continue;
+        boxes.push({
+          x:x0+i*pitch-w/2,y,w,h,
+          score:i===9?.17:.86,
+          label:i===9?'5z':(i>=12?'7s':((i+1)+'m')),
+          classId:0,view:'full',rawIndex:i
+        });
+      }
+      // A spurious low-confidence box between 4m and 5m makes rawCount=13.
+      // The old one-missing path cannot make this a valid 14-slot geometry.
+      boxes.push({
+        x:x0+4.28*pitch-w/2,y,w,h,
+        score:.11,label:'4m',classId:0,view:'full',rawIndex:99
+      });
+      const source={width:900,height:180};
+      const direct=api.detectorRecoverThirteenLowExtraCandidates(boxes,null,source.width,source.height,14);
+      const selected=api.selectDetectorProductionBoxes({boxes},source,null,14);
+      return {
+        directCount:direct.length,
+        directType:direct[0]?.type||'',
+        accepted:selected.accepted,
+        reason:selected.reason,
+        recoveryType:selected.stats?.recoveryType||'',
+        missing:selected.stats?.missingIndexes||[],
+        synthetic:selected.stats?.syntheticCount||0,
+        dropped:selected.stats?.dropped||[],
+        labels:selected.boxes.map(b=>b.label||''),
+        scores:selected.boxes.map(b=>Number(b.score)||0)
+      };
+    });
+    assert.equal(v112RecoverThirteenHybrid.directCount,1,'v112 should find one unique low-extra recovery '+JSON.stringify(v112RecoverThirteenHybrid));
+    assert.equal(v112RecoverThirteenHybrid.directType,'drop-low-missing-slot-2','v112 recovery type mismatch '+JSON.stringify(v112RecoverThirteenHybrid));
+    assert.equal(v112RecoverThirteenHybrid.accepted,true,'v112 should recover screenshot-like 13 raw boxes '+JSON.stringify(v112RecoverThirteenHybrid));
+    assert.equal(v112RecoverThirteenHybrid.recoveryType,'drop-low-missing-slot-2','v112 selected recovery type mismatch '+JSON.stringify(v112RecoverThirteenHybrid));
+    assert.deepEqual(v112RecoverThirteenHybrid.missing,[10,11],'v112 should recover the two adjacent white slots '+JSON.stringify(v112RecoverThirteenHybrid));
+    assert.equal(v112RecoverThirteenHybrid.synthetic,2,'v112 should insert exactly two synthetic boxes '+JSON.stringify(v112RecoverThirteenHybrid));
+    assert.equal(v112RecoverThirteenHybrid.dropped.length,1,'v112 should drop exactly one low-confidence extra box '+JSON.stringify(v112RecoverThirteenHybrid));
+    assert.equal(v112RecoverThirteenHybrid.dropped[0].score,.11,'v112 should drop the spurious low-confidence box '+JSON.stringify(v112RecoverThirteenHybrid));
+    assert.equal(v112RecoverThirteenHybrid.dropped[0].label,'4m','v112 should drop the spurious 4m box '+JSON.stringify(v112RecoverThirteenHybrid));
+    assert.equal(v112RecoverThirteenHybrid.labels[9],'5z','v112 should preserve the observed 0.17 white anchor '+JSON.stringify(v112RecoverThirteenHybrid));
+
+    const v112MediumWhiteAnchor=await page.evaluate(()=>{
+      const api=window.M7CameraV36;
+      const labels=Array(14).fill('');
+      const sources=Array(14).fill('unresolved');
+      labels[9]='白';sources[9]='yolo';
+      labels[12]='7索';sources[12]='yolo';
+      labels[13]='7索';sources[13]='yolo';
+      const primary={labels,sources,yoloUsed:3,legacyUsed:0,unresolved:11};
+      const yolo=Array.from({length:14},()=>({label:'',score:0,classMargin:0,synthetic:false}));
+      yolo[9]={label:'白',score:.17,classMargin:.17,synthetic:false};
+      yolo[10]={label:'',score:0,classMargin:0,synthetic:true,recovery:'missing-slot-2'};
+      yolo[11]={label:'',score:0,classMargin:0,synthetic:true,recovery:'missing-slot-2'};
+      yolo[12]={label:'7索',score:.83,classMargin:.83,synthetic:false};
+      yolo[13]={label:'7索',score:.86,classMargin:.86,synthetic:false};
+      const features=Array.from({length:14},(_,i)=>[5+i,5+i,5+i,5+i]);
+      features[9]=[0,0,0,0];
+      features[10]=[.01,0,.01,0];
+      features[11]=[.02,.01,0,.01];
+      return api.recoverWhiteDragonGaps(primary,yolo,features,true);
+    });
+    assert.deepEqual(v112MediumWhiteAnchor.labels.slice(9,12),['白','白','白'],'v112 should use the observed 0.17 white only in a matching synthetic 3-run '+JSON.stringify(v112MediumWhiteAnchor));
+    assert.deepEqual(v112MediumWhiteAnchor.whiteContextAnchorIndexes,[9],'v112 should record the context-only medium white anchor '+JSON.stringify(v112MediumWhiteAnchor));
+    assert.deepEqual(v112MediumWhiteAnchor.whiteRecoveredIndexes,[10,11],'v112 should recover exactly the two matching synthetic whites '+JSON.stringify(v112MediumWhiteAnchor));
+
+    const v112MediumWhiteSafety=await page.evaluate(()=>{
+      const api=window.M7CameraV36;
+      const labels=Array(14).fill('');
+      const sources=Array(14).fill('unresolved');
+      labels[9]='白';sources[9]='yolo';
+      const primary={labels,sources,yoloUsed:1,legacyUsed:0,unresolved:13};
+      const yolo=Array.from({length:14},()=>({label:'',score:0,classMargin:0,synthetic:false}));
+      yolo[9]={label:'白',score:.17,classMargin:.17,synthetic:false};
+      yolo[10]={label:'',score:0,classMargin:0,synthetic:true,recovery:'missing-slot-2'};
+      yolo[11]={label:'',score:0,classMargin:0,synthetic:true,recovery:'missing-slot-2'};
+      const features=Array.from({length:14},()=>[6,6,6,6]);
+      features[9]=[0,0,0,0];
+      features[10]=[2,2,2,2];
+      features[11]=[2,2,2,2];
+      return api.recoverWhiteDragonGaps(primary,yolo,features,true);
+    });
+    assert.deepEqual(v112MediumWhiteSafety.labels.slice(9,12),['白','',''],'v112 must not expand a 0.17 white into visually different synthetic crops '+JSON.stringify(v112MediumWhiteSafety));
+
     const v97Consensus=await page.evaluate(()=>{
       const api=window.M7CameraV36;
       const base={x:10,y:10,w:20,h:30};
@@ -486,10 +575,10 @@ const server=http.createServer((req,res)=>{
     assert.equal(manifestBrand.name,'MAKI');
     assert.equal(manifestBrand.short_name,'MAKI');
     assert.equal(manifestBrand.id,'./');
-    assert(manifestBrand.icons.every(x=>String(x.src).includes('v=m7v111')),'v109 manifest icons must use fresh cache keys '+JSON.stringify(manifestBrand.icons));
+    assert(manifestBrand.icons.every(x=>String(x.src).includes('v=m7v112')),'v109 manifest icons must use fresh cache keys '+JSON.stringify(manifestBrand.icons));
     assert.equal(await page.$eval('meta[name="apple-mobile-web-app-title"]',e=>e.content),'MAKI');
     assert.equal(await page.$eval('meta[name="application-name"]',e=>e.content),'MAKI');
-    assert((await page.$eval('link[rel="apple-touch-icon"]',e=>e.getAttribute('href'))).includes('v=m7v111'));
+    assert((await page.$eval('link[rel="apple-touch-icon"]',e=>e.getAttribute('href'))).includes('v=m7v112'));
     for(const size of [180,192,512]){
       const p=path.join(root,'icon-'+size+'.png');
       assert(fs.existsSync(p),'MAKI icon missing '+p);
