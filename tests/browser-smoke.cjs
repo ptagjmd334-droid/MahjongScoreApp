@@ -1390,8 +1390,8 @@ const server=http.createServer((req,res)=>{
     assert(v111Entry.context?.includes('ロン'),'v111 did not retain ron context '+JSON.stringify(v111Entry));
     await page.click('#maki-hand-entry-v111 .maki-v111-manual');
     await page.waitForSelector('#maki-manual-hand-v111',{visible:true,timeout:4000});
-    assert.equal(await page.$eval('#maki-manual-hand-v111 .maki-v111-slot',x=>x.length),14,'v111 manual entry must have 14 slots');
-    assert.equal(await page.$eval('#maki-manual-hand-v111 .maki-v111-tile',x=>x.length),34,'v111 manual entry must offer 34 tile types');
+    assert.equal(await page.evaluate(()=>document.querySelectorAll('#maki-manual-hand-v111 .maki-v111-slot').length),14,'v111 manual entry must have 14 slots');
+    assert.equal(await page.evaluate(()=>document.querySelectorAll('#maki-manual-hand-v111 .maki-v111-tile').length),34,'v111 manual entry must offer 34 tile types');
     await page.click('#maki-manual-hand-v111 .maki-v111-cancel');
     await page.waitForFunction(()=>!document.getElementById('maki-manual-hand-v111'),{timeout:3000});
     await page.waitForSelector('#m8v30-review',{visible:true,timeout:4000});
