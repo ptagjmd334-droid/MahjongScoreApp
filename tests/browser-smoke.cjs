@@ -35,7 +35,7 @@ const server=http.createServer((req,res)=>{
     await page.goto('http://127.0.0.1:'+port+'/',{waitUntil:'domcontentloaded',timeout:30000});
     await page.waitForSelector('#go-confirm-button',{timeout:12000});
     assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'MAKI v110');
-    assert.equal(await page.$eval('#app-build-badge',e=>e.hidden),false,'v109 build badge should be visible during development');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.hidden),false,'v110 build badge should be visible during development');
     assert(await page.evaluate(()=>!!window.M7V36CameraOwner),'v98 camera owner must bootstrap');
     await page.evaluate(()=>{
       const overlay=document.createElement('div');
@@ -1032,6 +1032,9 @@ const server=http.createServer((req,res)=>{
 
     // Simulate a landscape camera frame and verify shutter -> post-capture 14 editable previews.
     const shutter=await page.evaluate(async()=>{
+      // Earlier bootstrap coverage may leave a camera overlay alive depending on
+      // headless getUserMedia timing. Start this fixture from one known overlay.
+      document.getElementById('realtime-hand-camera-m7v3')?.remove();
       const fake=document.createElement('div');
       fake.id='realtime-hand-camera-m7v3';fake.className='realtime-hand-camera-m7v3';
       const canvas=document.createElement('canvas');canvas.width=1920;canvas.height=1080;
