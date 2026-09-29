@@ -76,6 +76,7 @@ on:
       - work/maki-v96-runner-metadata-verifier-tuning
       - work/maki-v97-cross-view-consensus
       - work/maki-v98-camera-bootstrap-hotfix
+      - work/maki-v99-triplet-guard
   workflow_dispatch:
 
 jobs:
