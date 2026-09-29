@@ -87,7 +87,7 @@ on:
       - work/maki-v107-white-dragon-gap-recovery
       - work/maki-v108-white-anchor-alignment
       - work/maki-v109-strong-pair-protection
-      - work/maki-v110-recover-12-to-14
+      - work/maki-v110-recover-12-to-14\n      - work/maki-v111-score-hand-entry
   workflow_dispatch:
 
 jobs:
@@ -104,7 +104,7 @@ jobs:
         run: node --test tests/m8-v32.test.cjs
       - name: Check camera recognition helpers and load order
         run: node --test tests/m7-v33.test.cjs
-      - name: Install headless browser control
+      - name: Check MAKI v111 score hand-entry integration\n        run: node --test tests/maki-v111.test.cjs\n      - name: Install headless browser control
         run: npm install --no-save --no-audit --no-fund puppeteer-core@24
       - name: Run real Chromium landscape flow
         env:
