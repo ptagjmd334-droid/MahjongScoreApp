@@ -325,6 +325,7 @@ test('camera v36 is loaded before ui-fixes so verified clicks train the active c
   assert(camera.includes('14枚を認識中…'));
   assert(camera.includes('補助認識使用'));
   assert(camera.includes('LEGACY_PRODUCTION_LOADING_LABEL_V89'));
+  assert(index.includes('MAKIDebugV100'));
   assert(index.includes('MAKIDebugV99'));
   assert(index.includes('MAKIDebugV97'));
   assert(index.includes('MAKIDebugV96'));
@@ -334,15 +335,15 @@ test('camera v36 is loaded before ui-fixes so verified clicks train the active c
   assert(index.includes('MAKIDebugV92'));
   assert(index.includes('MAKIDebugV91'));
   assert(index.includes('MAKIDebugV89'));
-  assert(!index.includes('id="app-build-badge" hidden'),'development badge must stay visible in v99');
+  assert(!index.includes('id="app-build-badge" hidden'),'development badge must stay visible in v100');
   assert(camera.includes("detectorMode:'yolo11n-production-fastpath'"));
   assert(script.includes('acceptVerifiedHandM8V87'));
 
   assert(index.includes('<title>MAKI｜麻雀対局管理</title>'));
-  assert(index.includes('manifest.webmanifest?v=m7v99'));
+  assert(index.includes('manifest.webmanifest?v=m7v100'));
   assert(index.includes('apple-mobile-web-app-title" content="MAKI"'));
   assert(index.includes('application-name" content="MAKI"'));
-  assert(index.includes('icon-180.png?v=m7v99'));
+  assert(index.includes('icon-180.png?v=m7v100'));
   assert(index.includes('<h1>MAKI</h1>'));
   assert(camera.includes("content:attr(data-tile)"));
   assert(script.includes("setAttribute('aria-label',name)"));
@@ -453,6 +454,8 @@ test('v75 preserves stable learning and crop-quality-gated geometry',()=>{
   assert(camera.includes('function chooseYoloPrimaryRecognition'));
   assert(camera.includes('function yoloDuplicateVisualConflicts'));
   assert(camera.includes('function yoloNearDuplicateLabelConflicts'));
+  assert(camera.includes('function yoloSortedSuitOrderConflicts'));
+  assert(camera.includes('yoloSortedSuitConflictIndexes'));
   assert(camera.includes('function yoloClassAmbiguityConflicts'));
   assert(camera.includes('runnerScore'));
   assert(camera.includes('classMargin'));
