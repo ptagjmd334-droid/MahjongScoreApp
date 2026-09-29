@@ -34,8 +34,8 @@ const server=http.createServer((req,res)=>{
     const errors=[];page.on('pageerror',e=>errors.push(String(e)));
     await page.goto('http://127.0.0.1:'+port+'/',{waitUntil:'domcontentloaded',timeout:30000});
     await page.waitForSelector('#go-confirm-button',{timeout:12000});
-    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'MAKI v107');
-    assert.equal(await page.$eval('#app-build-badge',e=>e.hidden),false,'v107 build badge should be visible during development');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'MAKI v108');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.hidden),false,'v108 build badge should be visible during development');
     assert(await page.evaluate(()=>!!window.M7V36CameraOwner),'v98 camera owner must bootstrap');
     await page.evaluate(()=>{
       const overlay=document.createElement('div');
@@ -274,7 +274,7 @@ const server=http.createServer((req,res)=>{
     });
     assert.deepEqual(v106RandomHonorTriplet,[],'v106 must protect non-adjacent legal 西西西 in shuffled hands '+JSON.stringify(v106RandomHonorTriplet));
 
-    const v107WhiteRun=await page.evaluate(()=>{
+    const v108WhiteRun=await page.evaluate(()=>{
       const api=window.M7CameraV36;
       const labels=Array(14).fill('');
       const sources=Array(14).fill('unresolved');
@@ -283,9 +283,9 @@ const server=http.createServer((req,res)=>{
       labels[13]='7索';sources[13]='yolo';
       const primary={labels,sources,yoloUsed:3,legacyUsed:0,unresolved:11};
       const yolo=Array.from({length:14},()=>({label:'',score:0,classMargin:0}));
-      yolo[9]={label:'白',score:.43,classMargin:.43};
+      yolo[9]={label:'白',score:.29,classMargin:.29};
       yolo[10]={label:'',score:0,classMargin:0};
-      yolo[11]={label:'2索',score:.14,classMargin:.14};
+      yolo[11]={label:'白',score:.13,classMargin:.13};
       yolo[12]={label:'7索',score:.90,classMargin:.90};
       yolo[13]={label:'7索',score:.86,classMargin:.86};
       const features=Array.from({length:14},(_,i)=>[2+i,2+i,2+i,2+i]);
@@ -294,12 +294,12 @@ const server=http.createServer((req,res)=>{
       features[11]=[.02,.01,0,.01];
       return api.recoverWhiteDragonGaps(primary,yolo,features,true);
     });
-    assert.equal(v107WhiteRun.labels[9],'白','v107 white anchor should remain unchanged '+JSON.stringify(v107WhiteRun));
-    assert.equal(v107WhiteRun.labels[10],'白','v107 should recover the synthetic blank slot as white '+JSON.stringify(v107WhiteRun));
-    assert.equal(v107WhiteRun.labels[11],'白','v107 should recover the observed low-score neighboring blank tile as white '+JSON.stringify(v107WhiteRun));
-    assert.deepEqual(v107WhiteRun.whiteRecoveredIndexes,[10,11],'v107 should recover exactly two white slots '+JSON.stringify(v107WhiteRun));
+    assert.equal(v108WhiteRun.labels[9],'白','v108 accepted white anchor should remain unchanged '+JSON.stringify(v108WhiteRun));
+    assert.equal(v108WhiteRun.labels[10],'白','v108 should recover the synthetic blank slot as white '+JSON.stringify(v108WhiteRun));
+    assert.equal(v108WhiteRun.labels[11],'白','v108 should recover the observed low-score neighboring blank tile as white '+JSON.stringify(v108WhiteRun));
+    assert.deepEqual(v108WhiteRun.whiteRecoveredIndexes,[10,11],'v108 should recover exactly two white slots '+JSON.stringify(v108WhiteRun));
 
-    const v107WhiteSafety=await page.evaluate(()=>{
+    const v108WhiteSafety=await page.evaluate(()=>{
       const api=window.M7CameraV36;
       const labels=Array(14).fill('');
       const sources=Array(14).fill('unresolved');
@@ -313,7 +313,7 @@ const server=http.createServer((req,res)=>{
       features[10]=[2,2,2,2];
       return api.recoverWhiteDragonGaps(primary,yolo,features,true);
     });
-    assert.equal(v107WhiteSafety.labels[10],'','v107 must leave a visually different weak tile unresolved '+JSON.stringify(v107WhiteSafety));
+    assert.equal(v108WhiteSafety.labels[10],'','v108 must leave a visually different weak tile unresolved '+JSON.stringify(v108WhiteSafety));
 
     const v97Consensus=await page.evaluate(()=>{
       const api=window.M7CameraV36;
@@ -398,10 +398,10 @@ const server=http.createServer((req,res)=>{
     assert.equal(manifestBrand.name,'MAKI');
     assert.equal(manifestBrand.short_name,'MAKI');
     assert.equal(manifestBrand.id,'./');
-    assert(manifestBrand.icons.every(x=>String(x.src).includes('v=m7v107')),'v107 manifest icons must use fresh cache keys '+JSON.stringify(manifestBrand.icons));
+    assert(manifestBrand.icons.every(x=>String(x.src).includes('v=m7v108')),'v108 manifest icons must use fresh cache keys '+JSON.stringify(manifestBrand.icons));
     assert.equal(await page.$eval('meta[name="apple-mobile-web-app-title"]',e=>e.content),'MAKI');
     assert.equal(await page.$eval('meta[name="application-name"]',e=>e.content),'MAKI');
-    assert((await page.$eval('link[rel="apple-touch-icon"]',e=>e.getAttribute('href'))).includes('v=m7v107'));
+    assert((await page.$eval('link[rel="apple-touch-icon"]',e=>e.getAttribute('href'))).includes('v=m7v108'));
     for(const size of [180,192,512]){
       const p=path.join(root,'icon-'+size+'.png');
       assert(fs.existsSync(p),'MAKI icon missing '+p);

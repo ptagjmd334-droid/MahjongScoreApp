@@ -85,6 +85,7 @@ on:
       - work/maki-v105-honor-triplet-two-anchor
       - work/maki-v106-random-order-duplicates
       - work/maki-v107-white-dragon-gap-recovery
+      - work/maki-v108-white-anchor-alignment
   workflow_dispatch:
 
 jobs:

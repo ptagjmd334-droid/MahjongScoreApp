@@ -79,7 +79,7 @@
   const YOLO_HONOR_PAIR_ANCHOR_WEAK_MIN_SCORE=.55;
   const YOLO_HONOR_PAIR_ANCHOR_WEAK_MIN_MARGIN=.55;
   const YOLO_HONOR_PAIR_STRONG_ANCHOR_SCORE=.85;
-  const YOLO_WHITE_RECOVERY_ANCHOR_SCORE=.35;
+  const YOLO_WHITE_RECOVERY_ANCHOR_SCORE=.20;
   const YOLO_WHITE_RECOVERY_MAX_WEAK_SCORE=.149;
   const YOLO_WHITE_RECOVERY_MAX_DISTANCE=.18;
   const YOLO_WHITE_RECOVERY_MAX_RUN=4;
@@ -2945,7 +2945,8 @@
     const anchors=[];
     for(let i=0;i<14;i++){
       const r=yolo[i]||{};
-      if(r.label==='白'&&Number(r.score)>=YOLO_WHITE_RECOVERY_ANCHOR_SCORE&&feats[i])anchors.push(i);
+      const acceptedWhite=labels[i]==='白'&&r.label==='白';
+      if(acceptedWhite&&Number(r.score)>=YOLO_WHITE_RECOVERY_ANCHOR_SCORE&&feats[i])anchors.push(i);
     }
     if(!anchors.length)return {...base,labels,sources};
     const recovered=new Set();
