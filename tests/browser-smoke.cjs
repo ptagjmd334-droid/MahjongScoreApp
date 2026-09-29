@@ -446,7 +446,9 @@ const server=http.createServer((req,res)=>{
     assert.deepEqual(v112RecoverThirteenHybrid.missing,[10,11],'v112 should recover the two adjacent white slots '+JSON.stringify(v112RecoverThirteenHybrid));
     assert.equal(v112RecoverThirteenHybrid.synthetic,2,'v112 should insert exactly two synthetic boxes '+JSON.stringify(v112RecoverThirteenHybrid));
     assert.equal(v112RecoverThirteenHybrid.dropped.length,1,'v112 should drop exactly one low-confidence extra box '+JSON.stringify(v112RecoverThirteenHybrid));
-    assert.equal(v112RecoverThirteenHybrid.dropped[0].rawIndex,99,'v112 should preserve the observed 0.17 white and drop the spurious box '+JSON.stringify(v112RecoverThirteenHybrid));
+    assert.equal(v112RecoverThirteenHybrid.dropped[0].score,.11,'v112 should drop the spurious low-confidence box '+JSON.stringify(v112RecoverThirteenHybrid));
+    assert.equal(v112RecoverThirteenHybrid.dropped[0].label,'4m','v112 should drop the spurious 4m box '+JSON.stringify(v112RecoverThirteenHybrid));
+    assert.equal(v112RecoverThirteenHybrid.labels[9],'5z','v112 should preserve the observed 0.17 white anchor '+JSON.stringify(v112RecoverThirteenHybrid));
 
     const v112MediumWhiteAnchor=await page.evaluate(()=>{
       const api=window.M7CameraV36;
