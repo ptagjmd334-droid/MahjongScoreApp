@@ -88,6 +88,7 @@ on:
       - work/maki-v108-white-anchor-alignment
       - work/maki-v109-strong-pair-protection
       - work/maki-v110-recover-12-to-14
+      - work/maki-v111-score-hand-entry
   workflow_dispatch:
 
 jobs:
@@ -104,9 +105,19 @@ jobs:
         run: node --test tests/m8-v32.test.cjs
       - name: Check camera recognition helpers and load order
         run: node --test tests/m7-v33.test.cjs
+      - name: Check MAKI v111 score hand-entry integration
+        run: node --test tests/maki-v111.test.cjs
       - name: Install headless browser control
         run: npm install --no-save --no-audit --no-fund puppeteer-core@24
       - name: Run real Chromium landscape flow
         env:
           CHROME_BIN: /usr/bin/google-chrome
         run: node tests/browser-smoke.cjs
+      - name: Package latest app
+        run: zip -r MahjongScoreApp_latest.zip . -x ".git/*" "node_modules/*" "MahjongScoreApp_latest.zip"
+      - name: Upload latest app package
+        uses: actions/upload-artifact@v4
+        with:
+          name: MahjongScoreApp_latest
+          path: MahjongScoreApp_latest.zip
+          if-no-files-found: error

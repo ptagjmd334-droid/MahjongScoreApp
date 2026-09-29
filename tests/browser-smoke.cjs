@@ -34,8 +34,8 @@ const server=http.createServer((req,res)=>{
     const errors=[];page.on('pageerror',e=>errors.push(String(e)));
     await page.goto('http://127.0.0.1:'+port+'/',{waitUntil:'domcontentloaded',timeout:30000});
     await page.waitForSelector('#go-confirm-button',{timeout:12000});
-    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'MAKI v110');
-    assert.equal(await page.$eval('#app-build-badge',e=>e.hidden),false,'v110 build badge should be visible during development');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'MAKI v111');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.hidden),false,'v111 build badge should be visible during development');
     assert(await page.evaluate(()=>!!window.M7V36CameraOwner),'v98 camera owner must bootstrap');
     await page.evaluate(()=>{
       const overlay=document.createElement('div');
@@ -486,10 +486,10 @@ const server=http.createServer((req,res)=>{
     assert.equal(manifestBrand.name,'MAKI');
     assert.equal(manifestBrand.short_name,'MAKI');
     assert.equal(manifestBrand.id,'./');
-    assert(manifestBrand.icons.every(x=>String(x.src).includes('v=m7v110')),'v109 manifest icons must use fresh cache keys '+JSON.stringify(manifestBrand.icons));
+    assert(manifestBrand.icons.every(x=>String(x.src).includes('v=m7v111')),'v109 manifest icons must use fresh cache keys '+JSON.stringify(manifestBrand.icons));
     assert.equal(await page.$eval('meta[name="apple-mobile-web-app-title"]',e=>e.content),'MAKI');
     assert.equal(await page.$eval('meta[name="application-name"]',e=>e.content),'MAKI');
-    assert((await page.$eval('link[rel="apple-touch-icon"]',e=>e.getAttribute('href'))).includes('v=m7v110'));
+    assert((await page.$eval('link[rel="apple-touch-icon"]',e=>e.getAttribute('href'))).includes('v=m7v111'));
     for(const size of [180,192,512]){
       const p=path.join(root,'icon-'+size+'.png');
       assert(fs.existsSync(p),'MAKI icon missing '+p);
@@ -1379,6 +1379,22 @@ const server=http.createServer((req,res)=>{
     assert.equal(await page.$eval('#discarder-next-button',e=>e.disabled),false);
     await page.click('#discarder-next-button');
     await page.waitForSelector('#agari-overlay .score-switch-table',{visible:true,timeout:9000});
+    await page.waitForSelector('#maki-hand-entry-v111',{visible:true,timeout:5000});
+    const v111Entry=await page.$eval('#maki-hand-entry-v111',e=>({
+      camera:e.querySelector('.maki-v111-camera')?.textContent?.trim(),
+      manual:e.querySelector('.maki-v111-manual')?.textContent?.trim(),
+      context:e.querySelector('.maki-v111-context')?.textContent?.trim()
+    }));
+    assert(v111Entry.camera?.includes('カメラで認識'),'v111 camera entry missing '+JSON.stringify(v111Entry));
+    assert(v111Entry.manual?.includes('手動入力'),'v111 manual entry missing '+JSON.stringify(v111Entry));
+    assert(v111Entry.context?.includes('ロン'),'v111 did not retain ron context '+JSON.stringify(v111Entry));
+    await page.click('#maki-hand-entry-v111 .maki-v111-manual');
+    await page.waitForSelector('#maki-manual-hand-v111',{visible:true,timeout:4000});
+    assert.equal(await page.evaluate(()=>document.querySelectorAll('#maki-manual-hand-v111 .maki-v111-slot').length),14,'v111 manual entry must have 14 slots');
+    assert.equal(await page.evaluate(()=>document.querySelectorAll('#maki-manual-hand-v111 .maki-v111-tile').length),34,'v111 manual entry must offer 34 tile types');
+    await page.click('#maki-manual-hand-v111 .maki-v111-cancel');
+    await page.waitForFunction(()=>!document.getElementById('maki-manual-hand-v111'),{timeout:3000});
+    await page.waitForSelector('#m8v30-review',{visible:true,timeout:4000});
     const score=await page.$eval('#agari-overlay',e=>{
       const card=e.querySelector('.agari-flow-card');
       const rect=e.getBoundingClientRect(),inside=card?.getBoundingClientRect();
