@@ -1394,6 +1394,7 @@ const server=http.createServer((req,res)=>{
     assert.equal(await page.$eval('#maki-manual-hand-v111 .maki-v111-tile',x=>x.length),34,'v111 manual entry must offer 34 tile types');
     await page.click('#maki-manual-hand-v111 .maki-v111-cancel');
     await page.waitForFunction(()=>!document.getElementById('maki-manual-hand-v111'),{timeout:3000});
+    await page.waitForSelector('#m8v30-review',{visible:true,timeout:4000});
     const score=await page.$eval('#agari-overlay',e=>{
       const card=e.querySelector('.agari-flow-card');
       const rect=e.getBoundingClientRect(),inside=card?.getBoundingClientRect();
