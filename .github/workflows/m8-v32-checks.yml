@@ -87,6 +87,7 @@ on:
       - work/maki-v107-white-dragon-gap-recovery
       - work/maki-v108-white-anchor-alignment
       - work/maki-v109-strong-pair-protection
+      - work/maki-v110-recover-12-to-14
   workflow_dispatch:
 
 jobs:

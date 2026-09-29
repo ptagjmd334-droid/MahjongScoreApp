@@ -34,8 +34,8 @@ const server=http.createServer((req,res)=>{
     const errors=[];page.on('pageerror',e=>errors.push(String(e)));
     await page.goto('http://127.0.0.1:'+port+'/',{waitUntil:'domcontentloaded',timeout:30000});
     await page.waitForSelector('#go-confirm-button',{timeout:12000});
-    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'MAKI v109');
-    assert.equal(await page.$eval('#app-build-badge',e=>e.hidden),false,'v109 build badge should be visible during development');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'MAKI v110');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.hidden),false,'v110 build badge should be visible during development');
     assert(await page.evaluate(()=>!!window.M7V36CameraOwner),'v98 camera owner must bootstrap');
     await page.evaluate(()=>{
       const overlay=document.createElement('div');
@@ -340,6 +340,69 @@ const server=http.createServer((req,res)=>{
     });
     assert.equal(v108WhiteSafety.labels[10],'','v108 must leave a visually different weak tile unresolved '+JSON.stringify(v108WhiteSafety));
 
+
+    const v110RecoverTwelve=await page.evaluate(()=>{
+      const api=window.M7CameraV36;
+      const count=14,pitch=50,w=42,h=70,x0=100,y=40;
+      const missing=new Set([10,11]);
+      const boxes=[];
+      for(let i=0;i<count;i++){
+        if(missing.has(i))continue;
+        boxes.push({
+          x:x0+i*pitch-w/2,y,w,h,
+          score:i===9?.09:.86,
+          label:i===9?'5z':(i>=12?'7s':'1m'),
+          classId:0,view:'full'
+        });
+      }
+      const source={width:900,height:180};
+      return api.selectDetectorProductionBoxes({boxes},source,null,14);
+    });
+    assert.equal(v110RecoverTwelve.accepted,true,'v110 should recover two adjacent missing slots '+JSON.stringify(v110RecoverTwelve));
+    assert.equal(v110RecoverTwelve.boxes.length,14,'v110 recovered result must contain 14 boxes '+JSON.stringify(v110RecoverTwelve));
+    assert.equal(v110RecoverTwelve.stats.syntheticCount,2,'v110 should insert exactly two synthetic boxes '+JSON.stringify(v110RecoverTwelve));
+    assert.deepEqual(v110RecoverTwelve.stats.missingIndexes,[10,11],'v110 should recover the actual adjacent blank slots '+JSON.stringify(v110RecoverTwelve));
+
+    const v110WeakWhiteAnchor=await page.evaluate(()=>{
+      const api=window.M7CameraV36;
+      const labels=Array(14).fill('');
+      const sources=Array(14).fill('unresolved');
+      labels[12]='7索';sources[12]='yolo';
+      labels[13]='7索';sources[13]='yolo';
+      const primary={labels,sources,yoloUsed:2,legacyUsed:0,unresolved:12};
+      const yolo=Array.from({length:14},()=>({label:'',score:0,classMargin:0,synthetic:false}));
+      yolo[9]={label:'白',score:.09,classMargin:.09,synthetic:false};
+      yolo[10]={label:'',score:0,classMargin:0,synthetic:true,recovery:'missing-slot-2'};
+      yolo[11]={label:'',score:0,classMargin:0,synthetic:true,recovery:'missing-slot-2'};
+      yolo[12]={label:'7索',score:.90,classMargin:.90,synthetic:false};
+      yolo[13]={label:'7索',score:.84,classMargin:.84,synthetic:false};
+      const features=Array.from({length:14},(_,i)=>[3+i,3+i,3+i,3+i]);
+      features[9]=[0,0,0,0];
+      features[10]=[.01,0,.01,0];
+      features[11]=[.02,.01,0,.01];
+      return api.recoverWhiteDragonGaps(primary,yolo,features,true);
+    });
+    assert.deepEqual(v110WeakWhiteAnchor.labels.slice(9,12),['白','白','白'],'v110 should promote the observed 0.09 white and recover its two adjacent synthetic white tiles '+JSON.stringify(v110WeakWhiteAnchor));
+    assert.deepEqual(v110WeakWhiteAnchor.whiteWeakAnchorIndexes,[9],'v110 should record the weak white anchor '+JSON.stringify(v110WeakWhiteAnchor));
+    assert.deepEqual(v110WeakWhiteAnchor.whiteRecoveredIndexes,[10,11],'v110 should recover exactly the two synthetic neighbors '+JSON.stringify(v110WeakWhiteAnchor));
+
+    const v110WeakWhiteSafety=await page.evaluate(()=>{
+      const api=window.M7CameraV36;
+      const labels=Array(14).fill('');
+      const sources=Array(14).fill('unresolved');
+      const primary={labels,sources,yoloUsed:0,legacyUsed:0,unresolved:14};
+      const yolo=Array.from({length:14},()=>({label:'',score:0,classMargin:0,synthetic:false}));
+      yolo[9]={label:'白',score:.09,classMargin:.09,synthetic:false};
+      yolo[10]={label:'',score:0,classMargin:0,synthetic:true,recovery:'missing-slot-2'};
+      yolo[11]={label:'',score:0,classMargin:0,synthetic:true,recovery:'missing-slot-2'};
+      const features=Array.from({length:14},()=>[4,4,4,4]);
+      features[9]=[0,0,0,0];
+      features[10]=[2,2,2,2];
+      features[11]=[2,2,2,2];
+      return api.recoverWhiteDragonGaps(primary,yolo,features,true);
+    });
+    assert.deepEqual(v110WeakWhiteSafety.labels.slice(9,12),['','',''],'v110 must not promote a weak white when synthetic crops are visually different '+JSON.stringify(v110WeakWhiteSafety));
+
     const v97Consensus=await page.evaluate(()=>{
       const api=window.M7CameraV36;
       const base={x:10,y:10,w:20,h:30};
@@ -423,10 +486,10 @@ const server=http.createServer((req,res)=>{
     assert.equal(manifestBrand.name,'MAKI');
     assert.equal(manifestBrand.short_name,'MAKI');
     assert.equal(manifestBrand.id,'./');
-    assert(manifestBrand.icons.every(x=>String(x.src).includes('v=m7v109')),'v109 manifest icons must use fresh cache keys '+JSON.stringify(manifestBrand.icons));
+    assert(manifestBrand.icons.every(x=>String(x.src).includes('v=m7v110')),'v109 manifest icons must use fresh cache keys '+JSON.stringify(manifestBrand.icons));
     assert.equal(await page.$eval('meta[name="apple-mobile-web-app-title"]',e=>e.content),'MAKI');
     assert.equal(await page.$eval('meta[name="application-name"]',e=>e.content),'MAKI');
-    assert((await page.$eval('link[rel="apple-touch-icon"]',e=>e.getAttribute('href'))).includes('v=m7v109'));
+    assert((await page.$eval('link[rel="apple-touch-icon"]',e=>e.getAttribute('href'))).includes('v=m7v110'));
     for(const size of [180,192,512]){
       const p=path.join(root,'icon-'+size+'.png');
       assert(fs.existsSync(p),'MAKI icon missing '+p);
@@ -969,6 +1032,9 @@ const server=http.createServer((req,res)=>{
 
     // Simulate a landscape camera frame and verify shutter -> post-capture 14 editable previews.
     const shutter=await page.evaluate(async()=>{
+      // Earlier bootstrap coverage may leave a camera overlay alive depending on
+      // headless getUserMedia timing. Start this fixture from one known overlay.
+      document.getElementById('realtime-hand-camera-m7v3')?.remove();
       const fake=document.createElement('div');
       fake.id='realtime-hand-camera-m7v3';fake.className='realtime-hand-camera-m7v3';
       const canvas=document.createElement('canvas');canvas.width=1920;canvas.height=1080;

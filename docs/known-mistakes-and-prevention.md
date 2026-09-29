@@ -1304,3 +1304,12 @@
 **原因:** duplicate visual guardで、同一ラベルpairのfeature距離が大きい時、score差またはmargin差だけで弱い方をblockする条件が残っていた。今回margin差0.05が閾値0.04を超えた。  
 **修正:** v109では同一ラベルpairの両方がscore>=0.75かつmargin>=0.65なら、visual mismatchだけではblockしない。  
 **再発防止:** 同一牌2枚は麻雀上完全に合法。高confidenceの同一ラベルpairは補助認識の見た目差よりYOLOを優先し、弱い片側がある時だけguardを働かせる。  
+
+
+## M147: 白のような無地牌は1枚欠落だけでなく2枚連続欠落も起こる
+**時期:** MAKI v109→v110  
+**実機症状:** 白白白のうち先頭だけ5z 0.09で検出され、続く白2枚がbox欠落。raw count=12となりYOLO production pathがfallbackし、最終結果が2/14まで崩れた。  
+**原因:** v108までの不足補完は13→14の1box欠落だけを対象にしており、count-12は即fallbackだった。白は模様が少ないため同一runで複数枚のbox欠落が起こり得る。  
+**修正:** v110で12→14を追加。ただし任意の2穴は推測せず、隣接2slot・一意な14slot fit・十分な幾何整合が揃う場合だけ補完する。  
+**白の弱anchor:** 検出済み白が通常class threshold未満でも、隣接synthetic2枚と3枚runを作り、両cropが視覚的に近い場合のみ白anchorへ昇格する。  
+**再発防止:** 検出box数不足時は「fallbackへ落とす」前に、欠落枚数と牌種特性に応じた安全な幾何補完を検討する。class thresholdを全体的に下げて解決しない。  
