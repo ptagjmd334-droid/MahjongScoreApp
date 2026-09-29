@@ -312,7 +312,7 @@ test('camera v36 is loaded before ui-fixes so verified clicks train the active c
   assert(index.indexOf('script.js')<index.indexOf('m7-recognition-core.js'));
   assert(index.indexOf('m7-recognition-core.js')<index.indexOf('m7-camera-v36.js'));
   assert(index.indexOf('m7-camera-v36.js')<index.indexOf('ui-fixes.js'));
-  assert(index.includes('MAKI v96'));
+  assert(index.includes('MAKI v97'));
   assert(uiFixes.includes('publishVerifiedHandM8V87'));
   assert(uiFixes.includes('acceptVerifiedHandM8V87'));
   assert(uiFixes.includes("maki:verified-hand"));
@@ -325,6 +325,7 @@ test('camera v36 is loaded before ui-fixes so verified clicks train the active c
   assert(camera.includes('14枚を認識中…'));
   assert(camera.includes('補助認識使用'));
   assert(camera.includes('LEGACY_PRODUCTION_LOADING_LABEL_V89'));
+  assert(index.includes('MAKIDebugV97'));
   assert(index.includes('MAKIDebugV96'));
   assert(index.includes('MAKIDebugV95'));
   assert(index.includes('MAKIDebugV94'));
@@ -332,15 +333,15 @@ test('camera v36 is loaded before ui-fixes so verified clicks train the active c
   assert(index.includes('MAKIDebugV92'));
   assert(index.includes('MAKIDebugV91'));
   assert(index.includes('MAKIDebugV89'));
-  assert(!index.includes('id="app-build-badge" hidden'),'development badge must stay visible in v96');
+  assert(!index.includes('id="app-build-badge" hidden'),'development badge must stay visible in v97');
   assert(camera.includes("detectorMode:'yolo11n-production-fastpath'"));
   assert(script.includes('acceptVerifiedHandM8V87'));
 
   assert(index.includes('<title>MAKI｜麻雀対局管理</title>'));
-  assert(index.includes('manifest.webmanifest?v=m7v96'));
+  assert(index.includes('manifest.webmanifest?v=m7v97'));
   assert(index.includes('apple-mobile-web-app-title" content="MAKI"'));
   assert(index.includes('application-name" content="MAKI"'));
-  assert(index.includes('icon-180.png?v=m7v96'));
+  assert(index.includes('icon-180.png?v=m7v97'));
   assert(index.includes('<h1>MAKI</h1>'));
   assert(camera.includes("content:attr(data-tile)"));
   assert(script.includes("setAttribute('aria-label',name)"));
@@ -422,10 +423,17 @@ test('v75 preserves stable learning and crop-quality-gated geometry',()=>{
   assert(camera.includes("ORT_VERSION='1.22.0'"));
   assert(camera.includes('function detectorWindows'));
   assert(camera.includes('function decodeYoloOutput'));
+  assert(camera.includes('function detectorConsensusCluster'));
   assert(camera.includes('function detectorNms'));
+  assert(camera.includes('crossViewSupport'));
+  assert(camera.includes('crossViewShare'));
+  assert(camera.includes('crossViewMargin'));
+  assert(camera.includes('YOLO_CROSS_VIEW_STRONG_SHARE=.67'));
+  assert(camera.includes('YOLO_DUPLICATE_STRONG_GROUP_SCORE=.74'));
   assert(camera.includes('function runYoloTileDetectorDiagnostic'));
   assert(camera.includes('function detectorGeometryEvaluation'));
   assert(camera.includes('function detectorSubsetCandidates'));
+  assert(camera.includes('if(n<count||n>count+3)return []'));
   assert(camera.includes("reason:'subset-ambiguous'"));
   assert(camera.includes("reason:subsetUsed?'subset-'"));
   assert(camera.includes("detectorMode:'yolo11n-production-axis-aligned-subset-crops'"));
@@ -447,6 +455,7 @@ test('v75 preserves stable learning and crop-quality-gated geometry',()=>{
   assert(camera.includes('YOLO_CLASS_MARGIN_SOFT=.10'));
   assert(camera.includes('YOLO_NEAR_DUPLICATE_DISTANCE=.105'));
   assert(camera.includes('m7v95-class-diagnostic'));
+  assert(camera.includes("' / 票'+support+'/'+views"));
   assert(camera.includes('runnerClassId:Number.isInteger(d.runnerClassId)'));
   assert(camera.includes("runnerLabel:String(d.runnerLabel||'')"));
   assert(camera.includes('classMargin:Number(Number(d.classMargin||0).toFixed(4))'));
