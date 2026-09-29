@@ -325,6 +325,7 @@ test('camera v36 is loaded before ui-fixes so verified clicks train the active c
   assert(camera.includes('14枚を認識中…'));
   assert(camera.includes('補助認識使用'));
   assert(camera.includes('LEGACY_PRODUCTION_LOADING_LABEL_V89'));
+  assert(index.includes('MAKIDebugV109'));
   assert(index.includes('MAKIDebugV108'));
   assert(index.includes('MAKIDebugV107'));
   assert(index.includes('MAKIDebugV106'));
@@ -343,15 +344,15 @@ test('camera v36 is loaded before ui-fixes so verified clicks train the active c
   assert(index.includes('MAKIDebugV92'));
   assert(index.includes('MAKIDebugV91'));
   assert(index.includes('MAKIDebugV89'));
-  assert(!index.includes('id="app-build-badge" hidden'),'development badge must stay visible in v108');
+  assert(!index.includes('id="app-build-badge" hidden'),'development badge must stay visible in v109');
   assert(camera.includes("detectorMode:'yolo11n-production-fastpath'"));
   assert(script.includes('acceptVerifiedHandM8V87'));
 
   assert(index.includes('<title>MAKI｜麻雀対局管理</title>'));
-  assert(index.includes('manifest.webmanifest?v=m7v108'));
+  assert(index.includes('manifest.webmanifest?v=m7v109'));
   assert(index.includes('apple-mobile-web-app-title" content="MAKI"'));
   assert(index.includes('application-name" content="MAKI"'));
-  assert(index.includes('icon-180.png?v=m7v108'));
+  assert(index.includes('icon-180.png?v=m7v109'));
   assert(index.includes('<h1>MAKI</h1>'));
   assert(camera.includes("content:attr(data-tile)"));
   assert(script.includes("setAttribute('aria-label',name)"));
@@ -506,6 +507,9 @@ test('v75 preserves stable learning and crop-quality-gated geometry',()=>{
   assert(camera.includes("runnerLabel:String(d.runnerLabel||'')"));
   assert(camera.includes('classMargin:Number(Number(d.classMargin||0).toFixed(4))'));
   assert(camera.includes('YOLO_DUPLICATE_PAIR_FAR_DISTANCE=.30'));
+  assert(camera.includes('YOLO_DUPLICATE_PAIR_STRONG_MIN_SCORE=.75'));
+  assert(camera.includes('YOLO_DUPLICATE_PAIR_STRONG_MIN_MARGIN=.65'));
+  assert(camera.includes('const strongSameLabelPair='));
   assert(camera.includes('YOLO_VERIFIER_SAME_FAMILY_MARGIN=.18'));
   assert(camera.includes('YOLO_VERIFIER_CROSS_FAMILY_MARGIN=.075'));
   assert(camera.includes('function yoloLegacyLabelConflicts'));
