@@ -34,8 +34,8 @@ const server=http.createServer((req,res)=>{
     const errors=[];page.on('pageerror',e=>errors.push(String(e)));
     await page.goto('http://127.0.0.1:'+port+'/',{waitUntil:'domcontentloaded',timeout:30000});
     await page.waitForSelector('#go-confirm-button',{timeout:12000});
-    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'MAKI v94');
-    assert.equal(await page.$eval('#app-build-badge',e=>e.hidden),false,'v94 build badge should be visible during development');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'MAKI v95');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.hidden),false,'v95 build badge should be visible during development');
     const v89DebugBadge=await page.evaluate(()=>{
       history.replaceState({},'',location.pathname+'?debug=1');
       const enabled=window.MAKIDebugV89?.apply?.();
@@ -146,6 +146,30 @@ const server=http.createServer((req,res)=>{
     assert.deepEqual(conservativeVerifier.broad,[1,4],'v94 must challenge any confidently accepted legacy disagreement '+JSON.stringify(conservativeVerifier));
     assert.deepEqual(conservativeVerifier.alias,conservativeVerifier.broad,'v93 compatibility alias must match broad v94 guard '+JSON.stringify(conservativeVerifier));
 
+    const v95Ambiguity=await page.evaluate(()=>{
+      const api=window.M7CameraV36;
+      const yolo=Array.from({length:14},()=>({label:'東',score:.8,runnerLabel:'南',runnerScore:.2,classMargin:.6}));
+      const legacy=Array(14).fill('');
+      const debug=Array.from({length:14},()=>[]);
+      yolo[3]={label:'南',score:.31,runnerLabel:'發',runnerScore:.27,classMargin:.04};
+      debug[3]=[{label:'發'}];
+      yolo[4]={label:'5萬',score:.75,runnerLabel:'5筒',runnerScore:.70,classMargin:.05};
+      legacy[4]='5萬';
+      return api.yoloClassAmbiguityConflicts(yolo,legacy,debug,true);
+    });
+    assert.deepEqual(v95Ambiguity,[3],'v95 should stop low-margin unconfirmed YOLO but keep legacy-confirmed label '+JSON.stringify(v95Ambiguity));
+
+    const v95NearDuplicate=await page.evaluate(()=>{
+      const api=window.M7CameraV36;
+      const yolo=Array.from({length:14},()=>({label:'1萬',score:.9,classMargin:.5}));
+      const features=Array.from({length:14},(_,i)=>Array(4).fill(i));
+      yolo[12]={label:'南',score:.42,classMargin:.08};
+      yolo[13]={label:'發',score:.78,classMargin:.25};
+      features[12]=[0,0,0,0];features[13]=[0.01,0.01,0.01,0.01];
+      return api.yoloNearDuplicateLabelConflicts(yolo,features,true,.105,.06);
+    });
+    assert.deepEqual(v95NearDuplicate,[12],'v95 should challenge the weaker label on visually near-identical honor tiles '+JSON.stringify(v95NearDuplicate));
+
     const v90VisibleLabels=await page.evaluate(()=>{
       const hand=['1萬','2萬','3萬','4萬','5萬','6萬','7萬','8萬','9萬','東','東','東','發','發'];
       window.showHandResultM7V5(hand);
@@ -167,10 +191,10 @@ const server=http.createServer((req,res)=>{
     assert.equal(manifestBrand.name,'MAKI');
     assert.equal(manifestBrand.short_name,'MAKI');
     assert.equal(manifestBrand.id,'./');
-    assert(manifestBrand.icons.every(x=>String(x.src).includes('v=m7v94')),'v93 manifest icons must use fresh cache keys '+JSON.stringify(manifestBrand.icons));
+    assert(manifestBrand.icons.every(x=>String(x.src).includes('v=m7v95')),'v95 manifest icons must use fresh cache keys '+JSON.stringify(manifestBrand.icons));
     assert.equal(await page.$eval('meta[name="apple-mobile-web-app-title"]',e=>e.content),'MAKI');
     assert.equal(await page.$eval('meta[name="application-name"]',e=>e.content),'MAKI');
-    assert((await page.$eval('link[rel="apple-touch-icon"]',e=>e.getAttribute('href'))).includes('v=m7v94'));
+    assert((await page.$eval('link[rel="apple-touch-icon"]',e=>e.getAttribute('href'))).includes('v=m7v95'));
     for(const size of [180,192,512]){
       const p=path.join(root,'icon-'+size+'.png');
       assert(fs.existsSync(p),'MAKI icon missing '+p);

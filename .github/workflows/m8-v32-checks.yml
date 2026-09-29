@@ -72,6 +72,7 @@ on:
       - work/maki-v92-duplicate-guard-tuning
       - work/maki-v93-home-install-branding
       - work/maki-v94-conservative-disagreement-guard
+      - work/maki-v95-ambiguity-and-learning-decouple
   workflow_dispatch:
 
 jobs:

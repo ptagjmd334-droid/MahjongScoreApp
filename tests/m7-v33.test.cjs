@@ -312,7 +312,7 @@ test('camera v36 is loaded before ui-fixes so verified clicks train the active c
   assert(index.indexOf('script.js')<index.indexOf('m7-recognition-core.js'));
   assert(index.indexOf('m7-recognition-core.js')<index.indexOf('m7-camera-v36.js'));
   assert(index.indexOf('m7-camera-v36.js')<index.indexOf('ui-fixes.js'));
-  assert(index.includes('MAKI v94'));
+  assert(index.includes('MAKI v95'));
   assert(uiFixes.includes('publishVerifiedHandM8V87'));
   assert(uiFixes.includes('acceptVerifiedHandM8V87'));
   assert(uiFixes.includes("maki:verified-hand"));
@@ -325,20 +325,21 @@ test('camera v36 is loaded before ui-fixes so verified clicks train the active c
   assert(camera.includes('14枚を認識中…'));
   assert(camera.includes('補助認識使用'));
   assert(camera.includes('LEGACY_PRODUCTION_LOADING_LABEL_V89'));
+  assert(index.includes('MAKIDebugV95'));
   assert(index.includes('MAKIDebugV94'));
   assert(index.includes('MAKIDebugV93'));
   assert(index.includes('MAKIDebugV92'));
   assert(index.includes('MAKIDebugV91'));
   assert(index.includes('MAKIDebugV89'));
-  assert(!index.includes('id="app-build-badge" hidden'),'development badge must stay visible in v94');
+  assert(!index.includes('id="app-build-badge" hidden'),'development badge must stay visible in v95');
   assert(camera.includes("detectorMode:'yolo11n-production-fastpath'"));
   assert(script.includes('acceptVerifiedHandM8V87'));
 
   assert(index.includes('<title>MAKI｜麻雀対局管理</title>'));
-  assert(index.includes('manifest.webmanifest?v=m7v93'));
+  assert(index.includes('manifest.webmanifest?v=m7v95'));
   assert(index.includes('apple-mobile-web-app-title" content="MAKI"'));
   assert(index.includes('application-name" content="MAKI"'));
-  assert(index.includes('icon-180.png?v=m7v93'));
+  assert(index.includes('icon-180.png?v=m7v95'));
   assert(index.includes('<h1>MAKI</h1>'));
   assert(camera.includes("content:attr(data-tile)"));
   assert(script.includes("setAttribute('aria-label',name)"));
@@ -437,6 +438,14 @@ test('v75 preserves stable learning and crop-quality-gated geometry',()=>{
   assert(camera.includes('function yoloRecognitionFromBoxes'));
   assert(camera.includes('function chooseYoloPrimaryRecognition'));
   assert(camera.includes('function yoloDuplicateVisualConflicts'));
+  assert(camera.includes('function yoloNearDuplicateLabelConflicts'));
+  assert(camera.includes('function yoloClassAmbiguityConflicts'));
+  assert(camera.includes('runnerScore'));
+  assert(camera.includes('classMargin'));
+  assert(camera.includes('YOLO_CLASS_MARGIN_STRICT=.045'));
+  assert(camera.includes('YOLO_CLASS_MARGIN_SOFT=.10'));
+  assert(camera.includes('YOLO_NEAR_DUPLICATE_DISTANCE=.105'));
+  assert(camera.includes('m7v95-class-diagnostic'));
   assert(camera.includes('function yoloLegacyLabelConflicts'));
   assert(camera.includes('function yoloLegacySuitConflicts'));
   assert(camera.includes("if(yl&&ll&&yl!==ll)conflicts.push(i)"));
@@ -540,6 +549,9 @@ test('v75 preserves stable learning and crop-quality-gated geometry',()=>{
   assert(camera.includes('保存完了を確認してから次へ進みます'));
   assert(camera.includes('async function persistVerifiedHand'));
   assert(camera.includes("reason:raw.length?'durable-store-failed':'raw-images-missing'"));
+  assert(camera.includes('const learnableLabels='));
+  assert(camera.includes('stable.primaryVerified&&learnableLabels.every'));
+  assert(camera.includes('手牌の確認・アガリ判定には影響しません'));
   assert(camera.includes("status.textContent='学習データを保存中…'"));
   assert(camera.includes("localStorage.setItem(LIB_BACKUP_KEY,json)"));
   assert(camera.includes('saveLibraryDetailed'));
@@ -551,8 +563,10 @@ test('v75 preserves stable learning and crop-quality-gated geometry',()=>{
   assert(camera.includes("},true);"));
   const ui=fs.readFileSync(path.join(root,'ui-fixes.js'),'utf8');
   assert(ui.includes("await window.M7CameraV36.persistVerifiedHand(root)"));
-  assert(ui.includes("学習データの保存に失敗しました"));
   assert(ui.includes("if(!saved?.ok)"));
+  assert(ui.includes('MAKILastLearningWarningV95'));
+  assert(ui.includes('maki-learning-warning-v95'));
+  assert(!ui.includes("if(!saved?.ok){ok.disabled=false"),'v95 learning failure must not block M8 progression');
 });
 
 test('v75 crop quality and low-freedom crop stabilization helpers are wired',()=>{
