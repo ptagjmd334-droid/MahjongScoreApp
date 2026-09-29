@@ -113,3 +113,11 @@ jobs:
         env:
           CHROME_BIN: /usr/bin/google-chrome
         run: node tests/browser-smoke.cjs
+      - name: Package latest app
+        run: zip -r MahjongScoreApp_latest.zip . -x ".git/*" "node_modules/*" "MahjongScoreApp_latest.zip"
+      - name: Upload latest app package
+        uses: actions/upload-artifact@v4
+        with:
+          name: MahjongScoreApp_latest
+          path: MahjongScoreApp_latest.zip
+          if-no-files-found: error
