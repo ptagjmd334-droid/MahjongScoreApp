@@ -2768,6 +2768,51 @@
     return [...conflicts].sort((a,b)=>a-b);
   }
 
+  function yoloSortedSuitOrderConflicts(yoloRecognition,detectorAdopted=false,minRun=6){
+    const yolo=Array.isArray(yoloRecognition)?yoloRecognition:[];
+    if(!detectorAdopted||yolo.length!==14)return [];
+    const parse=label=>{
+      const m=String(label||'').match(/^([1-9])(萬|筒|索)$/);
+      return m?{rank:Number(m[1]),family:m[2]}:null;
+    };
+    const conflicts=new Set();
+    let start=0;
+    while(start<14){
+      const first=parse(yolo[start]?.label);
+      if(!first){start++;continue;}
+      let end=start+1;
+      while(end<14){
+        const p=parse(yolo[end]?.label);
+        if(!p||p.family!==first.family)break;
+        end++;
+      }
+      const len=end-start;
+      if(len>=minRun){
+        const seq=[];
+        for(let i=start;i<end;i++)seq.push(parse(yolo[i]?.label));
+        const inversions=[];
+        for(let j=0;j<seq.length-1;j++)if(seq[j].rank>seq[j+1].rank)inversions.push(j);
+        // Physical mahjong hands are normally sorted inside each suit. Treat only
+        // a single isolated inversion in a long suit run as suspicious, and only
+        // when one side duplicates a rank already present in that same run.
+        if(inversions.length===1){
+          const j=inversions[0],ia=start+j,ib=ia+1;
+          const counts={};
+          for(const p of seq)counts[p.rank]=(counts[p.rank]||0)+1;
+          const ra=seq[j].rank,rb=seq[j+1].rank;
+          if((counts[rb]||0)>1&&(counts[ra]||0)===1)conflicts.add(ib);
+          else if((counts[ra]||0)>1&&(counts[rb]||0)===1)conflicts.add(ia);
+          else if((counts[ra]||0)>1&&(counts[rb]||0)>1){
+            const sa=Number(yolo[ia]?.score)||0,sb=Number(yolo[ib]?.score)||0;
+            conflicts.add(sa<=sb?ia:ib);
+          }
+        }
+      }
+      start=end;
+    }
+    return [...conflicts].sort((a,b)=>a-b);
+  }
+
   function yoloLegacySuitConflicts(yoloRecognition,legacyPredicted=[],detectorAdopted=false){
     // Compatibility alias kept for v93 source/tests. v94 broadens the rule from
     // same-number cross-suit only to any confidently accepted label disagreement.
@@ -3300,7 +3345,8 @@
     window.M7V36PendingFeatures=state.pendingFeatures;
     const duplicateGuardIndexes=yoloDuplicateVisualConflicts(analysis.yoloRecognition||[],features,analysis.detectorAdopted===true);
     const nearDuplicateConflictIndexes=yoloNearDuplicateLabelConflicts(analysis.yoloRecognition||[],features,analysis.detectorAdopted===true);
-    const initialBlocked=[...new Set([...duplicateGuardIndexes,...nearDuplicateConflictIndexes])].sort((a,b)=>a-b);
+    const sortedSuitConflictIndexes=yoloSortedSuitOrderConflicts(analysis.yoloRecognition||[],analysis.detectorAdopted===true);
+    const initialBlocked=[...new Set([...duplicateGuardIndexes,...nearDuplicateConflictIndexes,...sortedSuitConflictIndexes])].sort((a,b)=>a-b);
     const yoloFirst=chooseYoloPrimaryRecognition(analysis.yoloRecognition||[],[],analysis.detectorAdopted===true,YOLO_CLASS_USE_THRESHOLD,initialBlocked);
     let legacyPredicted=Array(14).fill('');
     let legacyClassifierRan=false;
@@ -3326,6 +3372,7 @@
     analysis.yoloPrimary=primary;
     analysis.yoloDuplicateGuardIndexes=duplicateGuardIndexes.slice();
     analysis.yoloNearDuplicateConflictIndexes=nearDuplicateConflictIndexes.slice();
+    analysis.yoloSortedSuitConflictIndexes=sortedSuitConflictIndexes.slice();
     analysis.yoloLegacySuitConflictIndexes=suitConflictIndexes.slice();
     analysis.yoloAmbiguityConflictIndexes=ambiguityConflictIndexes.slice();
     analysis.legacyClassifierRan=legacyClassifierRan;
@@ -3334,6 +3381,7 @@
       window.M7V36LastDiagnostics.yoloPrimary={...primary,labels:primary.labels.slice(),sources:primary.sources.slice()};
       window.M7V36LastDiagnostics.yoloDuplicateGuardIndexes=duplicateGuardIndexes.slice();
       window.M7V36LastDiagnostics.yoloNearDuplicateConflictIndexes=nearDuplicateConflictIndexes.slice();
+      window.M7V36LastDiagnostics.yoloSortedSuitConflictIndexes=sortedSuitConflictIndexes.slice();
       window.M7V36LastDiagnostics.yoloLegacySuitConflictIndexes=suitConflictIndexes.slice();
       window.M7V36LastDiagnostics.yoloAmbiguityConflictIndexes=ambiguityConflictIndexes.slice();
       window.M7V36LastDiagnostics.legacyClassifierRan=legacyClassifierRan;
@@ -3601,6 +3649,6 @@
   },true);
 
   window.M7CameraV36=Object.freeze({
-    sourceRectForCover,locateTileRow,splitRow,boxCropQuality,canvasCropQuality,rowCropQuality,selectRowByCropQuality,rescueBrokenBox,tripletCropQuality,applyLocalBoundaryDelta,rescueLocalBoundaries,detectorWindows,detectorIoU,detectorConsensusCluster,detectorNms,decodeYoloOutput,runYoloTileDetectorDiagnostic,detectorGeometryEvaluation,detectorSubsetCandidates,detectorMissingSlotFit,detectorRecoverThirteenCandidates,selectDetectorProductionBoxes,yoloLabelToAppTile,shouldRunLegacyClassifier,mountDetectorDiagnostic,yoloRecognitionFromBoxes,yoloDuplicateVisualConflicts,yoloNearDuplicateLabelConflicts,yoloClassAmbiguityConflicts,yoloLegacyLabelConflicts,yoloLegacySuitConflicts,shouldRunLegacyVerifier,chooseYoloPrimaryRecognition,axisAlignedYoloFaceCanvas,analyzeYoloTileBox,applyDetectorProductionCrops,renderDetectorResult,detectorFailureUserText,boundaryLikelihoodDiagnostics,refineRowOuterEdges,fitGlobalRowGrid,splitRowBySeams,analyzeGuideCanvas,featureFromBox,tileFaceRect,descriptorFromCanvas,detectFaceGeometry,detectFaceQuad,canonicalizeCanvas,orientedFaceCanvas,perspectiveFaceCanvas,warpQuadToCanvas,trainingImageDataUrl,estimateBleedSafeShift,safeInsetWindow,chooseRecognitionWindow,innerRecognitionCanvas,innerRecognitionWindowCanvas,innerFeatureFromCanonical,inferenceFeatureViews,analyzeTileBox,loadTrainingSamples,rebuildLibraryFromTrainingImages,loadLibrary,activeLibrary,saveLibrary,saveLibraryDetailed,persistVerifiedHand,persistFailureText,persistFailureUserText,loadLegacyLibrary,legacyLibraryKeys,convertLegacyDirectFeature,cropResampleFeatureMap,confidenceAssessment,confidentCandidate,confidenceReasonSummary,renderPickerPhoto,renderPickerSuggestions,pickerCurrentIndex,schedulePickerSuggestionSync,attachPickerSuggestionObserver
+    sourceRectForCover,locateTileRow,splitRow,boxCropQuality,canvasCropQuality,rowCropQuality,selectRowByCropQuality,rescueBrokenBox,tripletCropQuality,applyLocalBoundaryDelta,rescueLocalBoundaries,detectorWindows,detectorIoU,detectorConsensusCluster,detectorNms,decodeYoloOutput,runYoloTileDetectorDiagnostic,detectorGeometryEvaluation,detectorSubsetCandidates,detectorMissingSlotFit,detectorRecoverThirteenCandidates,selectDetectorProductionBoxes,yoloLabelToAppTile,shouldRunLegacyClassifier,mountDetectorDiagnostic,yoloRecognitionFromBoxes,yoloDuplicateVisualConflicts,yoloNearDuplicateLabelConflicts,yoloSortedSuitOrderConflicts,yoloClassAmbiguityConflicts,yoloLegacyLabelConflicts,yoloLegacySuitConflicts,shouldRunLegacyVerifier,chooseYoloPrimaryRecognition,axisAlignedYoloFaceCanvas,analyzeYoloTileBox,applyDetectorProductionCrops,renderDetectorResult,detectorFailureUserText,boundaryLikelihoodDiagnostics,refineRowOuterEdges,fitGlobalRowGrid,splitRowBySeams,analyzeGuideCanvas,featureFromBox,tileFaceRect,descriptorFromCanvas,detectFaceGeometry,detectFaceQuad,canonicalizeCanvas,orientedFaceCanvas,perspectiveFaceCanvas,warpQuadToCanvas,trainingImageDataUrl,estimateBleedSafeShift,safeInsetWindow,chooseRecognitionWindow,innerRecognitionCanvas,innerRecognitionWindowCanvas,innerFeatureFromCanonical,inferenceFeatureViews,analyzeTileBox,loadTrainingSamples,rebuildLibraryFromTrainingImages,loadLibrary,activeLibrary,saveLibrary,saveLibraryDetailed,persistVerifiedHand,persistFailureText,persistFailureUserText,loadLegacyLibrary,legacyLibraryKeys,convertLegacyDirectFeature,cropResampleFeatureMap,confidenceAssessment,confidentCandidate,confidenceReasonSummary,renderPickerPhoto,renderPickerSuggestions,pickerCurrentIndex,schedulePickerSuggestionSync,attachPickerSuggestionObserver
   });
 })();
