@@ -537,7 +537,7 @@ test('v75 preserves stable learning and crop-quality-gated geometry',()=>{
   assert(camera.includes("reason:recoveryUsed?('recover-'+raw.length+'-to-'+count+'-'+recovery.type)"));
   assert(camera.includes("detectorMode:'yolo11n-primary-class-recover13'"));
   assert(camera.includes("detectorMode:'yolo11n-primary-class-hybrid'"));
-  assert(camera.includes("' / 不足'+recoveredCount+'box補完'"));
+  assert(camera.includes("' / 不足'+recoveredCount+'box補完('"));
   assert(camera.includes('function shouldRunLegacyClassifier'));
   assert(camera.includes('function resetLegacyPredictionStateForYolo'));
   assert(camera.includes("detectorMode:'yolo11n-production-fastpath'"));
