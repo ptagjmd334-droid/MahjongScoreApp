@@ -132,19 +132,24 @@ const server=http.createServer((req,res)=>{
 
     const conservativeVerifier=await page.evaluate(()=>{
       const api=window.M7CameraV36;
-      const yolo=Array.from({length:14},()=>({label:'東',score:.9}));
-      const legacy=Array(14).fill('');
-      yolo[1]={label:'4萬',score:.92};legacy[1]='2萬';
-      yolo[4]={label:'5索',score:.91};legacy[4]='6萬';
-      yolo[5]={label:'6萬',score:.90};legacy[5]='6萬';
-      yolo[6]={label:'7萬',score:.90};legacy[6]='';
+      const run=(label,score,runnerLabel,runnerScore,classMargin,legacyLabel)=>{
+        const yolo=Array.from({length:14},()=>({label:'東',score:.9,runnerLabel:'南',runnerScore:.1,classMargin:.8}));
+        const legacy=Array(14).fill('');
+        yolo[1]={label,score,runnerLabel,runnerScore,classMargin};
+        legacy[1]=legacyLabel;
+        return api.yoloLegacyLabelConflicts(yolo,legacy,true);
+      };
       return {
-        broad:api.yoloLegacyLabelConflicts(yolo,legacy,true),
-        alias:api.yoloLegacySuitConflicts(yolo,legacy,true)
+        strongSame:run('4萬',.92,'9萬',.10,.82,'2萬'),
+        ambiguousSame:run('4萬',.55,'2萬',.43,.12,'2萬'),
+        strongCross:run('西',.91,'北',.12,.79,'3萬'),
+        ambiguousCross:run('西',.33,'3萬',.27,.06,'3萬')
       };
     });
-    assert.deepEqual(conservativeVerifier.broad,[1,4],'v94 must challenge any confidently accepted legacy disagreement '+JSON.stringify(conservativeVerifier));
-    assert.deepEqual(conservativeVerifier.alias,conservativeVerifier.broad,'v93 compatibility alias must match broad v94 guard '+JSON.stringify(conservativeVerifier));
+    assert.deepEqual(conservativeVerifier.strongSame,[],'v96 must keep a strong same-family YOLO result '+JSON.stringify(conservativeVerifier));
+    assert.deepEqual(conservativeVerifier.ambiguousSame,[1],'v96 should use legacy as tie-breaker for ambiguous same-family YOLO '+JSON.stringify(conservativeVerifier));
+    assert.deepEqual(conservativeVerifier.strongCross,[],'v96 must keep strong honor YOLO despite legacy cross-family guess '+JSON.stringify(conservativeVerifier));
+    assert.deepEqual(conservativeVerifier.ambiguousCross,[1],'v96 should stop ambiguous cross-family YOLO disagreement '+JSON.stringify(conservativeVerifier));
 
     const v95Ambiguity=await page.evaluate(()=>{
       const api=window.M7CameraV36;
