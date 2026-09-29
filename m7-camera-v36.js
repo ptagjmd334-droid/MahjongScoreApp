@@ -56,6 +56,11 @@
   const YOLO_VERIFIER_SAME_FAMILY_SCORE=.58;
   const YOLO_VERIFIER_CROSS_FAMILY_MARGIN=.075;
   const YOLO_VERIFIER_CROSS_FAMILY_SCORE=.34;
+  const YOLO_CROSS_VIEW_RUNNER_WEIGHT=.22;
+  const YOLO_CROSS_VIEW_STRONG_SHARE=.67;
+  const YOLO_CROSS_VIEW_STRONG_SUPPORT=2;
+  const YOLO_DUPLICATE_STRONG_GROUP_SCORE=.74;
+  const YOLO_DUPLICATE_STRONG_GROUP_MARGIN=.18;
   const LEGACY_YOLO_PRODUCTION_MODE="detectorMode:'yolo11n-production-crops'"; // exact v79 source-regression marker; v80 uses axis-aligned crops.
   const YOLO_MODEL_URL='https://cdn.jsdelivr.net/gh/nikmomo/Mahjong-YOLO@28ffceed232ad95fd019c47a6c51ae7c78791a0e/models/nano/mahjong-yolon-best.onnx';
   const ORT_VERSION='1.22.0';
@@ -2008,18 +2013,84 @@
     return union>0?inter/union:0;
   }
 
+  function detectorConsensusCluster(cluster){
+    const items=(Array.isArray(cluster)?cluster:[]).filter(Boolean);
+    if(!items.length)return null;
+    if(items.length===1){
+      const one={...items[0]};
+      const baseCount=Math.max(1,Number(one.crossViewCount)||1);
+      one.crossViewCount=baseCount;
+      one.crossViewSupport=Math.max(1,Number(one.crossViewSupport)||baseCount);
+      one.crossViewShare=Number.isFinite(Number(one.crossViewShare))?Number(one.crossViewShare):1;
+      one.crossViewRunnerLabel=String(one.crossViewRunnerLabel||'');
+      one.crossViewMargin=Number.isFinite(Number(one.crossViewMargin))?Number(one.crossViewMargin):1;
+      return one;
+    }
+    const topVotes=new Map(),runnerVotes=new Map(),support=new Map();
+    let totalWeight=0,totalCount=0;
+    const add=(map,label,weight)=>{
+      const key=String(label||'');if(!key||!(weight>0))return;
+      map.set(key,(map.get(key)||0)+weight);
+    };
+    for(const d of items){
+      const count=Math.max(1,Number(d.crossViewCount)||1);
+      const score=Math.max(0,Number(d.score)||0);
+      add(topVotes,d.label,score*count);
+      support.set(String(d.label||''),(support.get(String(d.label||''))||0)+count);
+      totalWeight+=score*count;totalCount+=count;
+      const runnerLabel=String(d.crossViewRunnerLabel||d.runnerLabel||'');
+      const runnerScore=Math.max(0,Number(d.runnerScore)||0);
+      if(runnerLabel&&runnerLabel!==d.label)add(runnerVotes,runnerLabel,runnerScore*count*YOLO_CROSS_VIEW_RUNNER_WEIGHT);
+    }
+    const rankedTop=[...topVotes.entries()].sort((a,b)=>b[1]-a[1]);
+    const winner=rankedTop[0]?.[0]||String(items[0].label||'');
+    const winnerWeight=rankedTop[0]?.[1]||0;
+    const runnerCandidates=new Map();
+    for(const [label,weight] of topVotes)if(label!==winner)runnerCandidates.set(label,(runnerCandidates.get(label)||0)+weight);
+    for(const [label,weight] of runnerVotes)if(label!==winner)runnerCandidates.set(label,(runnerCandidates.get(label)||0)+weight);
+    const rankedRunner=[...runnerCandidates.entries()].sort((a,b)=>b[1]-a[1]);
+    const runner=rankedRunner[0]?.[0]||'';
+    const runnerWeight=rankedRunner[0]?.[1]||0;
+    const denom=Math.max(1e-6,totalWeight);
+    const share=Math.max(0,Math.min(1,winnerWeight/denom));
+    const crossMargin=Math.max(0,Math.min(1,(winnerWeight-runnerWeight)/denom));
+    const winnerItems=items.filter(d=>String(d.label||'')===winner);
+    const representative=(winnerItems.length?winnerItems:items).slice().sort((a,b)=>(Number(b.score)||0)-(Number(a.score)||0))[0];
+    const repMargin=Number.isFinite(Number(representative.classMargin))?Number(representative.classMargin):Math.max(0,(Number(representative.score)||0)-(Number(representative.runnerScore)||0));
+    const out={...representative};
+    out.label=winner;
+    out.classId=YOLO_LABELS.indexOf(winner);
+    out.score=winnerItems.length?Math.max(...winnerItems.map(d=>Number(d.score)||0)):Number(representative.score)||0;
+    out.crossViewCount=totalCount;
+    out.crossViewSupport=Math.max(1,support.get(winner)||0);
+    out.crossViewShare=share;
+    out.crossViewRunnerLabel=runner;
+    out.crossViewMargin=crossMargin;
+    out.classMargin=Math.min(repMargin,crossMargin);
+    if(runner){
+      out.runnerLabel=runner;
+      out.runnerClassId=YOLO_LABELS.indexOf(runner);
+      out.runnerScore=Math.max(0,out.score-out.classMargin);
+    }
+    return out;
+  }
+
   function detectorNms(detections,iouThreshold=.38){
     const pending=(Array.isArray(detections)?detections:[]).filter(d=>d&&d.w>0&&d.h>0&&Number.isFinite(d.score))
       .slice().sort((a,b)=>b.score-a.score);
     const kept=[];
     while(pending.length){
-      const best=pending.shift();kept.push(best);
+      const best=pending.shift(),cluster=[best];
       for(let i=pending.length-1;i>=0;i--){
         const d=pending[i];
         const acx=best.x+best.w/2,acy=best.y+best.h/2,bcx=d.x+d.w/2,bcy=d.y+d.h/2;
         const sameCenter=Math.abs(acx-bcx)<Math.min(best.w,d.w)*.42&&Math.abs(acy-bcy)<Math.min(best.h,d.h)*.42;
-        if(detectorIoU(best,d)>=iouThreshold||sameCenter)pending.splice(i,1);
+        if(detectorIoU(best,d)>=iouThreshold||sameCenter){
+          cluster.push(d);pending.splice(i,1);
+        }
       }
+      const merged=detectorConsensusCluster(cluster);
+      if(merged)kept.push(merged);
     }
     return kept;
   }
@@ -2192,7 +2263,12 @@
         runnerClassId:Number.isInteger(d.runnerClassId)?d.runnerClassId:-1,
         runnerLabel:String(d.runnerLabel||''),
         runnerScore:Number(Number(d.runnerScore||0).toFixed(4)),
-        classMargin:Number(Number(d.classMargin||0).toFixed(4))
+        classMargin:Number(Number(d.classMargin||0).toFixed(4)),
+        crossViewCount:Math.max(1,Number(d.crossViewCount)||1),
+        crossViewSupport:Math.max(1,Number(d.crossViewSupport)||1),
+        crossViewShare:Number(Number(d.crossViewShare??1).toFixed(4)),
+        crossViewRunnerLabel:String(d.crossViewRunnerLabel||''),
+        crossViewMargin:Number(Number(d.crossViewMargin??1).toFixed(4))
       })),
       image:rendered.image,model:'Mahjong-YOLO yolo11n',threshold:.08};
   }
@@ -2281,7 +2357,7 @@
   function detectorSubsetCandidates(boxes,count=14){
     const n=boxes.length;
     if(n===count)return [boxes.slice()];
-    if(n<count||n>count+2)return [];
+    if(n<count||n>count+3)return [];
     const needDrop=n-count,out=[],chosen=[];
     function chooseDrops(start,left){
       if(left===0){
@@ -2516,7 +2592,12 @@
       runnerRawLabel:String(b?.runnerLabel||''),
       runnerLabel:yoloLabelToAppTile(b?.runnerLabel),
       runnerScore:Number(b?.runnerScore)||0,
-      classMargin:Number.isFinite(Number(b?.classMargin))?Number(b.classMargin):Math.max(0,(Number(b?.score)||0)-(Number(b?.runnerScore)||0))
+      classMargin:Number.isFinite(Number(b?.classMargin))?Number(b.classMargin):Math.max(0,(Number(b?.score)||0)-(Number(b?.runnerScore)||0)),
+      crossViewCount:Math.max(1,Number(b?.crossViewCount)||1),
+      crossViewSupport:Math.max(1,Number(b?.crossViewSupport)||1),
+      crossViewShare:Number.isFinite(Number(b?.crossViewShare))?Number(b.crossViewShare):1,
+      crossViewRunnerLabel:yoloLabelToAppTile(b?.crossViewRunnerLabel),
+      crossViewMargin:Number.isFinite(Number(b?.crossViewMargin))?Number(b.crossViewMargin):1
     }));
   }
 
@@ -2544,6 +2625,7 @@
           const mb=Number.isFinite(Number(yolo[ib]?.classMargin))?Number(yolo[ib].classMargin):0;
           if(Math.abs(sa-sb)>=YOLO_DUPLICATE_PAIR_SCORE_GAP)conflicts.add(sa<sb?ia:ib);
           else if(Math.abs(ma-mb)>=YOLO_DUPLICATE_PAIR_MARGIN_GAP)conflicts.add(ma<mb?ia:ib);
+          else {conflicts.add(ia);conflicts.add(ib);}
         }
         continue;
       }
@@ -2561,6 +2643,11 @@
       if(!closest)continue;
       const scored=indexes.map(i=>({i,score:Number(yolo[i]?.score)||0})).sort((a,b)=>b.score-a.score);
       const maxScore=scored[0]?.score||0,minScore=scored[scored.length-1]?.score||0;
+      const margins=indexes.map(i=>Number.isFinite(Number(yolo[i]?.classMargin))?Number(yolo[i].classMargin):0);
+      const minMargin=margins.length?Math.min(...margins):0;
+      if(minScore>=YOLO_DUPLICATE_STRONG_GROUP_SCORE&&minMargin>=YOLO_DUPLICATE_STRONG_GROUP_MARGIN){
+        continue;
+      }
 
       if(closest.distance<=closeDistance){
         // At least two crops look like the same physical tile type. Keep that
@@ -2583,7 +2670,14 @@
       // group when confidence also says at least one member is weak; this avoids
       // repeating v91's over-reaction to legitimate 東東東 under crop/lighting variance.
       if(minScore<YOLO_DUPLICATE_LOW_SCORE||maxScore-minScore>=YOLO_DUPLICATE_SCORE_GAP){
-        for(const i of indexes)conflicts.add(i);
+        const weakest=indexes.slice().sort((a,b)=>{
+          const sa=Number(yolo[a]?.score)||0,sb=Number(yolo[b]?.score)||0;
+          if(sa!==sb)return sa-sb;
+          const ma=Number.isFinite(Number(yolo[a]?.classMargin))?Number(yolo[a].classMargin):0;
+          const mb=Number.isFinite(Number(yolo[b]?.classMargin))?Number(yolo[b].classMargin):0;
+          return ma-mb;
+        })[0];
+        if(Number.isInteger(weakest))conflicts.add(weakest);
       }
     }
     return [...conflicts].sort((a,b)=>a-b);
@@ -2598,14 +2692,15 @@
       const r=yolo[i]||{},yl=String(r.label||''),ll=String(legacy[i]||'');
       if(!yl||!ll||yl===ll)continue;
       const score=Number(r.score)||0;
-      const margin=Number.isFinite(Number(r.classMargin))?Number(r.classMargin):Infinity;
-      const runner=String(r.runnerLabel||'');
+      const modelMargin=Number.isFinite(Number(r.classMargin))?Number(r.classMargin):Infinity;
+      const crossMargin=Number.isFinite(Number(r.crossViewMargin))?Number(r.crossViewMargin):1;
+      const margin=Math.min(modelMargin,crossMargin);
+      const runner=String(r.crossViewRunnerLabel||r.runnerLabel||'');
+      const support=Math.max(1,Number(r.crossViewSupport)||1);
+      const share=Number.isFinite(Number(r.crossViewShare))?Number(r.crossViewShare):1;
+      if(support>=YOLO_CROSS_VIEW_STRONG_SUPPORT&&share>=YOLO_CROSS_VIEW_STRONG_SHARE&&score>=.55)continue;
       const yf=core.tileFamily(yl),lf=core.tileFamily(ll);
       const sameFamily=!!yf&&yf===lf;
-      // v94 treated every accepted legacy disagreement as authoritative.
-      // v95 iPhone tests showed that this can wrongly reject strong YOLO 北/西.
-      // Use the verifier as a tie-breaker only when YOLO itself has evidence
-      // of ambiguity. Same-family disagreements get a wider safety window.
       if(sameFamily){
         if(runner===ll||margin<YOLO_VERIFIER_SAME_FAMILY_MARGIN||score<YOLO_VERIFIER_SAME_FAMILY_SCORE)conflicts.push(i);
       }else{
@@ -2627,9 +2722,15 @@
       const accepted=String(legacy[i]||'');
       if(accepted===label)continue;
       const score=Number(r.score)||0;
-      const margin=Number.isFinite(Number(r.classMargin))?Number(r.classMargin):Infinity;
-      const runner=String(r.runnerLabel||'');
+      const modelMargin=Number.isFinite(Number(r.classMargin))?Number(r.classMargin):Infinity;
+      const crossMargin=Number.isFinite(Number(r.crossViewMargin))?Number(r.crossViewMargin):1;
+      const margin=Math.min(modelMargin,crossMargin);
+      const runner=String(r.crossViewRunnerLabel||r.runnerLabel||'');
       const verifierTop=String(debug[i]?.[0]?.label||'');
+      const support=Math.max(1,Number(r.crossViewSupport)||1);
+      const share=Number.isFinite(Number(r.crossViewShare))?Number(r.crossViewShare):1;
+      const strongConsensus=support>=YOLO_CROSS_VIEW_STRONG_SUPPORT&&share>=YOLO_CROSS_VIEW_STRONG_SHARE&&score>=.55;
+      if(strongConsensus)continue;
       const strict=margin<YOLO_CLASS_MARGIN_STRICT;
       const soft=score<YOLO_CLASS_LOW_SCORE&&margin<YOLO_CLASS_MARGIN_SOFT;
       const runnerAgreement=runner&&verifierTop&&runner===verifierTop&&runner!==label&&margin<.12;
@@ -3260,10 +3361,13 @@
         const body=root.querySelector('.m7v85-detector-body');
         const rows=(analysis.yoloRecognition||[]).map((r,i)=>{
           const s=Number(r?.score),rs=Number(r?.runnerScore),m=Number(r?.classMargin);
+          const cvm=Number(r?.crossViewMargin),cvs=Number(r?.crossViewShare);
+          const support=Math.max(1,Number(r?.crossViewSupport)||1),views=Math.max(1,Number(r?.crossViewCount)||1);
           if(!r?.label)return '';
           return (i+1)+':'+r.label+' '+(Number.isFinite(s)?s.toFixed(2):'-')+
             (r.runnerLabel?(' / 次'+r.runnerLabel+' '+(Number.isFinite(rs)?rs.toFixed(2):'-')):'')+
-            (Number.isFinite(m)?(' / 差'+m.toFixed(2)):'');
+            (Number.isFinite(m)?(' / 差'+m.toFixed(2)):'')+
+            (' / 票'+support+'/'+views+(Number.isFinite(cvs)?(' '+cvs.toFixed(2)):'')+(Number.isFinite(cvm)?(' / 投票差'+cvm.toFixed(2)):'');
         }).filter(Boolean);
         if(body&&rows.length){
           const tech=document.createElement('small');
@@ -3490,6 +3594,6 @@
   },true);
 
   window.M7CameraV36=Object.freeze({
-    sourceRectForCover,locateTileRow,splitRow,boxCropQuality,canvasCropQuality,rowCropQuality,selectRowByCropQuality,rescueBrokenBox,tripletCropQuality,applyLocalBoundaryDelta,rescueLocalBoundaries,detectorWindows,detectorIoU,detectorNms,decodeYoloOutput,runYoloTileDetectorDiagnostic,detectorGeometryEvaluation,detectorSubsetCandidates,detectorMissingSlotFit,detectorRecoverThirteenCandidates,selectDetectorProductionBoxes,yoloLabelToAppTile,shouldRunLegacyClassifier,mountDetectorDiagnostic,yoloRecognitionFromBoxes,yoloDuplicateVisualConflicts,yoloNearDuplicateLabelConflicts,yoloClassAmbiguityConflicts,yoloLegacyLabelConflicts,yoloLegacySuitConflicts,shouldRunLegacyVerifier,chooseYoloPrimaryRecognition,axisAlignedYoloFaceCanvas,analyzeYoloTileBox,applyDetectorProductionCrops,renderDetectorResult,detectorFailureUserText,boundaryLikelihoodDiagnostics,refineRowOuterEdges,fitGlobalRowGrid,splitRowBySeams,analyzeGuideCanvas,featureFromBox,tileFaceRect,descriptorFromCanvas,detectFaceGeometry,detectFaceQuad,canonicalizeCanvas,orientedFaceCanvas,perspectiveFaceCanvas,warpQuadToCanvas,trainingImageDataUrl,estimateBleedSafeShift,safeInsetWindow,chooseRecognitionWindow,innerRecognitionCanvas,innerRecognitionWindowCanvas,innerFeatureFromCanonical,inferenceFeatureViews,analyzeTileBox,loadTrainingSamples,rebuildLibraryFromTrainingImages,loadLibrary,activeLibrary,saveLibrary,saveLibraryDetailed,persistVerifiedHand,persistFailureText,persistFailureUserText,loadLegacyLibrary,legacyLibraryKeys,convertLegacyDirectFeature,cropResampleFeatureMap,confidenceAssessment,confidentCandidate,confidenceReasonSummary,renderPickerPhoto,renderPickerSuggestions,pickerCurrentIndex,schedulePickerSuggestionSync,attachPickerSuggestionObserver
+    sourceRectForCover,locateTileRow,splitRow,boxCropQuality,canvasCropQuality,rowCropQuality,selectRowByCropQuality,rescueBrokenBox,tripletCropQuality,applyLocalBoundaryDelta,rescueLocalBoundaries,detectorWindows,detectorIoU,detectorConsensusCluster,detectorNms,decodeYoloOutput,runYoloTileDetectorDiagnostic,detectorGeometryEvaluation,detectorSubsetCandidates,detectorMissingSlotFit,detectorRecoverThirteenCandidates,selectDetectorProductionBoxes,yoloLabelToAppTile,shouldRunLegacyClassifier,mountDetectorDiagnostic,yoloRecognitionFromBoxes,yoloDuplicateVisualConflicts,yoloNearDuplicateLabelConflicts,yoloClassAmbiguityConflicts,yoloLegacyLabelConflicts,yoloLegacySuitConflicts,shouldRunLegacyVerifier,chooseYoloPrimaryRecognition,axisAlignedYoloFaceCanvas,analyzeYoloTileBox,applyDetectorProductionCrops,renderDetectorResult,detectorFailureUserText,boundaryLikelihoodDiagnostics,refineRowOuterEdges,fitGlobalRowGrid,splitRowBySeams,analyzeGuideCanvas,featureFromBox,tileFaceRect,descriptorFromCanvas,detectFaceGeometry,detectFaceQuad,canonicalizeCanvas,orientedFaceCanvas,perspectiveFaceCanvas,warpQuadToCanvas,trainingImageDataUrl,estimateBleedSafeShift,safeInsetWindow,chooseRecognitionWindow,innerRecognitionCanvas,innerRecognitionWindowCanvas,innerFeatureFromCanonical,inferenceFeatureViews,analyzeTileBox,loadTrainingSamples,rebuildLibraryFromTrainingImages,loadLibrary,activeLibrary,saveLibrary,saveLibraryDetailed,persistVerifiedHand,persistFailureText,persistFailureUserText,loadLegacyLibrary,legacyLibraryKeys,convertLegacyDirectFeature,cropResampleFeatureMap,confidenceAssessment,confidentCandidate,confidenceReasonSummary,renderPickerPhoto,renderPickerSuggestions,pickerCurrentIndex,schedulePickerSuggestionSync,attachPickerSuggestionObserver
   });
 })();

@@ -34,8 +34,8 @@ const server=http.createServer((req,res)=>{
     const errors=[];page.on('pageerror',e=>errors.push(String(e)));
     await page.goto('http://127.0.0.1:'+port+'/',{waitUntil:'domcontentloaded',timeout:30000});
     await page.waitForSelector('#go-confirm-button',{timeout:12000});
-    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'MAKI v96');
-    assert.equal(await page.$eval('#app-build-badge',e=>e.hidden),false,'v96 build badge should be visible during development');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'MAKI v97');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.hidden),false,'v97 build badge should be visible during development');
     const v89DebugBadge=await page.evaluate(()=>{
       history.replaceState({},'',location.pathname+'?debug=1');
       const enabled=window.MAKIDebugV89?.apply?.();
@@ -127,8 +127,37 @@ const server=http.createServer((req,res)=>{
     assert.deepEqual(duplicateGuard.farPair,[7],'v96 should challenge only the weaker member of a wildly inconsistent same-label pair '+JSON.stringify(duplicateGuard));
     assert.deepEqual(duplicateGuard.coherentTriple,[],'v92 must keep a coherent triplet '+JSON.stringify(duplicateGuard));
     assert.deepEqual(duplicateGuard.oneOutlier,[7],'v92 should challenge only the weak visual outlier '+JSON.stringify(duplicateGuard));
-    assert.deepEqual(duplicateGuard.incoherentWeakTriple,[3,6,7],'v92 should stop an incoherent weak 3+ duplicate group '+JSON.stringify(duplicateGuard));
+    assert.deepEqual(duplicateGuard.incoherentWeakTriple,[7],'v97 should challenge only the weakest member of an incoherent weak 3+ duplicate group '+JSON.stringify(duplicateGuard));
     assert.deepEqual(duplicateGuard.incoherentStrongTriple,[],'v92 should not overrule uniformly strong YOLO labels on appearance alone '+JSON.stringify(duplicateGuard));
+
+    const v97StrongNorth=await page.evaluate(()=>{
+      const api=window.M7CameraV36;
+      const yolo=Array.from({length:14},()=>({label:'1萬',score:.9,classMargin:.8}));
+      const features=Array.from({length:14},()=>Array(4).fill(0));
+      yolo[11]={label:'北',score:.94,classMargin:.94};
+      yolo[12]={label:'北',score:.84,classMargin:.84};
+      yolo[13]={label:'北',score:.90,classMargin:.90};
+      features[11]=[0,0,0,0];features[12]=[1,1,1,1];features[13]=[-1,-1,-1,-1];
+      return api.yoloDuplicateVisualConflicts(yolo,features,true,.15,.145,.22);
+    });
+    assert.deepEqual(v97StrongNorth,[],'v97 must keep a strong 北北北 group even when crop appearance varies '+JSON.stringify(v97StrongNorth));
+
+    const v97Consensus=await page.evaluate(()=>{
+      const api=window.M7CameraV36;
+      const base={x:10,y:10,w:20,h:30};
+      const c=api.detectorConsensusCluster([
+        {...base,label:'8m',score:.82,runnerLabel:'4m',runnerScore:.08,classMargin:.74,view:'full'},
+        {...base,label:'8m',score:.78,runnerLabel:'4m',runnerScore:.10,classMargin:.68,view:'tile-2'},
+        {...base,label:'8m',score:.74,runnerLabel:'4m',runnerScore:.11,classMargin:.63,view:'tile-3'},
+        {...base,label:'4m',score:.91,runnerLabel:'8m',runnerScore:.05,classMargin:.86,view:'tile-1'}
+      ]);
+      const subsetCount=api.detectorSubsetCandidates(Array.from({length:17},(_,i)=>({x:i*10,y:0,w:8,h:16,score:.9,label:'1m'})),14).length;
+      return {label:c.label,support:c.crossViewSupport,count:c.crossViewCount,share:c.crossViewShare,runner:c.crossViewRunnerLabel,subsetCount};
+    });
+    assert.equal(v97Consensus.label,'8m','v97 cross-view voting should beat one high-confidence disagreeing window '+JSON.stringify(v97Consensus));
+    assert(v97Consensus.support>=3&&v97Consensus.count>=4,'v97 cross-view support metadata missing '+JSON.stringify(v97Consensus));
+    assert.equal(v97Consensus.runner,'4m','v97 cross-view runner should expose disagreement '+JSON.stringify(v97Consensus));
+    assert.equal(v97Consensus.subsetCount,680,'v97 must support safe 17-to-14 subset search '+JSON.stringify(v97Consensus));
 
     const conservativeVerifier=await page.evaluate(()=>{
       const api=window.M7CameraV36;
@@ -196,10 +225,10 @@ const server=http.createServer((req,res)=>{
     assert.equal(manifestBrand.name,'MAKI');
     assert.equal(manifestBrand.short_name,'MAKI');
     assert.equal(manifestBrand.id,'./');
-    assert(manifestBrand.icons.every(x=>String(x.src).includes('v=m7v96')),'v96 manifest icons must use fresh cache keys '+JSON.stringify(manifestBrand.icons));
+    assert(manifestBrand.icons.every(x=>String(x.src).includes('v=m7v97')),'v97 manifest icons must use fresh cache keys '+JSON.stringify(manifestBrand.icons));
     assert.equal(await page.$eval('meta[name="apple-mobile-web-app-title"]',e=>e.content),'MAKI');
     assert.equal(await page.$eval('meta[name="application-name"]',e=>e.content),'MAKI');
-    assert((await page.$eval('link[rel="apple-touch-icon"]',e=>e.getAttribute('href'))).includes('v=m7v96'));
+    assert((await page.$eval('link[rel="apple-touch-icon"]',e=>e.getAttribute('href'))).includes('v=m7v97'));
     for(const size of [180,192,512]){
       const p=path.join(root,'icon-'+size+'.png');
       assert(fs.existsSync(p),'MAKI icon missing '+p);
