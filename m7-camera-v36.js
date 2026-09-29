@@ -2432,10 +2432,12 @@
     return out;
   }
 
-  function detectorMissingSlotFit(boxes,missingIndex,count=14){
+  function detectorMissingSlotsFit(boxes,missingIndexes,count=14){
     const sorted=(Array.isArray(boxes)?boxes:[]).slice().sort((a,b)=>(a.x+a.w/2)-(b.x+b.w/2));
-    if(sorted.length!==count-1||missingIndex<0||missingIndex>=count)return null;
-    const slots=[];for(let i=0;i<count;i++)if(i!==missingIndex)slots.push(i);
+    const missing=[...new Set((Array.isArray(missingIndexes)?missingIndexes:[]).filter(i=>Number.isInteger(i)&&i>=0&&i<count))].sort((a,b)=>a-b);
+    if(!missing.length||sorted.length!==count-missing.length)return null;
+    const missingSet=new Set(missing);
+    const slots=[];for(let i=0;i<count;i++)if(!missingSet.has(i))slots.push(i);
     const centers=sorted.map(b=>b.x+b.w/2);
     const meanI=slots.reduce((s,v)=>s+v,0)/slots.length;
     const meanX=centers.reduce((s,v)=>s+v,0)/centers.length;
@@ -2445,7 +2447,15 @@
     if(!(pitch>1))return null;
     const intercept=meanX-pitch*meanI;
     const rms=Math.sqrt(centers.reduce((s,x,i)=>{const d=x-(intercept+pitch*slots[i]);return s+d*d;},0)/centers.length);
-    return {missingIndex,pitch,intercept,fitResidualPitch:rms/Math.abs(pitch),expectedX:intercept+pitch*missingIndex};
+    return {
+      missingIndexes:missing,pitch,intercept,fitResidualPitch:rms/Math.abs(pitch),
+      expectedXs:missing.map(i=>intercept+pitch*i)
+    };
+  }
+
+  function detectorMissingSlotFit(boxes,missingIndex,count=14){
+    const fit=detectorMissingSlotsFit(boxes,[missingIndex],count);
+    return fit?{...fit,missingIndex,expectedX:fit.expectedXs[0]}:null;
   }
 
   function detectorRecoverThirteenCandidates(boxes,row,cw,ch,count=14){
@@ -2517,11 +2527,76 @@
     return out.sort((a,b)=>a.score-b.score);
   }
 
+
+  function detectorRecoverTwelveCandidates(boxes,row,cw,ch,count=14){
+    const sorted=(Array.isArray(boxes)?boxes:[]).slice().sort((a,b)=>(a.x+a.w/2)-(b.x+b.w/2));
+    if(sorted.length!==count-2)return [];
+    const medW=medianNumber(sorted.map(b=>b.w)),medH=medianNumber(sorted.map(b=>b.h));
+    const medCy=medianNumber(sorted.map(b=>b.y+b.h/2));
+    if(!(medW>5&&medH>8))return [];
+    const rawHighCount=sorted.filter(b=>Number(b.score)>=.25).length;
+    if(rawHighCount<count-3)return [];
+
+    // v110: recover only two ADJACENT missing slots. This specifically covers
+    // blank honor runs such as 白白白 where the detector may see one weak white
+    // box and skip the next two featureless faces. Keeping the pair adjacent
+    // avoids guessing arbitrary two-hole layouts.
+    const fits=[];
+    for(let first=0;first<count-1;first++){
+      const missing=[first,first+1];
+      const fit=detectorMissingSlotsFit(sorted,missing,count);
+      if(!fit||fit.fitResidualPitch>.13||fit.pitch<medW*.55||fit.pitch>medW*1.65)continue;
+      const synthetic=missing.map((slot,j)=>{
+        const expectedX=fit.expectedXs[j];
+        return {
+          x:Math.max(0,Math.min(cw-medW,expectedX-medW/2)),
+          y:Math.max(0,Math.min(ch-medH,medCy-medH/2)),
+          w:medW,h:medH,score:0,label:'',classId:-1,view:'recovered',
+          rawIndex:-100-slot,synthetic:true,recovery:'missing-slot-2',missingIndex:slot
+        };
+      });
+      const candidate=sorted.concat(synthetic).sort((a,b)=>(a.x+a.w/2)-(b.x+b.w/2));
+      // Geometry validation normally expects at most two low-confidence boxes.
+      // During 12→14 recovery the two synthetic crops are intentionally score 0,
+      // so validate geometry with neutral confidence only for those synthetic boxes.
+      const evalCandidate=candidate.map(b=>b.synthetic?{...b,score:.25}:b);
+      const evaluated=detectorGeometryEvaluation(evalCandidate,row,count);
+      if(!evaluated.valid)continue;
+      let edgeResidualPitch=0;
+      if(row?.w&&row?.h){
+        const rowPitch=row.w/count;
+        const cc=candidate.map(b=>b.x+b.w/2).sort((a,b)=>a-b);
+        const expectedFirst=row.x+rowPitch*.5,expectedLast=row.x+row.w-rowPitch*.5;
+        edgeResidualPitch=(Math.abs(cc[0]-expectedFirst)+Math.abs(cc[cc.length-1]-expectedLast))/(2*Math.max(1,rowPitch));
+        if(edgeResidualPitch>.38)continue;
+      }
+      fits.push({
+        type:'missing-slot-2',missingIndexes:missing,fitResidualPitch:fit.fitResidualPitch,
+        edgeResidualPitch,
+        score:evaluated.score+fit.fitResidualPitch*2.1+edgeResidualPitch*1.7+.06,
+        boxes:candidate,
+        stats:{
+          ...evaluated.stats,missingIndexes:missing.slice(),
+          fitResidualPitch12:Number(fit.fitResidualPitch.toFixed(4)),
+          edgeResidualPitch:Number(edgeResidualPitch.toFixed(4)),
+          rawHighCount
+        }
+      });
+    }
+    fits.sort((a,b)=>a.score-b.score);
+    if(!fits.length)return [];
+    const best=fits[0],second=fits[1]||null;
+    const margin=second?second.score-best.score:Infinity;
+    if(best.fitResidualPitch>.075||(second&&margin<.075))return [];
+    best.stats={...best.stats,recoveryMargin:Number.isFinite(margin)?Number(margin.toFixed(4)):null};
+    return [best];
+  }
+
   function selectDetectorProductionBoxes(result,source,row,count=14){
     const raw=(result?.boxes||[]).filter(b=>b&&Number.isFinite(b.x)&&Number.isFinite(b.y)&&Number.isFinite(b.w)&&Number.isFinite(b.h)&&Number.isFinite(b.score));
     const cw=source?.width||0,ch=source?.height||0;
     if(cw<20||ch<20)return {accepted:false,reason:'source-small',boxes:[],stats:{rawCount:raw.length}};
-    if(raw.length<count-1||raw.length>count+2){
+    if(raw.length<count-2||raw.length>count+2){
       return {accepted:false,reason:'count-'+raw.length,boxes:[],stats:{rawCount:raw.length}};
     }
     const normalized=raw.map((b,rawIndex)=>{
@@ -2535,6 +2610,13 @@
       const recovered=detectorRecoverThirteenCandidates(normalized,row,cw,ch,count);
       if(!recovered.length){
         return {accepted:false,reason:'recover-13-no-valid',boxes:[],stats:{rawCount:raw.length,candidateCount:0}};
+      }
+      recovery=recovered[0];
+      evaluated=[{valid:true,score:recovery.score,reason:'accepted',boxes:recovery.boxes,stats:recovery.stats}];
+    }else if(raw.length===count-2){
+      const recovered=detectorRecoverTwelveCandidates(normalized,row,cw,ch,count);
+      if(!recovered.length){
+        return {accepted:false,reason:'recover-12-no-valid',boxes:[],stats:{rawCount:raw.length,candidateCount:0}};
       }
       recovery=recovered[0];
       evaluated=[{valid:true,score:recovery.score,reason:'accepted',boxes:recovery.boxes,stats:recovery.stats}];
@@ -2565,15 +2647,16 @@
       return {x:b.x+ix,y:b.y+iy,w:Math.max(2,b.w-ix*2),h:Math.max(4,b.h-iy*2),score:b.score,label:b.label,classId:b.classId,view:b.view,index:i,rawIndex:b.rawIndex,synthetic:b.synthetic===true,recovery:b.recovery||'',missingIndex:Number.isInteger(b.missingIndex)?b.missingIndex:null};
     });
     const subsetUsed=raw.length>count;
-    const recoveryUsed=raw.length===count-1&&!!recovery;
+    const recoveryUsed=(raw.length===count-1||raw.length===count-2)&&!!recovery;
     return {
       accepted:true,
-      reason:recoveryUsed?'recover-13-to-14-'+recovery.type:(subsetUsed?'subset-'+raw.length+'-to-'+count:'accepted'),
+      reason:recoveryUsed?('recover-'+raw.length+'-to-'+count+'-'+recovery.type):(subsetUsed?'subset-'+raw.length+'-to-'+count:'accepted'),
       boxes:safeBoxes,
       stats:{
         ...best.stats,rawCount:raw.length,selectedCount:safeBoxes.length,
         subsetUsed,droppedCount:dropped.length,dropped,
         recoveryUsed,recoveryType:recovery?.type||'',missingIndex:Number.isInteger(recovery?.missingIndex)?recovery.missingIndex:null,
+        missingIndexes:Array.isArray(recovery?.missingIndexes)?recovery.missingIndexes.slice():(Number.isInteger(recovery?.missingIndex)?[recovery.missingIndex]:[]),
         syntheticCount:safeBoxes.filter(b=>b.synthetic).length,
         candidateCount:evaluated.length,
         secondScore:second?Number(second.score.toFixed(4)):null,
@@ -2656,7 +2739,9 @@
       crossViewSupport:Math.max(1,Number(b?.crossViewSupport)||1),
       crossViewShare:Number.isFinite(Number(b?.crossViewShare))?Number(b.crossViewShare):1,
       crossViewRunnerLabel:yoloLabelToAppTile(b?.crossViewRunnerLabel),
-      crossViewMargin:Number.isFinite(Number(b?.crossViewMargin))?Number(b.crossViewMargin):1
+      crossViewMargin:Number.isFinite(Number(b?.crossViewMargin))?Number(b.crossViewMargin):1,
+      synthetic:b?.synthetic===true,recovery:String(b?.recovery||''),
+      missingIndex:Number.isInteger(b?.missingIndex)?b.missingIndex:null
     }));
   }
 
@@ -2948,10 +3033,33 @@
     const feats=Array.isArray(features)?features:[];
     if(!detectorAdopted||yolo.length!==14||feats.length!==14)return {...base,labels,sources};
     const anchors=[];
+    const weakPromoted=new Set();
     for(let i=0;i<14;i++){
       const r=yolo[i]||{};
       const acceptedWhite=labels[i]==='白'&&r.label==='白';
       if(acceptedWhite&&Number(r.score)>=YOLO_WHITE_RECOVERY_ANCHOR_SCORE&&feats[i])anchors.push(i);
+    }
+
+    // v110: when 12→14 recovery inserted two adjacent synthetic crops, the one
+    // actually detected white tile can itself be below the normal 0.15 class
+    // threshold (observed 0.09 on iPhone). Promote that weak white only when the
+    // two neighboring synthetic crops form a 3-tile run and BOTH look like the
+    // same face. This avoids globally lowering the YOLO acceptance threshold.
+    if(!anchors.length){
+      for(let i=0;i<14;i++){
+        const r=yolo[i]||{},score=Number(r.score)||0;
+        if(r.label!=='白'||score<=0||score>YOLO_WHITE_RECOVERY_MAX_WEAK_SCORE||!feats[i]||labels[i])continue;
+        for(let start=Math.max(0,i-2);start<=Math.min(i,11);start++){
+          const run=[start,start+1,start+2];
+          if(!run.includes(i))continue;
+          const others=run.filter(j=>j!==i);
+          if(!others.every(j=>!labels[j]&&yolo[j]?.synthetic===true&&feats[j]))continue;
+          const distances=others.map(j=>core.featureDistance(feats[i],feats[j]));
+          if(distances.some(d=>!Number.isFinite(d)||d>YOLO_WHITE_RECOVERY_MAX_DISTANCE))continue;
+          labels[i]='白';sources[i]='white-recovery-anchor';anchors.push(i);weakPromoted.add(i);
+          break;
+        }
+      }
     }
     if(!anchors.length)return {...base,labels,sources};
     const recovered=new Set();
@@ -2980,9 +3088,10 @@
     const count=recovered.size;
     return {
       ...base,labels,sources,
-      yoloUsed:(Number(base.yoloUsed)||0)+count,
+      yoloUsed:(Number(base.yoloUsed)||0)+count+weakPromoted.size,
       unresolved:labels.filter(x=>!x).length,
-      whiteRecoveredIndexes:[...recovered].sort((a,b)=>a-b)
+      whiteRecoveredIndexes:[...recovered].sort((a,b)=>a-b),
+      whiteWeakAnchorIndexes:[...weakPromoted].sort((a,b)=>a-b)
     };
   }
 
@@ -3066,7 +3175,8 @@
     }
     const countText=(result.subsetSelected||result.recoveredMissing)&&result.rawCount?result.rawCount+'→'+result.count:result.count;
     label.textContent='認識詳細：'+countText+'牌 / '+result.elapsedMs+'ms';
-    const recoveryText=adopted&&result.recoveredMissing?' / 不足1box補完('+((result.recoveryType||'').replace('missing-slot','空きslot').replace('split-wide','横長box分割'))+')':'';
+    const recoveredCount=Math.max(1,Number(result.syntheticCount)||1);
+    const recoveryText=adopted&&result.recoveredMissing?' / 不足'+recoveredCount+'box補完('+((result.recoveryType||'').replace('missing-slot-2','空きslot×2').replace('missing-slot','空きslot').replace('split-wide','横長box分割'))+')':'';
     const meta=document.createElement('div');meta.className='m7v85-detector-meta';
     meta.textContent=(adopted?'YOLO分割 採用':'YOLO分割 fallback')+
       ' / confidence 0.25以上 '+result.highCount+' / '+result.viewCount+'視点'+
@@ -3101,8 +3211,8 @@
       if(n<14)return '14枚すべてが白枠内に入るよう、牌を重ねず横一列に並べて撮り直してください。';
       return '牌以外の物や重複検出が入りました。14枚だけを横一列にして撮り直してください。';
     }
-    if(code==='recover-13-no-valid'){
-      return '14枚のうち1枚以上を安定して分けられませんでした。牌同士を少し離し、14枚を横一列にして撮り直してください。';
+    if(code==='recover-13-no-valid'||code==='recover-12-no-valid'){
+      return '14枚のうち一部を安定して分けられませんでした。牌同士を少し離し、14枚を横一列にして撮り直してください。';
     }
     if(code==='subset-ambiguous'||code==='subset-no-valid'){
       return '14枚の区切りを一意に決められませんでした。牌の重なりをなくして、横一列に並べ直してください。';
@@ -3789,6 +3899,6 @@
   },true);
 
   window.M7CameraV36=Object.freeze({
-    armCameraTapShield,sourceRectForCover,locateTileRow,splitRow,boxCropQuality,canvasCropQuality,rowCropQuality,selectRowByCropQuality,rescueBrokenBox,tripletCropQuality,applyLocalBoundaryDelta,rescueLocalBoundaries,detectorWindows,detectorIoU,detectorConsensusCluster,detectorNms,decodeYoloOutput,runYoloTileDetectorDiagnostic,detectorGeometryEvaluation,detectorSubsetCandidates,detectorMissingSlotFit,detectorRecoverThirteenCandidates,selectDetectorProductionBoxes,yoloLabelToAppTile,shouldRunLegacyClassifier,mountDetectorDiagnostic,yoloRecognitionFromBoxes,yoloDuplicateVisualConflicts,yoloNearDuplicateLabelConflicts,yoloSortedSuitOrderConflicts,yoloClassAmbiguityConflicts,yoloLegacyLabelConflicts,yoloLegacySuitConflicts,shouldRunLegacyVerifier,chooseYoloPrimaryRecognition,recoverWhiteDragonGaps,axisAlignedYoloFaceCanvas,analyzeYoloTileBox,applyDetectorProductionCrops,renderDetectorResult,detectorFailureUserText,boundaryLikelihoodDiagnostics,refineRowOuterEdges,fitGlobalRowGrid,splitRowBySeams,analyzeGuideCanvas,featureFromBox,tileFaceRect,descriptorFromCanvas,detectFaceGeometry,detectFaceQuad,canonicalizeCanvas,orientedFaceCanvas,perspectiveFaceCanvas,warpQuadToCanvas,trainingImageDataUrl,estimateBleedSafeShift,safeInsetWindow,chooseRecognitionWindow,innerRecognitionCanvas,innerRecognitionWindowCanvas,innerFeatureFromCanonical,inferenceFeatureViews,analyzeTileBox,loadTrainingSamples,rebuildLibraryFromTrainingImages,loadLibrary,activeLibrary,saveLibrary,saveLibraryDetailed,persistVerifiedHand,persistFailureText,persistFailureUserText,loadLegacyLibrary,legacyLibraryKeys,convertLegacyDirectFeature,cropResampleFeatureMap,confidenceAssessment,confidentCandidate,confidenceReasonSummary,renderPickerPhoto,renderPickerSuggestions,pickerCurrentIndex,schedulePickerSuggestionSync,attachPickerSuggestionObserver
+    armCameraTapShield,sourceRectForCover,locateTileRow,splitRow,boxCropQuality,canvasCropQuality,rowCropQuality,selectRowByCropQuality,rescueBrokenBox,tripletCropQuality,applyLocalBoundaryDelta,rescueLocalBoundaries,detectorWindows,detectorIoU,detectorConsensusCluster,detectorNms,decodeYoloOutput,runYoloTileDetectorDiagnostic,detectorGeometryEvaluation,detectorSubsetCandidates,detectorMissingSlotsFit,detectorMissingSlotFit,detectorRecoverThirteenCandidates,detectorRecoverTwelveCandidates,selectDetectorProductionBoxes,yoloLabelToAppTile,shouldRunLegacyClassifier,mountDetectorDiagnostic,yoloRecognitionFromBoxes,yoloDuplicateVisualConflicts,yoloNearDuplicateLabelConflicts,yoloSortedSuitOrderConflicts,yoloClassAmbiguityConflicts,yoloLegacyLabelConflicts,yoloLegacySuitConflicts,shouldRunLegacyVerifier,chooseYoloPrimaryRecognition,recoverWhiteDragonGaps,axisAlignedYoloFaceCanvas,analyzeYoloTileBox,applyDetectorProductionCrops,renderDetectorResult,detectorFailureUserText,boundaryLikelihoodDiagnostics,refineRowOuterEdges,fitGlobalRowGrid,splitRowBySeams,analyzeGuideCanvas,featureFromBox,tileFaceRect,descriptorFromCanvas,detectFaceGeometry,detectFaceQuad,canonicalizeCanvas,orientedFaceCanvas,perspectiveFaceCanvas,warpQuadToCanvas,trainingImageDataUrl,estimateBleedSafeShift,safeInsetWindow,chooseRecognitionWindow,innerRecognitionCanvas,innerRecognitionWindowCanvas,innerFeatureFromCanonical,inferenceFeatureViews,analyzeTileBox,loadTrainingSamples,rebuildLibraryFromTrainingImages,loadLibrary,activeLibrary,saveLibrary,saveLibraryDetailed,persistVerifiedHand,persistFailureText,persistFailureUserText,loadLegacyLibrary,legacyLibraryKeys,convertLegacyDirectFeature,cropResampleFeatureMap,confidenceAssessment,confidentCandidate,confidenceReasonSummary,renderPickerPhoto,renderPickerSuggestions,pickerCurrentIndex,schedulePickerSuggestionSync,attachPickerSuggestionObserver
   });
 })();
