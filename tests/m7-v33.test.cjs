@@ -312,7 +312,7 @@ test('camera v36 is loaded before ui-fixes so verified clicks train the active c
   assert(index.indexOf('script.js')<index.indexOf('m7-recognition-core.js'));
   assert(index.indexOf('m7-recognition-core.js')<index.indexOf('m7-camera-v36.js'));
   assert(index.indexOf('m7-camera-v36.js')<index.indexOf('ui-fixes.js'));
-  assert(index.includes('MAKI v95'));
+  assert(index.includes('MAKI v96'));
   assert(uiFixes.includes('publishVerifiedHandM8V87'));
   assert(uiFixes.includes('acceptVerifiedHandM8V87'));
   assert(uiFixes.includes("maki:verified-hand"));
@@ -325,21 +325,22 @@ test('camera v36 is loaded before ui-fixes so verified clicks train the active c
   assert(camera.includes('14枚を認識中…'));
   assert(camera.includes('補助認識使用'));
   assert(camera.includes('LEGACY_PRODUCTION_LOADING_LABEL_V89'));
+  assert(index.includes('MAKIDebugV96'));
   assert(index.includes('MAKIDebugV95'));
   assert(index.includes('MAKIDebugV94'));
   assert(index.includes('MAKIDebugV93'));
   assert(index.includes('MAKIDebugV92'));
   assert(index.includes('MAKIDebugV91'));
   assert(index.includes('MAKIDebugV89'));
-  assert(!index.includes('id="app-build-badge" hidden'),'development badge must stay visible in v95');
+  assert(!index.includes('id="app-build-badge" hidden'),'development badge must stay visible in v96');
   assert(camera.includes("detectorMode:'yolo11n-production-fastpath'"));
   assert(script.includes('acceptVerifiedHandM8V87'));
 
   assert(index.includes('<title>MAKI｜麻雀対局管理</title>'));
-  assert(index.includes('manifest.webmanifest?v=m7v95'));
+  assert(index.includes('manifest.webmanifest?v=m7v96'));
   assert(index.includes('apple-mobile-web-app-title" content="MAKI"'));
   assert(index.includes('application-name" content="MAKI"'));
-  assert(index.includes('icon-180.png?v=m7v95'));
+  assert(index.includes('icon-180.png?v=m7v96'));
   assert(index.includes('<h1>MAKI</h1>'));
   assert(camera.includes("content:attr(data-tile)"));
   assert(script.includes("setAttribute('aria-label',name)"));
