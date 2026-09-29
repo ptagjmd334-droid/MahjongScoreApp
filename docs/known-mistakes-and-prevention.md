@@ -1216,3 +1216,11 @@
 **原因:** v97のcross-view投票診断表示で括弧が1つ不足し、m7-camera-v36.jsがSyntaxErrorでparse不能になった。IIFE先頭のM7V36CameraOwner設定すら実行されず、script.jsの旧M7 v4/v5 fallbackが有効化された。  
 **修正:** v98で括弧を修正し、m7-camera-v36.jsのcompile成功を確認。  
 **再発防止:** CIでm7-camera-v36.js全文をnew Functionへ渡して構文検査し、source stringのcontains testだけでは通さない。  
+
+
+## M136: 正しい刻子の1枚だけscoreが中程度だと過剰blockした
+**時期:** MAKI v98→v99  
+**実機症状:** 北北北をYOLOが0.89/0.65/0.86、中央北のclass marginも0.65で正しく認識しているのに13/14へ落ちた。  
+**原因:** 同一ラベル3枚groupの保護条件が全3枚score>=0.74を要求しており、1枚だけ中程度でも画像差ロジックへ進んで弱い1枚をblockした。  
+**修正:** v99で3枚group専用のconfidence条件を追加。max score>=0.82、min score>=0.60、min margin>=0.30なら正しい刻子として保護。  
+**再発防止:** 対子・刻子の正当な重複を前提に、group数ごとに安全条件を分ける。2枚の怪しい重複検知は維持する。  
