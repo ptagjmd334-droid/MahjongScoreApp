@@ -2949,11 +2949,12 @@
     }
     if(!anchors.length)return {...base,labels,sources};
     const recovered=new Set();
+    let whiteCount=labels.filter(x=>x==='白').length;
     for(const anchor of anchors){
       let run=[anchor];
       for(const dir of [-1,1]){
         let i=anchor+dir;
-        while(i>=0&&i<14&&run.length<YOLO_WHITE_RECOVERY_MAX_RUN){
+        while(i>=0&&i<14&&run.length<YOLO_WHITE_RECOVERY_MAX_RUN&&whiteCount<4){
           if(labels[i])break;
           const r=yolo[i]||{};
           const score=Number(r.score)||0;
@@ -2964,6 +2965,7 @@
           labels[i]='白';
           sources[i]='white-recovery';
           recovered.add(i);
+          whiteCount++;
           run.push(i);
           i+=dir;
         }
