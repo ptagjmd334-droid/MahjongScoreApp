@@ -64,10 +64,10 @@
   const YOLO_DUPLICATE_TRIPLET_MIN_SCORE=.60;
   const YOLO_DUPLICATE_TRIPLET_MIN_MARGIN=.30;
   const YOLO_DUPLICATE_TRIPLET_ANCHOR_SCORE=.82;
-  const YOLO_HONOR_TRIPLET_MIN_SCORE=.45;
+  const YOLO_HONOR_TRIPLET_MIN_SCORE=.40;
   const YOLO_HONOR_TRIPLET_MIN_MARGIN=.40;
   const YOLO_HONOR_TRIPLET_ANCHOR_SCORE=.55;
-  const YOLO_HONOR_TRIPLET_MAX_SPREAD=.12;
+  const YOLO_HONOR_TRIPLET_MAX_SPREAD=.18;
   const LEGACY_YOLO_PRODUCTION_MODE="detectorMode:'yolo11n-production-crops'"; // exact v79 source-regression marker; v80 uses axis-aligned crops.
   const YOLO_MODEL_URL='https://cdn.jsdelivr.net/gh/nikmomo/Mahjong-YOLO@28ffceed232ad95fd019c47a6c51ae7c78791a0e/models/nano/mahjong-yolon-best.onnx';
   const ORT_VERSION='1.22.0';
