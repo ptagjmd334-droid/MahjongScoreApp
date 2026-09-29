@@ -49,6 +49,13 @@
   const YOLO_CLASS_LOW_SCORE=.32;
   const YOLO_NEAR_DUPLICATE_DISTANCE=.105;
   const YOLO_NEAR_DUPLICATE_SCORE_GAP=.06;
+  const YOLO_DUPLICATE_PAIR_FAR_DISTANCE=.30;
+  const YOLO_DUPLICATE_PAIR_SCORE_GAP=.08;
+  const YOLO_DUPLICATE_PAIR_MARGIN_GAP=.04;
+  const YOLO_VERIFIER_SAME_FAMILY_MARGIN=.18;
+  const YOLO_VERIFIER_SAME_FAMILY_SCORE=.58;
+  const YOLO_VERIFIER_CROSS_FAMILY_MARGIN=.075;
+  const YOLO_VERIFIER_CROSS_FAMILY_SCORE=.34;
   const LEGACY_YOLO_PRODUCTION_MODE="detectorMode:'yolo11n-production-crops'"; // exact v79 source-regression marker; v80 uses axis-aligned crops.
   const YOLO_MODEL_URL='https://cdn.jsdelivr.net/gh/nikmomo/Mahjong-YOLO@28ffceed232ad95fd019c47a6c51ae7c78791a0e/models/nano/mahjong-yolon-best.onnx';
   const ORT_VERSION='1.22.0';
@@ -2179,7 +2186,14 @@
     const elapsed=(performance?.now?.()||Date.now())-started;
     const rendered=renderDetectorDiagnostic(source,merged,elapsed,windows.length);
     return {ok:true,count:rendered.count,highCount:rendered.highCount,elapsedMs:Math.round(elapsed),viewCount:windows.length,
-      boxes:rendered.boxes.map(d=>({x:Number(d.x.toFixed(1)),y:Number(d.y.toFixed(1)),w:Number(d.w.toFixed(1)),h:Number(d.h.toFixed(1)),score:Number(d.score.toFixed(4)),label:d.label,view:d.view})),
+      boxes:rendered.boxes.map(d=>({
+        x:Number(d.x.toFixed(1)),y:Number(d.y.toFixed(1)),w:Number(d.w.toFixed(1)),h:Number(d.h.toFixed(1)),
+        score:Number(d.score.toFixed(4)),label:d.label,view:d.view,
+        runnerClassId:Number.isInteger(d.runnerClassId)?d.runnerClassId:-1,
+        runnerLabel:String(d.runnerLabel||''),
+        runnerScore:Number(Number(d.runnerScore||0).toFixed(4)),
+        classMargin:Number(Number(d.classMargin||0).toFixed(4))
+      })),
       image:rendered.image,model:'Mahjong-YOLO yolo11n',threshold:.08};
   }
 
@@ -2518,8 +2532,21 @@
     }
     const conflicts=new Set();
     for(const indexes of Object.values(groups)){
-      // A pair can be a perfectly legitimate pair (雀頭 etc.). v91 learned that
-      // two-image appearance variance alone is not enough evidence to block it.
+      // A pair can be a perfectly legitimate pair (雀頭 etc.). Never reject
+      // both from appearance alone. For a very large visual mismatch, challenge
+      // only the clearly weaker score/margin member.
+      if(indexes.length===2){
+        const ia=indexes[0],ib=indexes[1];
+        const distance=core.featureDistance(feats[ia],feats[ib]);
+        if(Number.isFinite(distance)&&distance>YOLO_DUPLICATE_PAIR_FAR_DISTANCE){
+          const sa=Number(yolo[ia]?.score)||0,sb=Number(yolo[ib]?.score)||0;
+          const ma=Number.isFinite(Number(yolo[ia]?.classMargin))?Number(yolo[ia].classMargin):0;
+          const mb=Number.isFinite(Number(yolo[ib]?.classMargin))?Number(yolo[ib].classMargin):0;
+          if(Math.abs(sa-sb)>=YOLO_DUPLICATE_PAIR_SCORE_GAP)conflicts.add(sa<sb?ia:ib);
+          else if(Math.abs(ma-mb)>=YOLO_DUPLICATE_PAIR_MARGIN_GAP)conflicts.add(ma<mb?ia:ib);
+        }
+        continue;
+      }
       if(indexes.length<3)continue;
       let closest=null;
       const pairs=[];
@@ -2568,12 +2595,22 @@
     if(!detectorAdopted||yolo.length!==14||legacy.length<14)return [];
     const conflicts=[];
     for(let i=0;i<14;i++){
-      const yl=String(yolo[i]?.label||'');
-      const ll=String(legacy[i]||'');
-      // predict() only returns a legacy label after the existing conservative
-      // confidence gates accept it. Therefore any non-empty disagreement is
-      // useful independent evidence against blindly trusting YOLO Top1.
-      if(yl&&ll&&yl!==ll)conflicts.push(i);
+      const r=yolo[i]||{},yl=String(r.label||''),ll=String(legacy[i]||'');
+      if(!yl||!ll||yl===ll)continue;
+      const score=Number(r.score)||0;
+      const margin=Number.isFinite(Number(r.classMargin))?Number(r.classMargin):Infinity;
+      const runner=String(r.runnerLabel||'');
+      const yf=core.tileFamily(yl),lf=core.tileFamily(ll);
+      const sameFamily=!!yf&&yf===lf;
+      // v94 treated every accepted legacy disagreement as authoritative.
+      // v95 iPhone tests showed that this can wrongly reject strong YOLO 北/西.
+      // Use the verifier as a tie-breaker only when YOLO itself has evidence
+      // of ambiguity. Same-family disagreements get a wider safety window.
+      if(sameFamily){
+        if(runner===ll||margin<YOLO_VERIFIER_SAME_FAMILY_MARGIN||score<YOLO_VERIFIER_SAME_FAMILY_SCORE)conflicts.push(i);
+      }else{
+        if((runner===ll&&margin<.14)||margin<YOLO_VERIFIER_CROSS_FAMILY_MARGIN||score<YOLO_VERIFIER_CROSS_FAMILY_SCORE)conflicts.push(i);
+      }
     }
     return conflicts;
   }
