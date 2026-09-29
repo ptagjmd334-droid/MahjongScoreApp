@@ -61,6 +61,9 @@
   const YOLO_CROSS_VIEW_STRONG_SUPPORT=2;
   const YOLO_DUPLICATE_STRONG_GROUP_SCORE=.74;
   const YOLO_DUPLICATE_STRONG_GROUP_MARGIN=.18;
+  const YOLO_DUPLICATE_TRIPLET_MIN_SCORE=.60;
+  const YOLO_DUPLICATE_TRIPLET_MIN_MARGIN=.30;
+  const YOLO_DUPLICATE_TRIPLET_ANCHOR_SCORE=.82;
   const LEGACY_YOLO_PRODUCTION_MODE="detectorMode:'yolo11n-production-crops'"; // exact v79 source-regression marker; v80 uses axis-aligned crops.
   const YOLO_MODEL_URL='https://cdn.jsdelivr.net/gh/nikmomo/Mahjong-YOLO@28ffceed232ad95fd019c47a6c51ae7c78791a0e/models/nano/mahjong-yolon-best.onnx';
   const ORT_VERSION='1.22.0';
@@ -2645,7 +2648,11 @@
       const maxScore=scored[0]?.score||0,minScore=scored[scored.length-1]?.score||0;
       const margins=indexes.map(i=>Number.isFinite(Number(yolo[i]?.classMargin))?Number(yolo[i].classMargin):0);
       const minMargin=margins.length?Math.min(...margins):0;
-      if(minScore>=YOLO_DUPLICATE_STRONG_GROUP_SCORE&&minMargin>=YOLO_DUPLICATE_STRONG_GROUP_MARGIN){
+      const strongTriplet=indexes.length===3&&
+        minScore>=YOLO_DUPLICATE_TRIPLET_MIN_SCORE&&
+        minMargin>=YOLO_DUPLICATE_TRIPLET_MIN_MARGIN&&
+        maxScore>=YOLO_DUPLICATE_TRIPLET_ANCHOR_SCORE;
+      if((minScore>=YOLO_DUPLICATE_STRONG_GROUP_SCORE&&minMargin>=YOLO_DUPLICATE_STRONG_GROUP_MARGIN)||strongTriplet){
         continue;
       }
 
