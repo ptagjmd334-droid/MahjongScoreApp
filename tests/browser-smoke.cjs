@@ -34,8 +34,8 @@ const server=http.createServer((req,res)=>{
     const errors=[];page.on('pageerror',e=>errors.push(String(e)));
     await page.goto('http://127.0.0.1:'+port+'/',{waitUntil:'domcontentloaded',timeout:30000});
     await page.waitForSelector('#go-confirm-button',{timeout:12000});
-    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'MAKI v100');
-    assert.equal(await page.$eval('#app-build-badge',e=>e.hidden),false,'v100 build badge should be visible during development');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'MAKI v101');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.hidden),false,'v101 build badge should be visible during development');
     assert(await page.evaluate(()=>!!window.M7V36CameraOwner),'v98 camera owner must bootstrap');
     await page.evaluate(()=>{
       const overlay=document.createElement('div');
@@ -176,6 +176,23 @@ const server=http.createServer((req,res)=>{
     assert.deepEqual(v100SortedSuit.wrong,[7],'v100 must block the isolated duplicated-rank inversion in a long sorted suit run '+JSON.stringify(v100SortedSuit));
     assert.deepEqual(v100SortedSuit.correct,[],'v100 must keep a correctly sorted complete suit run '+JSON.stringify(v100SortedSuit));
 
+    const v101TapGuard=await page.evaluate(()=>{
+      const api=window.M7CameraV36;
+      const riichi=document.querySelector('.riichi-button');
+      if(!riichi)return {ok:false,reason:'no-riichi'};
+      let count=0;
+      riichi.addEventListener('click',()=>count++);
+      const shieldFn=api.armCameraTapShield;
+      if(typeof shieldFn!=='function')return {ok:false,reason:'no-shield'};
+      shieldFn(500);
+      riichi.click();
+      const shield=document.getElementById('m7v101-camera-tap-shield');
+      return {ok:true,count,shield:!!shield,guard:Number(window.MAKICameraTapGuardUntilV101)||0};
+    });
+    assert(v101TapGuard.ok,'v101 tap guard must be available '+JSON.stringify(v101TapGuard));
+    assert.equal(v101TapGuard.count,0,'v101 recent camera guard must swallow riichi click-through '+JSON.stringify(v101TapGuard));
+    assert(v101TapGuard.shield&&v101TapGuard.guard>Date.now(),'v101 shield/guard must be armed '+JSON.stringify(v101TapGuard));
+
     const v97Consensus=await page.evaluate(()=>{
       const api=window.M7CameraV36;
       const base={x:10,y:10,w:20,h:30};
@@ -259,10 +276,10 @@ const server=http.createServer((req,res)=>{
     assert.equal(manifestBrand.name,'MAKI');
     assert.equal(manifestBrand.short_name,'MAKI');
     assert.equal(manifestBrand.id,'./');
-    assert(manifestBrand.icons.every(x=>String(x.src).includes('v=m7v100')),'v100 manifest icons must use fresh cache keys '+JSON.stringify(manifestBrand.icons));
+    assert(manifestBrand.icons.every(x=>String(x.src).includes('v=m7v101')),'v101 manifest icons must use fresh cache keys '+JSON.stringify(manifestBrand.icons));
     assert.equal(await page.$eval('meta[name="apple-mobile-web-app-title"]',e=>e.content),'MAKI');
     assert.equal(await page.$eval('meta[name="application-name"]',e=>e.content),'MAKI');
-    assert((await page.$eval('link[rel="apple-touch-icon"]',e=>e.getAttribute('href'))).includes('v=m7v100'));
+    assert((await page.$eval('link[rel="apple-touch-icon"]',e=>e.getAttribute('href'))).includes('v=m7v101'));
     for(const size of [180,192,512]){
       const p=path.join(root,'icon-'+size+'.png');
       assert(fs.existsSync(p),'MAKI icon missing '+p);

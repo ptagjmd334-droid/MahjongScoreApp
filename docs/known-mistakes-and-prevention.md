@@ -1232,3 +1232,11 @@
 **原因:** duplicate visual guardは画像距離とscore/margin中心で、同一スートの長い昇順runに生じる「単一逆転 + 既存rank重複」という手牌文脈の矛盾を利用していなかった。  
 **修正:** v100で6枚以上の連続同一スートrunに単一のrank逆転があり、その逆転側が同run内の既存rankを重複する場合、該当位置をYOLO fast-pathから外す。  
 **再発防止:** 主認識器confidenceだけでなく、手牌全体の弱い構造制約は「自動補正」ではなく「silent false positiveを止める安全ガード」として使う。  
+
+
+## M138: カメラ終了直後の連打が下層リーチボタンへ抜けた
+**時期:** MAKI v100→v101  
+**実機症状:** 緑の撮影ボタンを連打気味に押すと、まれに下側プレイヤーのリーチボタンが反応する。  
+**原因:** 認識完了後、camera overlayを先にremoveし、約90ms後にhand result overlayを生成する遷移gapがある。iPhoneの連続tapで後続pointer/clickがこのgap中に下層UIへ落ち得る。  
+**修正:** v101でcamera→result遷移に透明full-screen tap shieldを挿入し、さらに一定時間riichi-buttonへのpointerup/click/touchendをcapture段階で遮断。shutter側のpointer/touch伝播も停止。  
+**再発防止:** フルスクリーンoverlayを閉じるUIでは「overlay Aをremove→非同期でoverlay Bを表示」という空白時間を作らず、tap-through防止shieldか入力cooldownを必ず入れる。  
