@@ -76,6 +76,9 @@
   const YOLO_HONOR_TRIPLET_WEAK_MIN_MARGIN=.35;
   const YOLO_HONOR_TRIPLET_STRONG_ANCHOR_SCORE=.65;
   const YOLO_HONOR_TRIPLET_STRONG_ANCHORS=2;
+  const YOLO_HONOR_PAIR_ANCHOR_WEAK_MIN_SCORE=.55;
+  const YOLO_HONOR_PAIR_ANCHOR_WEAK_MIN_MARGIN=.55;
+  const YOLO_HONOR_PAIR_STRONG_ANCHOR_SCORE=.85;
   const LEGACY_YOLO_PRODUCTION_MODE="detectorMode:'yolo11n-production-crops'"; // exact v79 source-regression marker; v80 uses axis-aligned crops.
   const YOLO_MODEL_URL='https://cdn.jsdelivr.net/gh/nikmomo/Mahjong-YOLO@28ffceed232ad95fd019c47a6c51ae7c78791a0e/models/nano/mahjong-yolon-best.onnx';
   const ORT_VERSION='1.22.0';
@@ -2672,17 +2675,23 @@
         const ma=Number.isFinite(Number(yolo[ia]?.classMargin))?Number(yolo[ia].classMargin):0;
         const mb=Number.isFinite(Number(yolo[ib]?.classMargin))?Number(yolo[ib].classMargin):0;
         const pairLabel=String(yolo[ia]?.label||'');
-        const contiguousHonorPair=ib===ia+1&&/^(東|南|西|北|白|發|中)$/.test(pairLabel)&&
+        const honorPairLabel=/^(東|南|西|北|白|發|中)$/.test(pairLabel);
+        const balancedHonorPair=honorPairLabel&&
           Math.min(sa,sb)>=YOLO_HONOR_PAIR_MIN_SCORE&&
           Math.min(ma,mb)>=YOLO_HONOR_PAIR_MIN_MARGIN&&
           Math.max(sa,sb)>=YOLO_HONOR_PAIR_ANCHOR_SCORE&&
           Math.abs(sa-sb)<=YOLO_HONOR_PAIR_MAX_SPREAD;
-        if(contiguousHonorPair)continue;
+        const anchoredHonorPair=honorPairLabel&&
+          Math.min(sa,sb)>=YOLO_HONOR_PAIR_ANCHOR_WEAK_MIN_SCORE&&
+          Math.min(ma,mb)>=YOLO_HONOR_PAIR_ANCHOR_WEAK_MIN_MARGIN&&
+          Math.max(sa,sb)>=YOLO_HONOR_PAIR_STRONG_ANCHOR_SCORE;
+        if(balancedHonorPair||anchoredHonorPair)continue;
         const distance=core.featureDistance(feats[ia],feats[ib]);
         if(Number.isFinite(distance)&&distance>YOLO_DUPLICATE_PAIR_FAR_DISTANCE){
           if(Math.abs(sa-sb)>=YOLO_DUPLICATE_PAIR_SCORE_GAP)conflicts.add(sa<sb?ia:ib);
           else if(Math.abs(ma-mb)>=YOLO_DUPLICATE_PAIR_MARGIN_GAP)conflicts.add(ma<mb?ia:ib);
-          else {conflicts.add(ia);conflicts.add(ib);}
+          // A same-label pair is physically legal anywhere in a shuffled hand.
+          // Appearance mismatch alone must not reject both members.
         }
         continue;
       }
@@ -2707,15 +2716,14 @@
         minMargin>=YOLO_DUPLICATE_TRIPLET_MIN_MARGIN&&
         maxScore>=YOLO_DUPLICATE_TRIPLET_ANCHOR_SCORE;
       const groupLabel=String(yolo[indexes[0]]?.label||'');
-      const contiguousTriplet=indexes.length===3&&indexes[1]===indexes[0]+1&&indexes[2]===indexes[1]+1;
       const honorLabel=/^(東|南|西|北|白|發|中)$/.test(groupLabel);
-      const honorTriplet=contiguousTriplet&&honorLabel&&
+      const honorTriplet=indexes.length===3&&honorLabel&&
         minScore>=YOLO_HONOR_TRIPLET_MIN_SCORE&&
         minMargin>=YOLO_HONOR_TRIPLET_MIN_MARGIN&&
         maxScore>=YOLO_HONOR_TRIPLET_ANCHOR_SCORE&&
         (maxScore-minScore)<=YOLO_HONOR_TRIPLET_MAX_SPREAD;
       const strongAnchorCount=scored.filter(d=>d.score>=YOLO_HONOR_TRIPLET_STRONG_ANCHOR_SCORE).length;
-      const honorTripletTwoAnchor=contiguousTriplet&&honorLabel&&
+      const honorTripletTwoAnchor=indexes.length===3&&honorLabel&&
         minScore>=YOLO_HONOR_TRIPLET_WEAK_MIN_SCORE&&
         minMargin>=YOLO_HONOR_TRIPLET_WEAK_MIN_MARGIN&&
         strongAnchorCount>=YOLO_HONOR_TRIPLET_STRONG_ANCHORS;
