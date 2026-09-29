@@ -447,9 +447,14 @@ test('v75 preserves stable learning and crop-quality-gated geometry',()=>{
   assert(camera.includes('YOLO_CLASS_MARGIN_SOFT=.10'));
   assert(camera.includes('YOLO_NEAR_DUPLICATE_DISTANCE=.105'));
   assert(camera.includes('m7v95-class-diagnostic'));
+  assert(camera.includes('runnerClassId:Number.isInteger(d.runnerClassId)'));
+  assert(camera.includes("runnerLabel:String(d.runnerLabel||'')"));
+  assert(camera.includes('classMargin:Number(Number(d.classMargin||0).toFixed(4))'));
+  assert(camera.includes('YOLO_DUPLICATE_PAIR_FAR_DISTANCE=.30'));
+  assert(camera.includes('YOLO_VERIFIER_SAME_FAMILY_MARGIN=.18'));
+  assert(camera.includes('YOLO_VERIFIER_CROSS_FAMILY_MARGIN=.075'));
   assert(camera.includes('function yoloLegacyLabelConflicts'));
   assert(camera.includes('function yoloLegacySuitConflicts'));
-  assert(camera.includes("if(yl&&ll&&yl!==ll)conflicts.push(i)"));
   assert(camera.includes('function shouldRunLegacyVerifier'));
     assert(camera.includes('yoloLegacySuitConflictIndexes'));
   assert(camera.includes('YOLO_DUPLICATE_CLOSE_DISTANCE=.145'));
