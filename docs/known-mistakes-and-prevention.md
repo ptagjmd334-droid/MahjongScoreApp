@@ -1208,3 +1208,11 @@
 **原因:** geometry subset探索を14〜16boxだけに制限していた。  
 **修正:** v97で17boxまで許可し、17 choose 3 = 680候補からgeometry整合性の高い14boxを選択可能にした。  
 **再発防止:** 候補数が十分小さい範囲では固定差分ではなく計算量を見積もって安全subset範囲を決める。
+
+
+## M135: 認識詳細の1文字構文ミスでカメラowner全体が起動しなかった
+**時期:** MAKI v97→v98  
+**実機症状:** 白枠が旧サイズへ戻り、緑の「撮影して読み取る」ボタンが消え、「確認画面テスト」「仮検出中」が再表示された。  
+**原因:** v97のcross-view投票診断表示で括弧が1つ不足し、m7-camera-v36.jsがSyntaxErrorでparse不能になった。IIFE先頭のM7V36CameraOwner設定すら実行されず、script.jsの旧M7 v4/v5 fallbackが有効化された。  
+**修正:** v98で括弧を修正し、m7-camera-v36.jsのcompile成功を確認。  
+**再発防止:** CIでm7-camera-v36.js全文をnew Functionへ渡して構文検査し、source stringのcontains testだけでは通さない。  

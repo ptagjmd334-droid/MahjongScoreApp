@@ -312,7 +312,7 @@ test('camera v36 is loaded before ui-fixes so verified clicks train the active c
   assert(index.indexOf('script.js')<index.indexOf('m7-recognition-core.js'));
   assert(index.indexOf('m7-recognition-core.js')<index.indexOf('m7-camera-v36.js'));
   assert(index.indexOf('m7-camera-v36.js')<index.indexOf('ui-fixes.js'));
-  assert(index.includes('MAKI v97'));
+  assert(index.includes('MAKI v98'));
   assert(uiFixes.includes('publishVerifiedHandM8V87'));
   assert(uiFixes.includes('acceptVerifiedHandM8V87'));
   assert(uiFixes.includes("maki:verified-hand"));
@@ -325,6 +325,7 @@ test('camera v36 is loaded before ui-fixes so verified clicks train the active c
   assert(camera.includes('14枚を認識中…'));
   assert(camera.includes('補助認識使用'));
   assert(camera.includes('LEGACY_PRODUCTION_LOADING_LABEL_V89'));
+  assert(index.includes('MAKIDebugV98'));
   assert(index.includes('MAKIDebugV97'));
   assert(index.includes('MAKIDebugV96'));
   assert(index.includes('MAKIDebugV95'));
@@ -333,15 +334,15 @@ test('camera v36 is loaded before ui-fixes so verified clicks train the active c
   assert(index.includes('MAKIDebugV92'));
   assert(index.includes('MAKIDebugV91'));
   assert(index.includes('MAKIDebugV89'));
-  assert(!index.includes('id="app-build-badge" hidden'),'development badge must stay visible in v97');
+  assert(!index.includes('id="app-build-badge" hidden'),'development badge must stay visible in v98');
   assert(camera.includes("detectorMode:'yolo11n-production-fastpath'"));
   assert(script.includes('acceptVerifiedHandM8V87'));
 
   assert(index.includes('<title>MAKI｜麻雀対局管理</title>'));
-  assert(index.includes('manifest.webmanifest?v=m7v97'));
+  assert(index.includes('manifest.webmanifest?v=m7v98'));
   assert(index.includes('apple-mobile-web-app-title" content="MAKI"'));
   assert(index.includes('application-name" content="MAKI"'));
-  assert(index.includes('icon-180.png?v=m7v97'));
+  assert(index.includes('icon-180.png?v=m7v98'));
   assert(index.includes('<h1>MAKI</h1>'));
   assert(camera.includes("content:attr(data-tile)"));
   assert(script.includes("setAttribute('aria-label',name)"));
@@ -423,6 +424,7 @@ test('v75 preserves stable learning and crop-quality-gated geometry',()=>{
   assert(camera.includes("ORT_VERSION='1.22.0'"));
   assert(camera.includes('function detectorWindows'));
   assert(camera.includes('function decodeYoloOutput'));
+  assert.doesNotThrow(()=>new Function(camera),'m7-camera-v36.js must be valid JavaScript');
   assert(camera.includes('function detectorConsensusCluster'));
   assert(camera.includes('function detectorNms'));
   assert(camera.includes('crossViewSupport'));

@@ -3367,7 +3367,7 @@
           return (i+1)+':'+r.label+' '+(Number.isFinite(s)?s.toFixed(2):'-')+
             (r.runnerLabel?(' / 次'+r.runnerLabel+' '+(Number.isFinite(rs)?rs.toFixed(2):'-')):'')+
             (Number.isFinite(m)?(' / 差'+m.toFixed(2)):'')+
-            (' / 票'+support+'/'+views+(Number.isFinite(cvs)?(' '+cvs.toFixed(2)):'')+(Number.isFinite(cvm)?(' / 投票差'+cvm.toFixed(2)):'');
+            (' / 票'+support+'/'+views+(Number.isFinite(cvs)?(' '+cvs.toFixed(2)):'')+(Number.isFinite(cvm)?(' / 投票差'+cvm.toFixed(2)):''));
         }).filter(Boolean);
         if(body&&rows.length){
           const tech=document.createElement('small');
