@@ -78,7 +78,7 @@
   const YOLO_HONOR_TRIPLET_STRONG_ANCHORS=2;
   const YOLO_HONOR_PAIR_ANCHOR_WEAK_MIN_SCORE=.55;
   const YOLO_HONOR_PAIR_ANCHOR_WEAK_MIN_MARGIN=.55;
-  const YOLO_HONOR_PAIR_ANCHOR_SCORE=.85;
+  const YOLO_HONOR_PAIR_STRONG_ANCHOR_SCORE=.85;
   const LEGACY_YOLO_PRODUCTION_MODE="detectorMode:'yolo11n-production-crops'"; // exact v79 source-regression marker; v80 uses axis-aligned crops.
   const YOLO_MODEL_URL='https://cdn.jsdelivr.net/gh/nikmomo/Mahjong-YOLO@28ffceed232ad95fd019c47a6c51ae7c78791a0e/models/nano/mahjong-yolon-best.onnx';
   const ORT_VERSION='1.22.0';
@@ -2684,7 +2684,7 @@
         const anchoredHonorPair=honorPairLabel&&
           Math.min(sa,sb)>=YOLO_HONOR_PAIR_ANCHOR_WEAK_MIN_SCORE&&
           Math.min(ma,mb)>=YOLO_HONOR_PAIR_ANCHOR_WEAK_MIN_MARGIN&&
-          Math.max(sa,sb)>=YOLO_HONOR_PAIR_ANCHOR_SCORE;
+          Math.max(sa,sb)>=YOLO_HONOR_PAIR_STRONG_ANCHOR_SCORE;
         if(balancedHonorPair||anchoredHonorPair)continue;
         const distance=core.featureDistance(feats[ia],feats[ib]);
         if(Number.isFinite(distance)&&distance>YOLO_DUPLICATE_PAIR_FAR_DISTANCE){
