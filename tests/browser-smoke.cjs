@@ -34,8 +34,8 @@ const server=http.createServer((req,res)=>{
     const errors=[];page.on('pageerror',e=>errors.push(String(e)));
     await page.goto('http://127.0.0.1:'+port+'/',{waitUntil:'domcontentloaded',timeout:30000});
     await page.waitForSelector('#go-confirm-button',{timeout:12000});
-    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'MAKI v95');
-    assert.equal(await page.$eval('#app-build-badge',e=>e.hidden),false,'v95 build badge should be visible during development');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'MAKI v96');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.hidden),false,'v96 build badge should be visible during development');
     const v89DebugBadge=await page.evaluate(()=>{
       history.replaceState({},'',location.pathname+'?debug=1');
       const enabled=window.MAKIDebugV89?.apply?.();
@@ -124,7 +124,7 @@ const server=http.createServer((req,res)=>{
         incoherentStrongTriple:mk([3,6,7],[.92,.90,.89],[0,1,-1])
       };
     });
-    assert.deepEqual(duplicateGuard.farPair,[],'v92 must not reject a legitimate pair from appearance variance '+JSON.stringify(duplicateGuard));
+    assert.deepEqual(duplicateGuard.farPair,[7],'v96 should challenge only the weaker member of a wildly inconsistent same-label pair '+JSON.stringify(duplicateGuard));
     assert.deepEqual(duplicateGuard.coherentTriple,[],'v92 must keep a coherent triplet '+JSON.stringify(duplicateGuard));
     assert.deepEqual(duplicateGuard.oneOutlier,[7],'v92 should challenge only the weak visual outlier '+JSON.stringify(duplicateGuard));
     assert.deepEqual(duplicateGuard.incoherentWeakTriple,[3,6,7],'v92 should stop an incoherent weak 3+ duplicate group '+JSON.stringify(duplicateGuard));
@@ -132,19 +132,24 @@ const server=http.createServer((req,res)=>{
 
     const conservativeVerifier=await page.evaluate(()=>{
       const api=window.M7CameraV36;
-      const yolo=Array.from({length:14},()=>({label:'東',score:.9}));
-      const legacy=Array(14).fill('');
-      yolo[1]={label:'4萬',score:.92};legacy[1]='2萬';
-      yolo[4]={label:'5索',score:.91};legacy[4]='6萬';
-      yolo[5]={label:'6萬',score:.90};legacy[5]='6萬';
-      yolo[6]={label:'7萬',score:.90};legacy[6]='';
+      const run=(label,score,runnerLabel,runnerScore,classMargin,legacyLabel)=>{
+        const yolo=Array.from({length:14},()=>({label:'東',score:.9,runnerLabel:'南',runnerScore:.1,classMargin:.8}));
+        const legacy=Array(14).fill('');
+        yolo[1]={label,score,runnerLabel,runnerScore,classMargin};
+        legacy[1]=legacyLabel;
+        return api.yoloLegacyLabelConflicts(yolo,legacy,true);
+      };
       return {
-        broad:api.yoloLegacyLabelConflicts(yolo,legacy,true),
-        alias:api.yoloLegacySuitConflicts(yolo,legacy,true)
+        strongSame:run('4萬',.92,'9萬',.10,.82,'2萬'),
+        ambiguousSame:run('4萬',.55,'2萬',.43,.12,'2萬'),
+        strongCross:run('西',.91,'北',.12,.79,'3萬'),
+        ambiguousCross:run('西',.33,'3萬',.27,.06,'3萬')
       };
     });
-    assert.deepEqual(conservativeVerifier.broad,[1,4],'v94 must challenge any confidently accepted legacy disagreement '+JSON.stringify(conservativeVerifier));
-    assert.deepEqual(conservativeVerifier.alias,conservativeVerifier.broad,'v93 compatibility alias must match broad v94 guard '+JSON.stringify(conservativeVerifier));
+    assert.deepEqual(conservativeVerifier.strongSame,[],'v96 must keep a strong same-family YOLO result '+JSON.stringify(conservativeVerifier));
+    assert.deepEqual(conservativeVerifier.ambiguousSame,[1],'v96 should use legacy as tie-breaker for ambiguous same-family YOLO '+JSON.stringify(conservativeVerifier));
+    assert.deepEqual(conservativeVerifier.strongCross,[],'v96 must keep strong honor YOLO despite legacy cross-family guess '+JSON.stringify(conservativeVerifier));
+    assert.deepEqual(conservativeVerifier.ambiguousCross,[1],'v96 should stop ambiguous cross-family YOLO disagreement '+JSON.stringify(conservativeVerifier));
 
     const v95Ambiguity=await page.evaluate(()=>{
       const api=window.M7CameraV36;
@@ -191,10 +196,10 @@ const server=http.createServer((req,res)=>{
     assert.equal(manifestBrand.name,'MAKI');
     assert.equal(manifestBrand.short_name,'MAKI');
     assert.equal(manifestBrand.id,'./');
-    assert(manifestBrand.icons.every(x=>String(x.src).includes('v=m7v95')),'v95 manifest icons must use fresh cache keys '+JSON.stringify(manifestBrand.icons));
+    assert(manifestBrand.icons.every(x=>String(x.src).includes('v=m7v96')),'v96 manifest icons must use fresh cache keys '+JSON.stringify(manifestBrand.icons));
     assert.equal(await page.$eval('meta[name="apple-mobile-web-app-title"]',e=>e.content),'MAKI');
     assert.equal(await page.$eval('meta[name="application-name"]',e=>e.content),'MAKI');
-    assert((await page.$eval('link[rel="apple-touch-icon"]',e=>e.getAttribute('href'))).includes('v=m7v95'));
+    assert((await page.$eval('link[rel="apple-touch-icon"]',e=>e.getAttribute('href'))).includes('v=m7v96'));
     for(const size of [180,192,512]){
       const p=path.join(root,'icon-'+size+'.png');
       assert(fs.existsSync(p),'MAKI icon missing '+p);

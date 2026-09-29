@@ -73,6 +73,7 @@ on:
       - work/maki-v93-home-install-branding
       - work/maki-v94-conservative-disagreement-guard
       - work/maki-v95-ambiguity-and-learning-decouple
+      - work/maki-v96-runner-metadata-verifier-tuning
   workflow_dispatch:
 
 jobs:

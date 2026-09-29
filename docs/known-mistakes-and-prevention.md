@@ -1171,3 +1171,18 @@
 **原因:** pendingBrokenで学習対象外にした牌もprimary readback確認対象に含めていた。また学習保存をM8判定の必須条件にしていた。  
 **修正:** primary readbackは実際のlearnable labelsだけを検証し、学習保存失敗は警告として残しつつ確認済み14牌のM8判定を継続する。  
 **再発防止:** 本番機能（対局/判定）と改善用telemetry・学習保存を分離し、後者の失敗で前者を止めない。  
+
+
+## M130: v95で計算したTop2/class marginをproduction boxesで捨てていた
+**時期:** MAKI v95→v96  
+**実機症状:** v95でTop2/margin安全策を追加したはずなのに、7萬→9萬・發→南を14/14で通す回が残った。  
+**原因:** decodeYoloOutputではrunnerLabel/runnerScore/classMarginを生成していたが、runYoloTileDetectorDiagnosticの戻り値へboxesをmapする際にscore/label/viewしか残しておらず、production recognitionへ曖昧さ情報が届いていなかった。  
+**修正:** v96でrunnerClassId/runnerLabel/runnerScore/classMarginをproduction boxesへ完全伝播。  
+**再発防止:** 診断用に追加したmetadataはdecode→NMS→detector result→production crop→recognitionまでend-to-endで保持する回帰テストを置く。
+
+## M131: 補助認識を強く信用しすぎて正しい北・西を止めた
+**時期:** MAKI v94/v95→v96  
+**実機症状:** 北が13/14で1枚未確定、西西西が11/14で3枚未確定。画像上は北/西で、補助候補が別牌を指していた。  
+**原因:** 保守的補助認識が一度確定すると、YOLOが強くても不一致位置をblockしていた。補助認識も実機cropでは誤る。  
+**修正:** v96では補助認識を独立した最終権威にせず、YOLOのscore/margin/runnerが曖昧な時だけtie-breakerとしてblockに使う。  
+**再発防止:** 複数認識器の不一致では「どちらかを絶対正解扱い」せず、各認識器自身のconfidenceとmarginを条件に含める。  
