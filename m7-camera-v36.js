@@ -2026,29 +2026,33 @@
       one.crossViewMargin=Number.isFinite(Number(one.crossViewMargin))?Number(one.crossViewMargin):1;
       return one;
     }
-    const votes=new Map(),support=new Map();
+    const topVotes=new Map(),runnerVotes=new Map(),support=new Map();
     let totalWeight=0,totalCount=0;
-    const addVote=(label,weight,count=0)=>{
+    const add=(map,label,weight)=>{
       const key=String(label||'');if(!key||!(weight>0))return;
-      votes.set(key,(votes.get(key)||0)+weight);
-      if(count>0)support.set(key,(support.get(key)||0)+count);
+      map.set(key,(map.get(key)||0)+weight);
     };
     for(const d of items){
       const count=Math.max(1,Number(d.crossViewCount)||1);
       const score=Math.max(0,Number(d.score)||0);
-      addVote(d.label,score*count,count);
+      add(topVotes,d.label,score*count);
+      support.set(String(d.label||''),(support.get(String(d.label||''))||0)+count);
       totalWeight+=score*count;totalCount+=count;
       const runnerLabel=String(d.crossViewRunnerLabel||d.runnerLabel||'');
       const runnerScore=Math.max(0,Number(d.runnerScore)||0);
-      if(runnerLabel&&runnerLabel!==d.label)addVote(runnerLabel,runnerScore*count*YOLO_CROSS_VIEW_RUNNER_WEIGHT,0);
+      if(runnerLabel&&runnerLabel!==d.label)add(runnerVotes,runnerLabel,runnerScore*count*YOLO_CROSS_VIEW_RUNNER_WEIGHT);
     }
-    const ranked=[...votes.entries()].sort((a,b)=>b[1]-a[1]);
-    const winner=ranked[0]?.[0]||String(items[0].label||'');
-    const winnerWeight=ranked[0]?.[1]||0;
-    const runner=ranked[1]?.[0]||'';
-    const runnerWeight=ranked[1]?.[1]||0;
+    const rankedTop=[...topVotes.entries()].sort((a,b)=>b[1]-a[1]);
+    const winner=rankedTop[0]?.[0]||String(items[0].label||'');
+    const winnerWeight=rankedTop[0]?.[1]||0;
+    const runnerCandidates=new Map();
+    for(const [label,weight] of topVotes)if(label!==winner)runnerCandidates.set(label,(runnerCandidates.get(label)||0)+weight);
+    for(const [label,weight] of runnerVotes)if(label!==winner)runnerCandidates.set(label,(runnerCandidates.get(label)||0)+weight);
+    const rankedRunner=[...runnerCandidates.entries()].sort((a,b)=>b[1]-a[1]);
+    const runner=rankedRunner[0]?.[0]||'';
+    const runnerWeight=rankedRunner[0]?.[1]||0;
     const denom=Math.max(1e-6,totalWeight);
-    const share=Math.min(1,winnerWeight/denom);
+    const share=Math.max(0,Math.min(1,winnerWeight/denom));
     const crossMargin=Math.max(0,Math.min(1,(winnerWeight-runnerWeight)/denom));
     const winnerItems=items.filter(d=>String(d.label||'')===winner);
     const representative=(winnerItems.length?winnerItems:items).slice().sort((a,b)=>(Number(b.score)||0)-(Number(a.score)||0))[0];
