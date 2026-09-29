@@ -1186,3 +1186,25 @@
 **原因:** 保守的補助認識が一度確定すると、YOLOが強くても不一致位置をblockしていた。補助認識も実機cropでは誤る。  
 **修正:** v96では補助認識を独立した最終権威にせず、YOLOのscore/margin/runnerが曖昧な時だけtie-breakerとしてblockに使う。  
 **再発防止:** 複数認識器の不一致では「どちらかを絶対正解扱い」せず、各認識器自身のconfidenceとmarginを条件に含める。  
+
+
+## M132: 複数windowのYOLO判定をNMSで1票に潰していた
+**時期:** MAKI v96→v97  
+**実機症状:** 同じ牌列で14/14正解と、8萬→4萬・6萬→5筒のsilent false positiveが揺れた。  
+**原因:** full/tile-1/tile-2/tile-3など複数windowで同じ物理牌を推論していたが、NMSは最もscoreの高いboxを1つ残して他windowの牌種情報を捨てていた。単一windowの一時的誤判定が最終結果になり得た。  
+**修正:** v97でoverlap検出をcluster化し、window横断の牌種voteを集約。複数windowの一貫性をcrossViewSupport/share/marginとしてproduction認識まで保持する。  
+**再発防止:** 複数view推論を使う場合、geometryの重複除去とclass evidenceの統合を別問題として扱い、class evidenceをNMSで捨てない。
+
+## M133: 高confidenceの正しい刻子をcrop特徴差だけで止めた
+**時期:** MAKI v96→v97  
+**実機症状:** 北北北をYOLOが0.94/0.84/0.90で正しく出しているのに3枚とも要確認へ落ちた。  
+**原因:** 3枚以上の同一ラベルでcrop特徴が近いpairを作れない場合、score差だけでgroup全体をblockする分岐が残っていた。  
+**修正:** v97では全員が高score・高marginなら画像差だけでblockしない。弱いgroupでも全員ではなく最弱1枚から止める。  
+**再発防止:** 正当な対子・刻子・槓子を前提に、同一ラベル群の安全判定はgroup全体blockを最後の手段にする。
+
+## M134: 17検出を安全subsetの対象外にしていた
+**時期:** MAKI v96→v97  
+**実機症状:** 17牌検出になった回で0/14・要確認14枚まで落ちた。  
+**原因:** geometry subset探索を14〜16boxだけに制限していた。  
+**修正:** v97で17boxまで許可し、17 choose 3 = 680候補からgeometry整合性の高い14boxを選択可能にした。  
+**再発防止:** 候補数が十分小さい範囲では固定差分ではなく計算量を見積もって安全subset範囲を決める。
