@@ -1379,6 +1379,21 @@ const server=http.createServer((req,res)=>{
     assert.equal(await page.$eval('#discarder-next-button',e=>e.disabled),false);
     await page.click('#discarder-next-button');
     await page.waitForSelector('#agari-overlay .score-switch-table',{visible:true,timeout:9000});
+    await page.waitForSelector('#maki-hand-entry-v111',{visible:true,timeout:5000});
+    const v111Entry=await page.$eval('#maki-hand-entry-v111',e=>({
+      camera:e.querySelector('.maki-v111-camera')?.textContent?.trim(),
+      manual:e.querySelector('.maki-v111-manual')?.textContent?.trim(),
+      context:e.querySelector('.maki-v111-context')?.textContent?.trim()
+    }));
+    assert(v111Entry.camera?.includes('カメラで認識'),'v111 camera entry missing '+JSON.stringify(v111Entry));
+    assert(v111Entry.manual?.includes('手動入力'),'v111 manual entry missing '+JSON.stringify(v111Entry));
+    assert(v111Entry.context?.includes('ロン'),'v111 did not retain ron context '+JSON.stringify(v111Entry));
+    await page.click('#maki-hand-entry-v111 .maki-v111-manual');
+    await page.waitForSelector('#maki-manual-hand-v111',{visible:true,timeout:4000});
+    assert.equal(await page.$eval('#maki-manual-hand-v111 .maki-v111-slot',x=>x.length),14,'v111 manual entry must have 14 slots');
+    assert.equal(await page.$eval('#maki-manual-hand-v111 .maki-v111-tile',x=>x.length),34,'v111 manual entry must offer 34 tile types');
+    await page.click('#maki-manual-hand-v111 .maki-v111-cancel');
+    await page.waitForFunction(()=>!document.getElementById('maki-manual-hand-v111'),{timeout:3000});
     const score=await page.$eval('#agari-overlay',e=>{
       const card=e.querySelector('.agari-flow-card');
       const rect=e.getBoundingClientRect(),inside=card?.getBoundingClientRect();
