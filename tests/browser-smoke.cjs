@@ -1702,7 +1702,8 @@ const server=http.createServer((req,res)=>{
         tile:first.dataset.tile,
         raw:first.dataset.m7v119RawLabel||'',
         red:first.dataset.m7v122Red||'',
-        aria:first.getAttribute('aria-label')||''
+        aria:first.getAttribute('aria-label')||'',
+        metaRedCount:window.M7CameraV36?.cameraHandMetaFromResultV122?.(root)?.redCount??-1
       };
       first.click();
       const normal=[...document.querySelectorAll('#tile-picker-m7v5 .tile-picker-grid-m7v5 button')]
@@ -1712,15 +1713,16 @@ const server=http.createServer((req,res)=>{
         tile:first.dataset.tile,
         raw:first.dataset.m7v119RawLabel||'',
         red:first.dataset.m7v122Red||'',
-        aria:first.getAttribute('aria-label')||''
+        aria:first.getAttribute('aria-label')||'',
+        metaRedCount:window.M7CameraV36?.cameraHandMetaFromResultV122?.(root)?.redCount??-1
       };
       document.getElementById('hand-result-overlay-m7v5')?.remove();
       return {redLabels,afterRed,afterNormal};
     });
     assert.deepEqual(v122ManualRed.redLabels,['赤5萬','赤5筒','赤5索'],'v122 manual correction needs three red-five choices '+JSON.stringify(v122ManualRed));
-    assert.deepEqual(v122ManualRed.afterRed,{tile:'5索',raw:'0s',red:'1',aria:'赤5索'},
+    assert.deepEqual(v122ManualRed.afterRed,{tile:'5索',raw:'0s',red:'1',aria:'赤5索',metaRedCount:1},
       'v122 choosing red 5-sou must preserve scoring tile and aka metadata '+JSON.stringify(v122ManualRed));
-    assert.deepEqual(v122ManualRed.afterNormal,{tile:'5索',raw:'',red:'',aria:'5索'},
+    assert.deepEqual(v122ManualRed.afterNormal,{tile:'5索',raw:'',red:'',aria:'5索',metaRedCount:0},
       'v122 choosing ordinary 5-sou must clear stale aka metadata '+JSON.stringify(v122ManualRed));
     await page.click('#maki-hand-entry-v111 .maki-v111-manual');
     await page.waitForSelector('#maki-manual-hand-v111',{visible:true,timeout:4000});
