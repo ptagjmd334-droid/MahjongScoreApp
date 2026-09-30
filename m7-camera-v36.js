@@ -24,7 +24,7 @@
   const FEATURE_KIND='perspective-direct-v1';
   const MAX_TEMPLATES=5;
   const MAX_IMAGES_PER_LABEL=10;
-  const state={overlay:null,captured:false,pendingFeatures:[],pendingCrops:[],pendingTrainingImages:[],pendingBroken:[],diagnostics:null,predictionDebug:[],confidenceReasons:[],learnedLabelCount:0,librarySource:'',runtimeLibrary:null,storageDiagnostics:null,lastRecognitionMs:0,lastAuxViewsUsed:0,lastAuxFallbackCount:0,lastMicroRefined:0};
+  const state={overlay:null,captured:false,pendingFeatures:[],pendingCrops:[],pendingTrainingImages:[],pendingBroken:[],pendingRawLabels:[],diagnostics:null,predictionDebug:[],confidenceReasons:[],learnedLabelCount:0,librarySource:'',runtimeLibrary:null,storageDiagnostics:null,lastRecognitionMs:0,lastAuxViewsUsed:0,lastAuxFallbackCount:0,lastMicroRefined:0};
   const persistPromises=new WeakMap();
   const LEGACY_BOUNDARY_DIAGNOSTIC_LABEL='境界signal診断 / 局所再分割'; // M099/M101: stable legacy diagnostic markers; v78 no longer displays them.
   const LEGACY_CROP_DIAGNOSTIC_LABEL='crop品質fallback / 境界trim / 軸平行crop'; // stable v75-v84 diagnostic markers kept for source regressions.
@@ -3844,6 +3844,13 @@
     }
     primary=recoverWhiteDragonGaps(primary,analysis.yoloRecognition||[],features,analysis.detectorAdopted===true);
     const predicted=primary.labels.slice(0,14);
+    const rawLabels=Array.from({length:14},(_,i)=>{
+      if(primary.sources?.[i]!=='yolo')return '';
+      const raw=String(analysis.yoloRecognition?.[i]?.rawLabel||'');
+      return /^0[mps]$/.test(raw)?raw:'';
+    });
+    state.pendingRawLabels=rawLabels;
+    window.M7V119PendingRawLabels=rawLabels.slice();
     analysis.yoloPrimary=primary;
     analysis.yoloWhiteRecoveredIndexes=(primary.whiteRecoveredIndexes||[]).slice();
     analysis.yoloDuplicateGuardIndexes=duplicateGuardIndexes.slice();
@@ -3871,6 +3878,8 @@
       buttons.forEach((b,i)=>{
         const url=state.pendingCrops[i];
         if(url){b.classList.add('m7v36-crop');b.style.backgroundImage=`url("${url}")`;b.dataset.m7v36Index=String(i);}
+        const rawRed=state.pendingRawLabels[i]||'';
+        if(rawRed)b.dataset.m7v119RawLabel=rawRed;
         const suggestions=(state.predictionDebug?.[i]||[]).map(x=>x.label).filter(Boolean);
         if(suggestions.length){
           b.dataset.m7v39Suggestions=JSON.stringify(suggestions.slice(0,3));
@@ -4118,6 +4127,19 @@
   document.addEventListener('click',e=>{
     const ok=e.target.closest?.('.hand-result-ok-m7v5');if(!ok)return;
     const root=document.getElementById('hand-result-overlay-m7v5');if(!root)return;
+    const buttons=[...root.querySelectorAll('.hand-result-tile-m7v5')];
+    const tiles=buttons.map(b=>b.dataset.tile||'');
+    const rawLabels=buttons.map((b,i)=>{
+      const raw=String(b.dataset.m7v119RawLabel||'');
+      const normalized=yoloLabelToAppTile(raw);
+      return raw&&normalized===tiles[i]?raw:'';
+    });
+    window.MAKILastCameraHandMetaV119={
+      tiles:tiles.slice(),
+      rawLabels:rawLabels.slice(),
+      redCount:rawLabels.filter(x=>/^0[mps]$/.test(x)).length,
+      createdAt:Date.now()
+    };
     const status=root.querySelector('.hand-result-status-m7v5');
     if(status)status.textContent='学習データを保存中…';
     persistVerifiedHand(root).then(result=>{
