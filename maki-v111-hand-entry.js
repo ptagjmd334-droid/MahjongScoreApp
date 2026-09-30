@@ -2,7 +2,7 @@
 (()=>{
   'use strict';
 
-  const VERSION='MAKI v118';
+  const VERSION='MAKI v119';
   const TILES=[
     '1萬','2萬','3萬','4萬','5萬','6萬','7萬','8萬','9萬',
     '1筒','2筒','3筒','4筒','5筒','6筒','7筒','8筒','9筒',
@@ -73,6 +73,54 @@
     #maki-hand-entry-v111 .maki-v118-dora-note{
       margin-top:4px;font-size:9px;font-weight:800;text-align:center;color:#746b46
     }
+
+    #maki-hand-entry-v111 .maki-v119-dora-camera{
+      min-height:26px!important;padding:3px 8px!important;border:1px solid #cdbd79!important;
+      border-radius:8px!important;background:#fff!important;color:#3c4a35!important;font-size:10px!important
+    }
+    #maki-hand-entry-v111 .maki-v119-indicators{
+      margin-top:4px;display:flex;align-items:center;justify-content:center;gap:5px;min-height:18px;
+      font-size:9px;font-weight:900;color:#625a36;text-align:center;flex-wrap:wrap
+    }
+    #maki-hand-entry-v111 .maki-v119-clear-indicators{
+      min-height:20px!important;padding:2px 6px!important;border-radius:7px!important;
+      background:#eee8d6!important;color:#655f44!important;font-size:9px!important
+    }
+    #maki-dora-camera-v119{
+      position:fixed;inset:0;z-index:2147483400;background:#000;color:#fff;overflow:hidden
+    }
+    #maki-dora-camera-v119 video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+    #maki-dora-camera-v119 .maki-v119-dora-shade{
+      position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none
+    }
+    #maki-dora-camera-v119 .maki-v119-dora-guide{
+      width:min(28vw,210px);height:min(58vh,260px);border:4px solid #fff;border-radius:18px;
+      box-shadow:0 0 0 9999px rgba(0,0,0,.42)
+    }
+    #maki-dora-camera-v119 .maki-v119-dora-status{
+      position:absolute;left:50%;top:max(12px,env(safe-area-inset-top));transform:translateX(-50%);
+      width:min(620px,80vw);padding:7px 12px;border-radius:999px;background:rgba(0,0,0,.72);
+      text-align:center;font-size:12px;font-weight:900
+    }
+    #maki-dora-camera-v119 .maki-v119-dora-actions{
+      position:absolute;left:12px;right:12px;bottom:max(12px,env(safe-area-inset-bottom));
+      display:flex;justify-content:center;gap:10px
+    }
+    #maki-dora-camera-v119 button{
+      min-height:42px;border:0;border-radius:11px;padding:7px 15px;font-size:13px;font-weight:900
+    }
+    #maki-dora-camera-v119 .maki-v119-dora-capture,
+    #maki-dora-camera-v119 .maki-v119-dora-accept{background:#19ad6d;color:#fff}
+    #maki-dora-camera-v119 .maki-v119-dora-cancel,
+    #maki-dora-camera-v119 .maki-v119-dora-retry{background:#e5e5e5;color:#17231d}
+    #maki-dora-camera-v119 .maki-v119-dora-result{
+      position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:2;
+      width:min(520px,84vw);padding:18px;border-radius:18px;background:#f7f3e9;color:#153227;
+      text-align:center;box-shadow:0 12px 45px rgba(0,0,0,.45)
+    }
+    #maki-dora-camera-v119 .maki-v119-dora-result strong{display:block;font-size:22px;margin-bottom:6px}
+    #maki-dora-camera-v119 .maki-v119-dora-result small{display:block;font-weight:800;color:#59685f;margin-bottom:12px}
+    #maki-dora-camera-v119 .maki-v119-dora-result .row{display:flex;gap:8px;justify-content:center}
 
     #maki-manual-hand-v111{
       position:fixed;inset:0;z-index:2147483300;background:rgba(0,0,0,.66);
@@ -357,6 +405,180 @@
     return setDoraCount(kind,normalizedDoraCount(state[kind])+Number(delta||0),ctx);
   }
 
+  window.MAKIDoraIndicatorStatesV119=window.MAKIDoraIndicatorStatesV119||{};
+
+  function indicatorStateFor(ctx=context(),create=true){
+    const key=doraContextKey(ctx);
+    if(!key)return {key:'',rawLabels:[]};
+    let state=window.MAKIDoraIndicatorStatesV119[key];
+    if(!state&&create){
+      state={key,rawLabels:[],updatedAt:Date.now()};
+      window.MAKIDoraIndicatorStatesV119[key]=state;
+    }
+    return state||{key,rawLabels:[]};
+  }
+
+  function appTileFromRawYolo(raw){
+    return window.M7CameraV36?.yoloLabelToAppTile?.(raw)||'';
+  }
+
+  function doraTileFromIndicatorRaw(raw){
+    const tile=appTileFromRawYolo(raw);
+    if(!tile)return '';
+    const honorNext={東:'南',南:'西',西:'北',北:'東',白:'發',發:'中',中:'白'};
+    if(honorNext[tile])return honorNext[tile];
+    const m=tile.match(/^([1-9])(萬|筒|索)$/);
+    if(!m)return '';
+    const n=Number(m[1]);
+    return String(n===9?1:n+1)+m[2];
+  }
+
+  function indicatorPairs(ctx=context()){
+    return (indicatorStateFor(ctx,false).rawLabels||[]).map(raw=>({
+      raw,
+      indicator:appTileFromRawYolo(raw),
+      dora:doraTileFromIndicatorRaw(raw)
+    })).filter(x=>x.indicator&&x.dora);
+  }
+
+  function countDoraFromIndicators(tiles,ctx=context()){
+    if(!Array.isArray(tiles)||tiles.length!==14)return 0;
+    const counts=countsOf(tiles);
+    return indicatorPairs(ctx).reduce((sum,x)=>sum+(counts[x.dora]||0),0);
+  }
+
+  function syncIndicatorDoraCount(ctx=context(),tiles=null){
+    const pairs=indicatorPairs(ctx);
+    if(!pairs.length)return;
+    const saved=Array.isArray(tiles)?tiles:registeredFor(ctx)?.tiles;
+    if(!Array.isArray(saved)||saved.length!==14)return;
+    setDoraCount('dora',countDoraFromIndicators(saved,ctx),ctx);
+  }
+
+  function applyCameraHandMetaV119(ctx,tiles,meta){
+    if(!meta||Date.now()-Number(meta.createdAt||0)>2*60*1000)return false;
+    if(!Array.isArray(meta.tiles)||meta.tiles.length!==14||meta.tiles.some((t,i)=>t!==tiles[i]))return false;
+    setDoraCount('aka',normalizedDoraCount(meta.redCount),ctx);
+    syncIndicatorDoraCount(ctx,tiles);
+    return true;
+  }
+
+  function addDoraIndicatorRaw(raw,ctx=context()){
+    const indicator=appTileFromRawYolo(raw),dora=doraTileFromIndicatorRaw(raw);
+    if(!indicator||!dora)return false;
+    const state=indicatorStateFor(ctx,true);
+    if(state.rawLabels.length>=5)return false;
+    state.rawLabels.push(String(raw));
+    state.updatedAt=Date.now();
+    syncIndicatorDoraCount(ctx);
+    renderDoraControls();
+    return true;
+  }
+
+  function clearDoraIndicators(ctx=context()){
+    const state=indicatorStateFor(ctx,true);
+    state.rawLabels=[];
+    state.updatedAt=Date.now();
+    setDoraCount('dora',0,ctx);
+    renderDoraControls();
+  }
+
+  function stopDoraCameraV119(root){
+    const video=root?.querySelector('video');
+    try{video?.srcObject?.getTracks?.().forEach(t=>t.stop());}catch(_){}
+    if(video)video.srcObject=null;
+  }
+
+  function captureDoraGuideFrameV119(video,guide){
+    if(!video||video.readyState<2||!video.videoWidth)return null;
+    const vr=video.getBoundingClientRect(),gr=guide.getBoundingClientRect();
+    const rel={x:gr.left-vr.left,y:gr.top-vr.top,w:gr.width,h:gr.height};
+    let src=window.M7CameraV36?.sourceRectForCover?.(video.videoWidth,video.videoHeight,vr.width,vr.height,rel);
+    if(!src){
+      const ratio=Math.min(video.videoWidth/video.videoHeight,1);
+      const w=video.videoWidth*.36,h=video.videoHeight*.78;
+      src={x:(video.videoWidth-w)/2,y:(video.videoHeight-h)/2,w,h};
+    }
+    const canvas=document.createElement('canvas');
+    canvas.width=Math.max(1,Math.round(src.w));canvas.height=Math.max(1,Math.round(src.h));
+    canvas.getContext('2d',{willReadFrequently:true}).drawImage(video,src.x,src.y,src.w,src.h,0,0,canvas.width,canvas.height);
+    return canvas;
+  }
+
+  async function recognizeDoraIndicatorCanvasV119(canvas){
+    const detector=window.M7CameraV36?.runYoloTileDetectorDiagnostic;
+    if(typeof detector!=='function')return {ok:false,reason:'detector-unavailable'};
+    let result;
+    try{result=await detector(canvas,null);}catch(e){return {ok:false,reason:String(e?.message||e)};}
+    const boxes=(result?.boxes||[]).filter(b=>b?.label&&Number(b.score)>=.12).sort((a,b)=>Number(b.score)-Number(a.score));
+    if(!boxes.length)return {ok:false,reason:'no-tile'};
+    const best=boxes[0],indicator=appTileFromRawYolo(best.label),dora=doraTileFromIndicatorRaw(best.label);
+    if(!indicator||!dora)return {ok:false,reason:'unknown-label'};
+    return {
+      ok:true,rawLabel:String(best.label),indicator,dora,
+      score:Number(best.score)||0,runner:String(best.runnerLabel||''),
+      margin:Number(best.classMargin)||0
+    };
+  }
+
+  async function openDoraIndicatorCamera(){
+    const ctx=context();
+    if(!ctx.active||ctx.step!=='score'||!ctx.winner)return;
+    document.getElementById('maki-dora-camera-v119')?.remove();
+    const root=document.createElement('div');root.id='maki-dora-camera-v119';
+    root.innerHTML=`
+      <video autoplay playsinline muted></video>
+      <div class="maki-v119-dora-shade"><div class="maki-v119-dora-guide"></div></div>
+      <div class="maki-v119-dora-status">ドラ表示牌を白枠に1枚だけ入れてください</div>
+      <div class="maki-v119-dora-actions">
+        <button type="button" class="maki-v119-dora-capture">撮影して認識</button>
+        <button type="button" class="maki-v119-dora-cancel">キャンセル</button>
+      </div>
+    `;
+    document.body.appendChild(root);
+    const video=root.querySelector('video'),status=root.querySelector('.maki-v119-dora-status');
+    const capture=root.querySelector('.maki-v119-dora-capture');
+    const close=()=>{stopDoraCameraV119(root);root.remove();};
+    root.querySelector('.maki-v119-dora-cancel').onclick=close;
+    try{
+      const stream=await navigator.mediaDevices.getUserMedia({
+        video:{facingMode:{ideal:'environment'},width:{ideal:1920},height:{ideal:1080}},audio:false
+      });
+      if(!root.isConnected){stream.getTracks().forEach(t=>t.stop());return;}
+      video.srcObject=stream;await video.play().catch(()=>{});
+    }catch(_){
+      status.textContent='カメラを開けませんでした';
+      capture.disabled=true;return;
+    }
+    capture.onclick=async()=>{
+      const canvas=captureDoraGuideFrameV119(video,root.querySelector('.maki-v119-dora-guide'));
+      if(!canvas){status.textContent='映像を取得できませんでした';return;}
+      capture.disabled=true;status.textContent='ドラ表示牌を認識中…';
+      const rec=await recognizeDoraIndicatorCanvasV119(canvas);
+      if(!root.isConnected)return;
+      if(!rec.ok){
+        status.textContent='表示牌を認識できませんでした。位置を合わせて再撮影してください';
+        capture.disabled=false;return;
+      }
+      stopDoraCameraV119(root);
+      root.querySelector('.maki-v119-dora-actions').style.display='none';
+      const box=document.createElement('div');box.className='maki-v119-dora-result';
+      box.innerHTML=`
+        <strong>表示牌 ${rec.indicator} → ドラ ${rec.dora}</strong>
+        <small>認識信頼度 ${Math.round(rec.score*100)}%。間違っていれば撮り直してください。</small>
+        <div class="row">
+          <button type="button" class="maki-v119-dora-accept">この表示牌を追加</button>
+          <button type="button" class="maki-v119-dora-retry">撮り直す</button>
+        </div>
+      `;
+      root.appendChild(box);
+      box.querySelector('.maki-v119-dora-accept').onclick=()=>{
+        addDoraIndicatorRaw(rec.rawLabel,ctx);root.remove();
+      };
+      box.querySelector('.maki-v119-dora-retry').onclick=()=>{root.remove();openDoraIndicatorCamera();};
+    };
+  }
+
   function renderDoraControls(){
     const panel=document.getElementById('maki-hand-entry-v111');
     if(!panel)return;
@@ -376,6 +598,14 @@
     if(note)note.textContent=riichi
       ?'ドラは役ではありません。裏ドラも加算します。'
       :'ドラは役ではありません。裏ドラはリーチ時のみ入力できます。';
+    const indicatorBox=panel.querySelector('.maki-v119-indicators');
+    if(indicatorBox){
+      const pairs=indicatorPairs(ctx);
+      indicatorBox.innerHTML=pairs.length
+        ?'<span>表示牌: '+pairs.map(x=>x.indicator+'→'+x.dora).join(' / ')+'</span><button type="button" class="maki-v119-clear-indicators">表示牌を消去</button>'
+        :'<span>表示牌カメラ未入力</span>';
+      indicatorBox.querySelector('.maki-v119-clear-indicators')?.addEventListener('click',()=>clearDoraIndicators(ctx));
+    }
   }
 
   function mountScoreHandEntry(){
@@ -401,6 +631,7 @@
         <div class="maki-v118-dora" aria-label="ドラ入力">
           <div class="maki-v118-dora-head">
             <span class="maki-v118-dora-title">ドラ入力</span>
+            <button type="button" class="maki-v119-dora-camera">📷 表示牌</button>
             <span class="maki-v118-dora-total">合計 0翻</span>
           </div>
           <div class="maki-v118-dora-grid">
@@ -415,11 +646,13 @@
             </div>
           </div>
           <div class="maki-v118-dora-note"></div>
+          <div class="maki-v119-indicators"></div>
         </div>
       `;
       table.insertAdjacentElement('beforebegin',panel);
       panel.querySelector('.maki-v111-camera').addEventListener('click',openCameraFromScore);
       panel.querySelector('.maki-v111-manual').addEventListener('click',openManualEntry);
+      panel.querySelector('.maki-v119-dora-camera').addEventListener('click',openDoraIndicatorCamera);
       panel.querySelectorAll('[data-dora-step]').forEach(button=>{
         button.addEventListener('click',()=>{
           const row=button.closest('.maki-v118-dora-counter');
@@ -677,6 +910,13 @@
     const now=context();
     if(!sameContext(pending,now))return;
     window.MAKIHandEntryStateV111={...pending,tiles,verifiedAt:Date.now()};
+    if(pending.source==='camera'){
+      const meta=window.MAKILastCameraHandMetaV119;
+      applyCameraHandMetaV119(now,tiles,meta);
+      window.MAKILastCameraHandMetaV119=null;
+    }else{
+      syncIndicatorDoraCount(now,tiles);
+    }
     window.MAKIHandEntryPendingV111=null;
     setTimeout(()=>{mountScoreHandEntry();decorateLimitRecommendation();},0);
   });
@@ -734,6 +974,8 @@
 
   document.getElementById('agari-button')?.addEventListener('click',()=>{
     window.MAKIDoraStatesV118={};
+    window.MAKIDoraIndicatorStatesV119={};
+    window.MAKILastCameraHandMetaV119=null;
     window.m8BaseYakuBreakdownV118=null;
   });
 
@@ -764,6 +1006,17 @@
     setTimeout(()=>{mountScoreHandEntry();decorateLimitRecommendation();},80);
     setTimeout(decorateM8Context,100);
   },{passive:true});
+
+  window.MAKIV119DoraCamera=Object.freeze({
+    indicatorState:indicatorStateFor,
+    doraTileFromIndicatorRaw,
+    countDoraFromIndicators,
+    addIndicatorRaw:addDoraIndicatorRaw,
+    clearIndicators:clearDoraIndicators,
+    applyCameraHandMeta:applyCameraHandMetaV119,
+    recognizeIndicatorCanvas:recognizeDoraIndicatorCanvasV119,
+    openIndicatorCamera:openDoraIndicatorCamera
+  });
 
   window.MAKIV118Dora=Object.freeze({
     contextKey:doraContextKey,
