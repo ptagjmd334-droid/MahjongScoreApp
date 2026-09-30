@@ -158,7 +158,7 @@
     const yakuman=r.yakuman.filter(n=>!baseHas(root,n));
     let box=document.getElementById('m8v23-extra');if(!box){box=document.createElement('div');box.id='m8v23-extra';document.getElementById('m8v22-extra-yaku')?.insertAdjacentElement('afterend',box);if(!box.isConnected)panel.querySelector('.m8v5-extra')?.before(box);}
 
-    const baseState=window.m8YakuBreakdownV116;
+    const baseState=window.m8BaseYakuBreakdownV118||window.m8YakuBreakdownV116;
     const baseYakumanNames=baseState?.yakuman?(baseState.items||[]).map(x=>x.name):[];
     if(baseYakumanNames.length||yakuman.length){
       const names=[...new Set([...baseYakumanNames,...yakuman])];

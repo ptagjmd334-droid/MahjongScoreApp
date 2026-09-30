@@ -34,8 +34,8 @@ const server=http.createServer((req,res)=>{
     const errors=[];page.on('pageerror',e=>errors.push(String(e)));
     await page.goto('http://127.0.0.1:'+port+'/',{waitUntil:'domcontentloaded',timeout:30000});
     await page.waitForSelector('#go-confirm-button',{timeout:12000});
-    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'MAKI v117');
-    assert.equal(await page.$eval('#app-build-badge',e=>e.hidden),false,'v117 build badge should be visible during development');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'MAKI v118');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.hidden),false,'v118 build badge should be visible during development');
     assert(await page.evaluate(()=>!!window.M7V36CameraOwner),'v98 camera owner must bootstrap');
     await page.evaluate(()=>{
       const overlay=document.createElement('div');
@@ -650,10 +650,10 @@ const server=http.createServer((req,res)=>{
     assert.equal(manifestBrand.name,'MAKI');
     assert.equal(manifestBrand.short_name,'MAKI');
     assert.equal(manifestBrand.id,'./');
-    assert(manifestBrand.icons.every(x=>String(x.src).includes('v=m7v117')),'v109 manifest icons must use fresh cache keys '+JSON.stringify(manifestBrand.icons));
+    assert(manifestBrand.icons.every(x=>String(x.src).includes('v=m7v118')),'v109 manifest icons must use fresh cache keys '+JSON.stringify(manifestBrand.icons));
     assert.equal(await page.$eval('meta[name="apple-mobile-web-app-title"]',e=>e.content),'MAKI');
     assert.equal(await page.$eval('meta[name="application-name"]',e=>e.content),'MAKI');
-    assert((await page.$eval('link[rel="apple-touch-icon"]',e=>e.getAttribute('href'))).includes('v=m7v117'));
+    assert((await page.$eval('link[rel="apple-touch-icon"]',e=>e.getAttribute('href'))).includes('v=m7v118'));
     for(const size of [180,192,512]){
       const p=path.join(root,'icon-'+size+'.png');
       assert(fs.existsSync(p),'MAKI icon missing '+p);
@@ -1552,6 +1552,72 @@ const server=http.createServer((req,res)=>{
     assert(v111Entry.camera?.includes('カメラで認識'),'v111 camera entry missing '+JSON.stringify(v111Entry));
     assert(v111Entry.manual?.includes('手動入力'),'v111 manual entry missing '+JSON.stringify(v111Entry));
     assert(v111Entry.context?.includes('ロン'),'v111 did not retain ron context '+JSON.stringify(v111Entry));
+
+    const v118DoraUI=await page.$eval('#maki-hand-entry-v111',e=>({
+      counters:e.querySelectorAll('.maki-v118-dora-counter').length,
+      labels:[...e.querySelectorAll('.maki-v118-dora-label')].map(x=>x.textContent.trim()),
+      uraDisabled:[...e.querySelectorAll('.maki-v118-dora-counter[data-kind="ura"] button')].every(x=>x.disabled),
+      note:e.querySelector('.maki-v118-dora-note')?.textContent||''
+    }));
+    assert.equal(v118DoraUI.counters,3,'v118 needs three dora counters '+JSON.stringify(v118DoraUI));
+    assert.deepEqual(v118DoraUI.labels,['ドラ','赤ドラ','裏ドラ'],'v118 dora labels mismatch '+JSON.stringify(v118DoraUI));
+    assert.equal(v118DoraUI.uraDisabled,true,'v118 ura-dora must be disabled for a non-riichi winner '+JSON.stringify(v118DoraUI));
+    assert(v118DoraUI.note.includes('ドラは役ではありません'),'v118 dora rule note missing '+JSON.stringify(v118DoraUI));
+
+    await page.click('#maki-hand-entry-v111 .maki-v118-dora-counter[data-kind="dora"] [data-dora-step="1"]');
+    await page.click('#maki-hand-entry-v111 .maki-v118-dora-counter[data-kind="dora"] [data-dora-step="1"]');
+    await page.click('#maki-hand-entry-v111 .maki-v118-dora-counter[data-kind="aka"] [data-dora-step="1"]');
+    const v118DoraCounts=await page.$eval('#maki-hand-entry-v111',e=>({
+      dora:e.querySelector('.maki-v118-dora-counter[data-kind="dora"] .maki-v118-dora-value')?.textContent,
+      aka:e.querySelector('.maki-v118-dora-counter[data-kind="aka"] .maki-v118-dora-value')?.textContent,
+      ura:e.querySelector('.maki-v118-dora-counter[data-kind="ura"] .maki-v118-dora-value')?.textContent,
+      total:e.querySelector('.maki-v118-dora-total')?.textContent
+    }));
+    assert.deepEqual(v118DoraCounts,{dora:'2',aka:'1',ura:'0',total:'合計 +3翻'},'v118 manual dora counters failed '+JSON.stringify(v118DoraCounts));
+
+    const v118DoraScoring=await page.evaluate(async()=>{
+      let panel=document.getElementById('m8-context-v5');
+      let fixture=null;
+      if(!panel){
+        fixture=document.createElement('div');
+        fixture.id='m8-context-v5';
+        fixture.innerHTML='<div class="m8v5-han"></div>';
+        document.body.appendChild(fixture);
+        panel=fixture;
+      }
+      window.M8V22?.publishRecommendation?.(panel,{
+        yakuman:false,
+        han:4,
+        items:[{name:'清一色',han:4}]
+      });
+      await new Promise(requestAnimationFrame);
+      await new Promise(resolve=>setTimeout(resolve,50));
+      const withYaku={
+        state:window.m8YakuBreakdownV116,
+        green:[...document.querySelectorAll('#agari-overlay .limit-button.maki-v111-limit-recommend')].map(x=>x.dataset.limit),
+        summary:document.getElementById('m8v25-score-summary')?.textContent||''
+      };
+      window.M8V22?.publishRecommendation?.(panel,{yakuman:false,han:0,items:[]});
+      await new Promise(requestAnimationFrame);
+      await new Promise(resolve=>setTimeout(resolve,50));
+      const noYaku={
+        state:window.m8YakuBreakdownV116,
+        green:[...document.querySelectorAll('#agari-overlay .limit-button.maki-v111-limit-recommend')].map(x=>x.dataset.limit)
+      };
+      window.MAKIV118Dora?.setCount?.('dora',0);
+      window.MAKIV118Dora?.setCount?.('aka',0);
+      window.MAKIV118Dora?.setCount?.('ura',0);
+      fixture?.remove();
+      document.getElementById('m8v116-han-breakdown')?.remove();
+      return {withYaku,noYaku};
+    });
+    assert.equal(v118DoraScoring.withYaku.state?.han,7,'v118 dora must add to existing yaku han '+JSON.stringify(v118DoraScoring));
+    assert(v118DoraScoring.withYaku.state?.items?.some(x=>x.name==='ドラ'&&x.han===2),'v118 dora item missing '+JSON.stringify(v118DoraScoring));
+    assert(v118DoraScoring.withYaku.state?.items?.some(x=>x.name==='赤ドラ'&&x.han===1),'v118 aka-dora item missing '+JSON.stringify(v118DoraScoring));
+    assert.deepEqual(v118DoraScoring.withYaku.green,['haneman'],'v118 4+3 han should recommend haneman '+JSON.stringify(v118DoraScoring));
+    assert(v118DoraScoring.withYaku.summary.includes('ドラ 2翻')&&v118DoraScoring.withYaku.summary.includes('赤ドラ 1翻'),'v118 score summary must explain dora '+JSON.stringify(v118DoraScoring));
+    assert.equal(v118DoraScoring.noYaku.state?.han,0,'v118 dora alone must not create a valid yaku '+JSON.stringify(v118DoraScoring));
+    assert.deepEqual(v118DoraScoring.noYaku.green,[],'v118 dora-only hand must not recommend a limit '+JSON.stringify(v118DoraScoring));
     await page.click('#maki-hand-entry-v111 .maki-v111-manual');
     await page.waitForSelector('#maki-manual-hand-v111',{visible:true,timeout:4000});
     assert.equal(await page.evaluate(()=>document.querySelectorAll('#maki-manual-hand-v111 .maki-v111-slot').length),14,'v111 manual entry must have 14 slots');
