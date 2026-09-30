@@ -557,6 +557,10 @@
     if(e.target.closest?.('#m8-result-v1'))setTimeout(decorateM8Context,0);
   },true);
 
+  window.addEventListener('maki:m8-recommendation-changed',()=>{
+    requestAnimationFrame(decorateLimitRecommendation);
+  });
+
   window.addEventListener('pageshow',()=>{
     setTimeout(()=>{mountScoreHandEntry();decorateLimitRecommendation();},80);
     setTimeout(decorateM8Context,100);
