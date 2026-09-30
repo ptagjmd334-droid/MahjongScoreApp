@@ -34,8 +34,8 @@ const server=http.createServer((req,res)=>{
     const errors=[];page.on('pageerror',e=>errors.push(String(e)));
     await page.goto('http://127.0.0.1:'+port+'/',{waitUntil:'domcontentloaded',timeout:30000});
     await page.waitForSelector('#go-confirm-button',{timeout:12000});
-    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'MAKI v116');
-    assert.equal(await page.$eval('#app-build-badge',e=>e.hidden),false,'v116 build badge should be visible during development');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'MAKI v117');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.hidden),false,'v117 build badge should be visible during development');
     assert(await page.evaluate(()=>!!window.M7V36CameraOwner),'v98 camera owner must bootstrap');
     await page.evaluate(()=>{
       const overlay=document.createElement('div');
@@ -650,10 +650,10 @@ const server=http.createServer((req,res)=>{
     assert.equal(manifestBrand.name,'MAKI');
     assert.equal(manifestBrand.short_name,'MAKI');
     assert.equal(manifestBrand.id,'./');
-    assert(manifestBrand.icons.every(x=>String(x.src).includes('v=m7v116')),'v109 manifest icons must use fresh cache keys '+JSON.stringify(manifestBrand.icons));
+    assert(manifestBrand.icons.every(x=>String(x.src).includes('v=m7v117')),'v109 manifest icons must use fresh cache keys '+JSON.stringify(manifestBrand.icons));
     assert.equal(await page.$eval('meta[name="apple-mobile-web-app-title"]',e=>e.content),'MAKI');
     assert.equal(await page.$eval('meta[name="application-name"]',e=>e.content),'MAKI');
-    assert((await page.$eval('link[rel="apple-touch-icon"]',e=>e.getAttribute('href'))).includes('v=m7v116'));
+    assert((await page.$eval('link[rel="apple-touch-icon"]',e=>e.getAttribute('href'))).includes('v=m7v117'));
     for(const size of [180,192,512]){
       const p=path.join(root,'icon-'+size+'.png');
       assert(fs.existsSync(p),'MAKI icon missing '+p);
@@ -1581,6 +1581,40 @@ const server=http.createServer((req,res)=>{
     assert(v115ManualUI.firstText.length>0,'v115 mahjong glyph missing '+JSON.stringify(v115ManualUI));
     await page.click('#maki-manual-hand-v111 .maki-v111-cancel');
     await page.waitForFunction(()=>!document.getElementById('maki-manual-hand-v111'),{timeout:3000});
+
+    const kokushi=['1萬','9萬','1筒','9筒','1索','9索','東','南','西','北','白','發','中','1萬'];
+    const v117KokushiOpen=await page.evaluate(hand=>{
+      const accepted=window.acceptVerifiedHandM8V87(hand,{show:true});
+      return {ok:accepted?.ok===true};
+    },kokushi);
+    assert.equal(v117KokushiOpen.ok,true,'v117 kokushi fixture was rejected '+JSON.stringify(v117KokushiOpen));
+    await page.waitForSelector('#m8-result-v1',{visible:true,timeout:4000});
+    await page.waitForSelector('#m8-result-confirm-v117',{visible:true,timeout:4000});
+    await page.waitForFunction(()=>document.querySelector('#m8v18-result-fu')?.textContent?.includes('和了牌の選択不要'),{timeout:4000});
+    const v117KokushiBefore=await page.evaluate(()=>({
+      pickerCount:document.querySelectorAll('#m8-result-v1 .m8v7-win-tile').length,
+      fuText:document.querySelector('#m8v18-result-fu')?.textContent||'',
+      note:document.querySelector('#m8-fu-start-v7 .m8v7-fu-note')?.textContent||''
+    }));
+    assert.equal(v117KokushiBefore.pickerCount,0,'v117 kokushi should not require a winning-tile picker '+JSON.stringify(v117KokushiBefore));
+    assert(v117KokushiBefore.fuText.includes('符計算なし'),'v117 kokushi fu status is contradictory '+JSON.stringify(v117KokushiBefore));
+    assert(v117KokushiBefore.note.includes('確認'),'v117 kokushi UI must explain how to continue '+JSON.stringify(v117KokushiBefore));
+
+    await page.click('#m8-result-confirm-v117');
+    await page.waitForFunction(()=>!document.getElementById('m8-result-v1'),{timeout:4000});
+    await page.waitForFunction(()=>{
+      try{return agariFlow.currentScoreSelection?.limitKey==='yakuman';}catch(_){return false;}
+    },{timeout:4000});
+    const v117KokushiAfter=await page.evaluate(()=>({
+      selected:(()=>{try{return agariFlow.currentScoreSelection?.limitKey||null;}catch(_){return null;}})(),
+      nextDisabled:document.getElementById('score-next-button')?.disabled,
+      green:[...document.querySelectorAll('#agari-overlay .limit-button.maki-v111-limit-recommend')].map(x=>x.dataset.limit),
+      canonical:window.m8YakuBreakdownV116
+    }));
+    assert.equal(v117KokushiAfter.selected,'yakuman','v117 kokushi confirm did not select yakuman score '+JSON.stringify(v117KokushiAfter));
+    assert.equal(v117KokushiAfter.nextDisabled,false,'v117 kokushi confirm left score Next disabled '+JSON.stringify(v117KokushiAfter));
+    assert.deepEqual(v117KokushiAfter.green,['yakuman'],'v117 kokushi must recommend only yakuman '+JSON.stringify(v117KokushiAfter));
+    assert.equal(v117KokushiAfter.canonical?.items?.[0]?.name,'国士無双','v117 kokushi canonical yaku missing '+JSON.stringify(v117KokushiAfter));
     const v116Breakdown=await page.evaluate(async()=>{
       let panel=document.getElementById('m8-context-v5');
       let fixture=null;
