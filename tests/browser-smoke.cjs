@@ -1594,11 +1594,11 @@ const server=http.createServer((req,res)=>{
     const v117KokushiBefore=await page.evaluate(()=>({
       pickerCount:document.querySelectorAll('#m8-result-v1 .m8v7-win-tile').length,
       fuText:document.querySelector('#m8v18-result-fu')?.textContent||'',
-      note:document.querySelector('#m8-fu-start-v7 .m8v7-fu-note')?.textContent||''
+      help:document.querySelector('#m8-result-v1 .m8-card>p small')?.textContent||''
     }));
     assert.equal(v117KokushiBefore.pickerCount,0,'v117 kokushi should not require a winning-tile picker '+JSON.stringify(v117KokushiBefore));
     assert(v117KokushiBefore.fuText.includes('符計算なし'),'v117 kokushi fu status is contradictory '+JSON.stringify(v117KokushiBefore));
-    assert(v117KokushiBefore.note.includes('確認'),'v117 kokushi UI must explain how to continue '+JSON.stringify(v117KokushiBefore));
+    assert(v117KokushiBefore.help.includes('確認')&&v117KokushiBefore.help.includes('和了牌'),'v117 kokushi UI must explain how to continue '+JSON.stringify(v117KokushiBefore));
 
     await page.click('#m8-result-confirm-v117');
     await page.waitForFunction(()=>!document.getElementById('m8-result-v1'),{timeout:4000});
