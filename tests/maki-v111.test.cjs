@@ -9,7 +9,7 @@ const read=p=>fs.readFileSync(path.join(root,p),'utf8');
 test('v111 loads the score-table hand entry module after M8',()=>{
   const index=read('index.html');
   assert(index.includes('MAKI v117'));
-  assert(index.includes('window.MAKIDebugV116'));
+  assert(index.includes('window.MAKIDebugV117'));
   assert(index.includes('maki-v111-hand-entry.js?v=m7v117'));
   assert(index.indexOf('m8-v30.js?v=m7v117')<index.indexOf('maki-v111-hand-entry.js?v=m7v117'));
 });
