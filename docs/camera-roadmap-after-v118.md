@@ -12,11 +12,15 @@
    - ドラ表示牌を認識し、数牌循環・風牌循環・三元牌循環で実ドラへ変換
    - 複数の表示牌を保持し、登録済み14枚からドラ枚数を自動集計
    - v118の +/- 手動修正 fallback は維持
-3. v120 next: camera meld/kan support.
+3. v120: red-five field repair. ✅
+   - 実機で確認した赤5筒→赤5索の誤分類を、周辺の並びと赤インク量で保守的に補正
+   - 普通5と赤5をduplicate見た目比較で混同しないようraw labelを分離
+   - 赤5索が普通5索へ落ちるケースも赤インク量でaka metadataへ復元
+4. v121 next: camera meld/kan support.
    - チー / ポン / 明槓 / 暗槓（可能なら加槓）
    - 横向き牌・4枚組などを手牌本体と別領域として扱う
    - 既存の m8MeldStateV21（pon / minkan / ankan）へ接続
-4. Final ideal: shutterless auto-freeze.
+5. Final ideal: shutterless auto-freeze.
    - カメラをかざして、14枚の配置が一定時間安定したら自動で1フレームを凍結
    - 凍結した瞬間にライブ映像を停止/暗転し、その保存フレームだけで認識を続行
    - 暗転後はスマホを牌から離してよい状態にする

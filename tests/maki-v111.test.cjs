@@ -8,10 +8,10 @@ const read=p=>fs.readFileSync(path.join(root,p),'utf8');
 
 test('v111 loads the score-table hand entry module after M8',()=>{
   const index=read('index.html');
-  assert(index.includes('MAKI v119'));
-  assert(index.includes('window.MAKIDebugV119'));
-  assert(index.includes('maki-v111-hand-entry.js?v=m7v119'));
-  assert(index.indexOf('m8-v30.js?v=m7v119')<index.indexOf('maki-v111-hand-entry.js?v=m7v119'));
+  assert(index.includes('MAKI v120'));
+  assert(index.includes('window.MAKIDebugV120'));
+  assert(index.includes('maki-v111-hand-entry.js?v=m7v120'));
+  assert(index.indexOf('m8-v30.js?v=m7v120')<index.indexOf('maki-v111-hand-entry.js?v=m7v120'));
 });
 
 test('v111 exposes camera and manual hand registration on the score screen',()=>{
@@ -49,10 +49,10 @@ test('winner and ron/tsumo already entered in agariFlow are reused instead of as
 test('v111 service worker cache contains the new module',()=>{
   const sw=read('sw.js');
   const manifest=read('manifest.webmanifest');
-  assert(sw.includes('mahjong-score-app-m7-v119'));
+  assert(sw.includes('mahjong-score-app-m7-v120'));
   assert(sw.includes('./maki-v111-hand-entry.js'));
-  assert(sw.includes('manifest.webmanifest?v=m7v119'));
-  assert(manifest.includes('v=m7v119'));
+  assert(sw.includes('manifest.webmanifest?v=m7v120'));
+  assert(manifest.includes('v=m7v120'));
 });
 
 
@@ -74,7 +74,7 @@ test('v118 adds manual dora, aka-dora and ura-dora foundation for future camera 
 test('v119 wires camera red-dora metadata and dora-indicator camera into v118 dora state',()=>{
   const hand=read('maki-v111-hand-entry.js');
   const camera=read('m7-camera-v36.js');
-  assert(hand.includes('MAKI v119'));
+  assert(hand.includes('MAKI v120'));
   assert(hand.includes('maki-v119-dora-camera'));
   assert(hand.includes('window.MAKIV119DoraCamera'));
   assert(hand.includes('doraTileFromIndicatorRaw'));
@@ -84,4 +84,15 @@ test('v119 wires camera red-dora metadata and dora-indicator camera into v118 do
   assert(camera.includes('m7v119RawLabel'));
   assert(camera.includes('M7V119PendingRawLabels'));
   assert(camera.includes("/^0[mps]$/"));
+});
+
+
+test('v120 repairs red-five suit confusion and visual aka metadata',()=>{
+  const camera=read('m7-camera-v36.js');
+  assert(camera.includes('repairRedFiveRecognition'));
+  assert(camera.includes('redFiveContextSuit'));
+  assert(camera.includes('redInkShareFromCanvas'));
+  assert(camera.includes("r.redRepair='context-suit'"));
+  assert(camera.includes("r.redRepair='visual-red'"));
+  assert(camera.includes("const groupKey=/^0[mps]$/.test(raw)?(r.label+'|'+raw):r.label"));
 });
