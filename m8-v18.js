@@ -268,11 +268,21 @@
     syncHandState();
     const hand=effectiveHand(),ctx=resultContext();
     let box=root.querySelector('#m8v18-result-fu');
-    if(!box){box=document.createElement('div');box.id='m8v18-result-fu';const fu=root.querySelector('#m8-fu-start-v7');(fu||root.querySelector('#m8-context-v5'))?.insertAdjacentElement('afterend',box);}
-    if(!box)return;
+    if(!box){
+      box=document.createElement('div');box.id='m8v18-result-fu';
+      const fu=root.querySelector('#m8-fu-start-v7'),context=root.querySelector('#m8-context-v5');
+      if(fu||context)(fu||context).insertAdjacentElement('afterend',box);
+      else root.querySelector('.m8-card>button:last-child')?.insertAdjacentElement('beforebegin',box);
+    }
+    if(!box.isConnected)return;
+    const judged=window.judgeMahjongWinM8V4?.(hand.tiles);
+    if(judged?.type==='国士無双'){
+      box.textContent='M8符：国士無双は符計算なし・和了牌の選択不要';
+      return;
+    }
     if(!hand.win){box.textContent='M8符：和了牌を選ぶと計算準備ができます';return;}
     const r=calculateFuDetailed(hand.tiles,hand.win,ctx);
-    if(r.noFu){box.textContent='M8符：国士無双は符計算なし';return;}
+    if(r.noFu){box.textContent='M8符：国士無双は符計算なし・和了牌の選択不要';return;}
     if(r.values.length===1){box.textContent=`M8符：${r.values[0]}符候補（${r.reason}）`;return;}
     if(r.values.length>1){box.textContent=`M8符候補：${r.values.join('・')}符（${r.reason}）`;return;}
     box.textContent=`M8符：まだ確定できません — ${r.reason}`;
@@ -368,6 +378,17 @@
     if(scoreAdded)queueRefresh();
   });
   scoreObserver.observe(overlay,{childList:true,subtree:true});
+
+  // v117: the result overlay is outside #agari-overlay. Queue exactly once when
+  // a new result root mounts so kokushi's no-fu state is rendered even though
+  // there is intentionally no winning-tile button to click.
+  const resultMountObserver=new MutationObserver(muts=>{
+    const resultAdded=muts.some(m=>[...m.addedNodes].some(n=>n.nodeType===1&&(
+      n.id==='m8-result-v1'||n.querySelector?.('#m8-result-v1')
+    )));
+    if(resultAdded)queueRefresh();
+  });
+  resultMountObserver.observe(document.body,{childList:true,subtree:true});
   ['pageshow','resize','orientationchange'].forEach(ev=>window.addEventListener(ev,queueRefresh,{passive:true}));
   window.visualViewport?.addEventListener('resize',queueRefresh,{passive:true});
 
