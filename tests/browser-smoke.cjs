@@ -1674,6 +1674,19 @@ const server=http.createServer((req,res)=>{
     assert.equal(v120RedRepair[8].label,'5索','v120 visually-red 5-sou must keep app tile 5索 '+JSON.stringify(v120RedRepair));
     assert.equal(v120RedRepair[8].repair,'visual-red','v120 visual red marker missing '+JSON.stringify(v120RedRepair));
     assert.equal(v120RedRepair[10].raw,'5p','v120 ordinary 5-pin must not be promoted to aka '+JSON.stringify(v120RedRepair));
+
+    const v121RedInkRuntime=await page.evaluate(()=>{
+      const canvas=document.createElement('canvas');
+      canvas.width=120;canvas.height=180;
+      const x=canvas.getContext('2d',{willReadFrequently:true});
+      x.fillStyle='#eee';x.fillRect(0,0,120,180);
+      x.fillStyle='#222';x.fillRect(42,30,8,100);
+      x.fillStyle='#c33';x.fillRect(64,58,12,56);
+      const tile=window.M7CameraV36.analyzeYoloTileBox(x,{x:8,y:8,w:104,h:164},0,14);
+      return {red:Number(tile.redInkShare),feature:!!tile.feature};
+    });
+    assert.equal(Number.isFinite(v121RedInkRuntime.red),true,'v121 redInkShare must exist at runtime '+JSON.stringify(v121RedInkRuntime));
+    assert.equal(v121RedInkRuntime.feature,true,'v121 YOLO crop feature missing '+JSON.stringify(v121RedInkRuntime));
     await page.click('#maki-hand-entry-v111 .maki-v111-manual');
     await page.waitForSelector('#maki-manual-hand-v111',{visible:true,timeout:4000});
     assert.equal(await page.evaluate(()=>document.querySelectorAll('#maki-manual-hand-v111 .maki-v111-slot').length),14,'v111 manual entry must have 14 slots');
