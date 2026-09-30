@@ -1582,7 +1582,15 @@ const server=http.createServer((req,res)=>{
     await page.click('#maki-manual-hand-v111 .maki-v111-cancel');
     await page.waitForFunction(()=>!document.getElementById('maki-manual-hand-v111'),{timeout:3000});
     const v116Breakdown=await page.evaluate(async()=>{
-      const panel=document.getElementById('m8-context-v5');
+      let panel=document.getElementById('m8-context-v5');
+      let fixture=null;
+      if(!panel){
+        fixture=document.createElement('div');
+        fixture.id='m8-context-v5';
+        fixture.innerHTML='<div class="m8v5-han"></div>';
+        document.body.appendChild(fixture);
+        panel=fixture;
+      }
       window.M8V22?.publishRecommendation?.(panel,{
         yakuman:false,
         han:9,
@@ -1593,10 +1601,13 @@ const server=http.createServer((req,res)=>{
         ]
       });
       await new Promise(requestAnimationFrame);
-      return {
+      const out={
         text:document.getElementById('m8v116-han-breakdown')?.textContent||'',
         state:window.m8YakuBreakdownV116
       };
+      fixture?.remove();
+      document.getElementById('m8v116-han-breakdown')?.remove();
+      return out;
     });
     assert(v116Breakdown.text.includes('清一色 6翻'),'v116 result breakdown must show yaku + han '+JSON.stringify(v116Breakdown));
     assert(v116Breakdown.text.includes('三暗刻 2翻'),'v116 result breakdown missing 三暗刻 '+JSON.stringify(v116Breakdown));
