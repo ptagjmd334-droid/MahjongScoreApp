@@ -96,3 +96,17 @@ test('v120 repairs red-five suit confusion and visual aka metadata',()=>{
   assert(camera.includes("r.redRepair='visual-red'"));
   assert(camera.includes("const groupKey=/^0[mps]$/.test(raw)?(r.label+'|'+raw):r.label"));
 });
+
+
+test('v122 correction picker preserves red-five metadata',()=>{
+  const script=read('script.js');
+  const ui=read('ui-fixes.js');
+  assert(script.includes("RED_TILE_OPTIONS_M7V122"));
+  assert(script.includes("{label:'赤5萬',tile:'5萬',raw:'0m'}"));
+  assert(script.includes("{label:'赤5筒',tile:'5筒',raw:'0p'}"));
+  assert(script.includes("{label:'赤5索',tile:'5索',raw:'0s'}"));
+  assert(script.includes("tileButton.dataset.m7v119RawLabel=raw"));
+  assert(script.includes("delete tileButton.dataset.m7v119RawLabel"));
+  assert(ui.includes("m7v122-red-options"));
+  assert(ui.includes("m7v122-red-tile"));
+});
