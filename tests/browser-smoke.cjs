@@ -1599,7 +1599,7 @@ const server=http.createServer((req,res)=>{
       const ordinary=['1萬','1萬','1萬','1萬','2萬','3萬','4萬','5萬','6萬','7萬','8萬','9萬','9萬','9萬'];
       return {
         pure:window.M8V23?.detectNineGates?.(pure,{menzen:true},'5萬')||null,
-        ordinary:window.M8V23?.detectNineGates?.(ordinary,{menzen:true},'1萬')||null,
+        ordinary:window.M8V23?.detectNineGates?.(ordinary,{menzen:true},'2萬')||null,
         openRejected:window.M8V23?.detectNineGates?.(pure,{menzen:false},'5萬')||null
       };
     });
