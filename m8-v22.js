@@ -164,12 +164,30 @@
     box.textContent=items.length?`内訳：${breakdownText(items)} ＝ ${state.han}翻`:'内訳：判定できる役なし';
   }
   function publishRecommendation(panel,state){
-    window.m8YakuBreakdownV116={
+    const base={
       han:state.yakuman?'yakuman':Number(state.han||0),
       yakuman:!!state.yakuman,
-      items:(state.items||[]).map(x=>({...x})),
+      items:(state.items||[]).filter(x=>!x?.bonus).map(x=>({...x}))
+    };
+    window.m8BaseYakuBreakdownV118={...base,items:base.items.map(x=>({...x})),updatedAt:Date.now()};
+
+    const decorated=window.MAKIV118Dora?.applyToRecommendation
+      ?window.MAKIV118Dora.applyToRecommendation(base)
+      :base;
+    window.m8YakuBreakdownV116={
+      ...decorated,
+      items:(decorated.items||[]).map(x=>({...x})),
       updatedAt:Date.now()
     };
+
+    const suggested=window.m8YakuBreakdownV116.yakuman
+      ?'yakuman'
+      :Number(window.m8YakuBreakdownV116.han||0)||null;
+    window.m8SuggestedHanV23=suggested;
+    window.m8SuggestedHanV22=suggested;
+    window.m8SuggestedHanV9=suggested;
+    window.m8SuggestedHanV6=suggested;
+
     renderBreakdown(panel,window.m8YakuBreakdownV116);
     window.dispatchEvent(new CustomEvent('maki:m8-recommendation-changed',{detail:window.m8YakuBreakdownV116}));
   }
