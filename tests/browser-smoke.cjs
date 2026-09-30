@@ -1351,12 +1351,8 @@ const server=http.createServer((req,res)=>{
         aria:first?.getAttribute('aria-label')||'',
         redClass:first?.classList.contains('m7v122-red-tile')||false
       };
-      first?.click();
-      await new Promise(resolve=>setTimeout(resolve,80));
-      const normalSou=[...document.querySelectorAll('#tile-picker-m7v5 .tile-picker-grid-m7v5 button')]
-        .find(b=>(b.dataset.tileName||b.textContent.trim())==='5索');
-      normalSou?.click();
-      await new Promise(resolve=>setTimeout(resolve,80));
+      window.M7V122ResultPicker?.applyChoice?.(first,'5索','5索','');
+      await new Promise(resolve=>setTimeout(resolve,30));
       const afterNormal={
         tile:first?.dataset.tile||'',
         raw:first?.dataset.m7v119RawLabel||'',
