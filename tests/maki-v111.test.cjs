@@ -81,7 +81,18 @@ test('v119 wires camera red-dora metadata and dora-indicator camera into v118 do
   assert(hand.includes('runYoloTileDetectorDiagnostic'));
   assert(hand.includes('applyCameraHandMetaV119'));
   assert(camera.includes('MAKILastCameraHandMetaV119'));
-  assert(camera.includes('m7v120RawLabel'));
+  assert(camera.includes('m7v119RawLabel'));
   assert(camera.includes('M7V119PendingRawLabels'));
   assert(camera.includes("/^0[mps]$/"));
+});
+
+
+test('v120 repairs red-five suit confusion and visual aka metadata',()=>{
+  const camera=read('m7-camera-v36.js');
+  assert(camera.includes('repairRedFiveRecognition'));
+  assert(camera.includes('redFiveContextSuit'));
+  assert(camera.includes('redInkShareFromCanvas'));
+  assert(camera.includes("r.redRepair='context-suit'"));
+  assert(camera.includes("r.redRepair='visual-red'"));
+  assert(camera.includes("const groupKey=/^0[mps]$/.test(raw)?(r.label+'|'+raw):r.label"));
 });
