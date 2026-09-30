@@ -74,19 +74,36 @@
   }
   function normalHan(name,menzen){if(name==='混全帯么九')return menzen?2:1;if(name==='純全帯么九')return menzen?3:2;return 0;}
 
+  function detectNineGates(tiles,c,win=getWin()){
+    if(!c?.menzen||!Array.isArray(tiles)||tiles.length!==14)return null;
+    if(tiles.some(t=>honors.has(t)))return null;
+    const suits=new Set(tiles.map(t=>t.slice(-1)));
+    if(suits.size!==1)return null;
+    const suit=[...suits][0],counts=Array(10).fill(0),base=[0,3,1,1,1,1,1,1,1,3];
+    for(const t of tiles){
+      if(!t.endsWith(suit))return null;
+      const n=Number(t[0]);if(!(n>=1&&n<=9))return null;counts[n]++;
+    }
+    if(counts.slice(1).reduce((a,b)=>a+b,0)!==14||!base.slice(1).every((n,i)=>counts[i+1]>=n))return null;
+
+    // 純正は、和了牌を1枚戻した13枚が 1112345678999 そのものの時だけ。
+    if(win&&String(win).endsWith(suit)){
+      const n=Number(String(win)[0]);
+      const pre=counts.slice();
+      if(n>=1&&n<=9&&pre[n]>0){
+        pre[n]--;
+        if(base.slice(1).every((need,i)=>pre[i+1]===need))return '純正九蓮宝燈';
+      }
+    }
+    return '九蓮宝燈';
+  }
+
   function independentYakuman(tiles,c){
     const out=[];
     if(tiles.every(t=>terminals.has(t)))out.push('清老頭');
     if(tiles.every(t=>green.has(t)))out.push('緑一色');
-    if(c.menzen){
-      const suits=new Set(tiles.filter(t=>!honors.has(t)).map(t=>t.slice(-1)));
-      if(!tiles.some(t=>honors.has(t))&&suits.size===1){
-        const suit=[...suits][0];const counts=Array(10).fill(0);
-        tiles.forEach(t=>{if(t.endsWith(suit))counts[Number(t[0])]++;});
-        const min=[0,3,1,1,1,1,1,1,1,3];
-        if(counts.slice(1).reduce((a,b)=>a+b,0)===14&&min.slice(1).every((n,i)=>counts[i+1]>=n))out.push('九蓮宝燈');
-      }
-    }
+    const nine=detectNineGates(tiles,c);
+    if(nine)out.push(nine);
     return out;
   }
 
@@ -143,6 +160,7 @@
       box.className='yakuman';box.innerHTML=`追加役満判定：${yakuman.join(' / ')}<span class="sub">手牌形・和了方法・槓子内訳から判定</span>`;
       const hb=panel.querySelector('.m8v5-han');if(hb)hb.textContent='現在の判定：役満';
       window.m8SuggestedHanV23='yakuman';window.m8SuggestedHanV22=null;window.m8SuggestedHanV9=null;window.m8SuggestedHanV6='yakuman';
+      window.dispatchEvent(new CustomEvent('maki:m8-recommendation-changed',{detail:{han:'yakuman',yakuman:yakuman.slice()}}));
       return;
     }
 
@@ -151,8 +169,10 @@
       const cur=readCurrentHan(panel),add=normal.reduce((s,n)=>s+normalHan(n,c.menzen),0),total=cur+add;
       const hb=panel.querySelector('.m8v5-han');if(hb&&total>0)hb.textContent=`現在判定できる範囲：${total}翻`;
       window.m8SuggestedHanV23=total;window.m8SuggestedHanV22=total;window.m8SuggestedHanV9=total;window.m8SuggestedHanV6=total;
+      window.dispatchEvent(new CustomEvent('maki:m8-recommendation-changed',{detail:{han:total}}));
     }
   }
+  window.M8V23=Object.freeze({detectNineGates,best,refresh});
   function queue(){if(queued)return;queued=true;requestAnimationFrame(refresh);}
   document.addEventListener('click',e=>{if(e.target.closest?.('#m8-result-v1,#agari-overlay'))setTimeout(queue,0);},true);
   new MutationObserver(m=>{if(m.some(x=>[...x.addedNodes].some(n=>n.nodeType===1&&(n.id==='m8-result-v1'||n.querySelector?.('#m8-result-v1')))))setTimeout(queue,0);}).observe(document.body,{childList:true,subtree:true});
