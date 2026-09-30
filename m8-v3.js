@@ -57,7 +57,31 @@
   function refresh(){const r=root();if(!r)return;const s=slots(),n=s.filter(b=>b.dataset.tile).length;const st=r.querySelector('.hand-result-status-m7v5');if(st)st.textContent=n===14?'14枚確認済み ✓':`${n} / 14枚を確認済み`;const ok=r.querySelector('.hand-result-ok-m7v5');if(ok)ok.disabled=n!==14;}
   function redrawPicker(){const p=document.getElementById('tile-picker-m7v5');if(!p)return;const card=p.querySelector('.tile-picker-card-m7v5'),title=p.querySelector('.tile-picker-title-m7v5');if(!card||!title)return;p.querySelector('.m8v31-selection-strip')?.remove();p.querySelector('.m8v31-help')?.remove();title.textContent='手牌を連続入力';p.dataset.m8v31Current=String(current);const strip=document.createElement('div');strip.className='m8v31-selection-strip';slots().forEach((b,i)=>{const x=document.createElement('button');x.type='button';x.className='m8v31-slot'+(i===current?' current':'');x.textContent=b.dataset.tile?(glyphs[b.dataset.tile]||b.dataset.tile):String(i+1);x.onclick=e=>{e.preventDefault();e.stopPropagation();current=i;redrawPicker();};strip.appendChild(x);});const help=document.createElement('div');help.className='m8v31-help';help.textContent=`${current+1}枚目を選択中　選ぶと自動で次へ`;title.insertAdjacentElement('afterend',strip);strip.insertAdjacentElement('afterend',help);p.dispatchEvent(new CustomEvent('m8v31-current-change',{bubbles:true,detail:{index:current}}));}
   // 元のpickerは選択後に閉じるため、捕捉フェーズで選択を奪い、同じpickerを開いたまま更新する。
-  document.addEventListener('click',e=>{const tile=e.target.closest?.('#tile-picker-m7v5 .tile-picker-grid-m7v5 button');if(!tile)return;const p=document.getElementById('tile-picker-m7v5');const s=slots();if(!p||!s[current])return;e.preventDefault();e.stopImmediatePropagation();const name=tile.dataset.tileName||tile.getAttribute('aria-label')||tile.textContent.trim();if(!name)return;s[current].dataset.tile=name;s[current].dataset.tileGlyph=glyphs[name]||'';s[current].textContent=name;s[current].setAttribute('aria-label',name);refresh();if(current<13)current++;redrawPicker();},true);
+  // v122: 赤5もここで同じ連続入力フローへ載せ、raw aka metadataを失わない。
+  document.addEventListener('click',e=>{
+    const normal=e.target.closest?.('#tile-picker-m7v5 .tile-picker-grid-m7v5 button');
+    const red=e.target.closest?.('#tile-picker-m7v5 .tile-picker-red-m7v122');
+    const tile=red||normal;if(!tile)return;
+    const p=document.getElementById('tile-picker-m7v5'),s=slots();if(!p||!s[current])return;
+    e.preventDefault();e.stopImmediatePropagation();
+    if(red){
+      const option={
+        name:red.dataset.tileName||red.textContent.trim(),
+        tile:red.dataset.m7v122BaseTile||'',
+        raw:red.dataset.m7v122RedRaw||''
+      };
+      if(window.MAKIV122RedCorrection?.applyChoice)window.MAKIV122RedCorrection.applyChoice(s[current],option);
+      else{s[current].dataset.tile=option.tile;s[current].textContent=option.name;s[current].setAttribute('aria-label',option.name);}
+    }else{
+      const name=normal.dataset.m7v122NormalTile||normal.dataset.tileName||normal.getAttribute('aria-label')||normal.textContent.trim();
+      if(!name)return;
+      if(window.MAKIV122RedCorrection?.applyChoice)window.MAKIV122RedCorrection.applyChoice(s[current],{name,tile:name,raw:''});
+      else{s[current].dataset.tile=name;s[current].textContent=name;s[current].setAttribute('aria-label',name);}
+    }
+    const base=s[current].dataset.tile||'';
+    s[current].dataset.tileGlyph=glyphs[base]||'';
+    refresh();if(current<13)current++;redrawPicker();
+  },true);
   // pickerが開いた瞬間だけ開始位置を取得する。以後titleを書き換えてもcurrentをリセットしない。
   new MutationObserver(()=>{const p=document.getElementById('tile-picker-m7v5');if(!p||p.dataset.m8v31==='1')return;p.dataset.m8v31='1';const t=p.querySelector('.tile-picker-title-m7v5')?.textContent||'';const m=t.match(/(\d+)枚目/);current=m?Math.max(0,Math.min(13,Number(m[1])-1)):0;redrawPicker();}).observe(document.body,{childList:true,subtree:true});
 
