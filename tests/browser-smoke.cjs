@@ -34,8 +34,8 @@ const server=http.createServer((req,res)=>{
     const errors=[];page.on('pageerror',e=>errors.push(String(e)));
     await page.goto('http://127.0.0.1:'+port+'/',{waitUntil:'domcontentloaded',timeout:30000});
     await page.waitForSelector('#go-confirm-button',{timeout:12000});
-    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'MAKI v121');
-    assert.equal(await page.$eval('#app-build-badge',e=>e.hidden),false,'v121 build badge should be visible during development');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'MAKI v122');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.hidden),false,'v122 build badge should be visible during development');
     assert(await page.evaluate(()=>!!window.M7V36CameraOwner),'v98 camera owner must bootstrap');
     await page.evaluate(()=>{
       const overlay=document.createElement('div');
@@ -650,10 +650,10 @@ const server=http.createServer((req,res)=>{
     assert.equal(manifestBrand.name,'MAKI');
     assert.equal(manifestBrand.short_name,'MAKI');
     assert.equal(manifestBrand.id,'./');
-    assert(manifestBrand.icons.every(x=>String(x.src).includes('v=m7v121')),'v109 manifest icons must use fresh cache keys '+JSON.stringify(manifestBrand.icons));
+    assert(manifestBrand.icons.every(x=>String(x.src).includes('v=m7v122')),'v109 manifest icons must use fresh cache keys '+JSON.stringify(manifestBrand.icons));
     assert.equal(await page.$eval('meta[name="apple-mobile-web-app-title"]',e=>e.content),'MAKI');
     assert.equal(await page.$eval('meta[name="application-name"]',e=>e.content),'MAKI');
-    assert((await page.$eval('link[rel="apple-touch-icon"]',e=>e.getAttribute('href'))).includes('v=m7v121'));
+    assert((await page.$eval('link[rel="apple-touch-icon"]',e=>e.getAttribute('href'))).includes('v=m7v122'));
     for(const size of [180,192,512]){
       const p=path.join(root,'icon-'+size+'.png');
       assert(fs.existsSync(p),'MAKI icon missing '+p);
@@ -1687,6 +1687,41 @@ const server=http.createServer((req,res)=>{
     });
     assert.equal(Number.isFinite(v121RedInkRuntime.red),true,'v121 redInkShare must exist at runtime '+JSON.stringify(v121RedInkRuntime));
     assert.equal(v121RedInkRuntime.feature,true,'v121 YOLO crop feature missing '+JSON.stringify(v121RedInkRuntime));
+
+    const v122ManualRed=await page.evaluate(()=>{
+      const hand=['5索','1萬','2萬','3萬','4萬','5萬','6萬','7萬','8萬','9萬','1筒','2筒','3筒','東'];
+      window.showHandResultM7V5(hand);
+      const root=document.getElementById('hand-result-overlay-m7v5');
+      const first=root.querySelector('.hand-result-tile-m7v5');
+      first.click();
+      const picker=document.getElementById('tile-picker-m7v5');
+      const redButtons=[...picker.querySelectorAll('.tile-picker-red-m7v122')];
+      const redLabels=redButtons.map(b=>b.textContent.trim());
+      redButtons.find(b=>b.textContent.trim()==='赤5索')?.click();
+      const afterRed={
+        tile:first.dataset.tile,
+        raw:first.dataset.m7v119RawLabel||'',
+        red:first.dataset.m7v122Red||'',
+        aria:first.getAttribute('aria-label')||''
+      };
+      first.click();
+      const normal=[...document.querySelectorAll('#tile-picker-m7v5 .tile-picker-grid-m7v5 button')]
+        .find(b=>(b.dataset.tileName||b.textContent.trim())==='5索');
+      normal?.click();
+      const afterNormal={
+        tile:first.dataset.tile,
+        raw:first.dataset.m7v119RawLabel||'',
+        red:first.dataset.m7v122Red||'',
+        aria:first.getAttribute('aria-label')||''
+      };
+      document.getElementById('hand-result-overlay-m7v5')?.remove();
+      return {redLabels,afterRed,afterNormal};
+    });
+    assert.deepEqual(v122ManualRed.redLabels,['赤5萬','赤5筒','赤5索'],'v122 manual correction needs three red-five choices '+JSON.stringify(v122ManualRed));
+    assert.deepEqual(v122ManualRed.afterRed,{tile:'5索',raw:'0s',red:'1',aria:'赤5索'},
+      'v122 choosing red 5-sou must preserve scoring tile and aka metadata '+JSON.stringify(v122ManualRed));
+    assert.deepEqual(v122ManualRed.afterNormal,{tile:'5索',raw:'',red:'',aria:'5索'},
+      'v122 choosing ordinary 5-sou must clear stale aka metadata '+JSON.stringify(v122ManualRed));
     await page.click('#maki-hand-entry-v111 .maki-v111-manual');
     await page.waitForSelector('#maki-manual-hand-v111',{visible:true,timeout:4000});
     assert.equal(await page.evaluate(()=>document.querySelectorAll('#maki-manual-hand-v111 .maki-v111-slot').length),14,'v111 manual entry must have 14 slots');
