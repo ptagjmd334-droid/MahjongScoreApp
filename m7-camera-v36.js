@@ -1368,6 +1368,13 @@
     return labels;
   }
 
+  window.addEventListener('maki:m7-tile-corrected',e=>{
+    const index=Number(e.detail?.index);
+    if(!Number.isInteger(index)||index<0||index>=14)return;
+    state.pendingRawLabels[index]=String(e.detail?.raw||'');
+    window.M7V119PendingRawLabels=state.pendingRawLabels.slice();
+  });
+
   function resultButtons(){
     return [...document.querySelectorAll('#hand-result-overlay-m7v5 .hand-result-tile-m7v5')];
   }
