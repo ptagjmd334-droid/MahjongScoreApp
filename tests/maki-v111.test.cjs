@@ -8,10 +8,10 @@ const read=p=>fs.readFileSync(path.join(root,p),'utf8');
 
 test('v111 loads the score-table hand entry module after M8',()=>{
   const index=read('index.html');
-  assert(index.includes('MAKI v112'));
-  assert(index.includes('window.MAKIDebugV112'));
-  assert(index.includes('maki-v111-hand-entry.js?v=m7v112'));
-  assert(index.indexOf('m8-v30.js?v=m7v112')<index.indexOf('maki-v111-hand-entry.js?v=m7v112'));
+  assert(index.includes('MAKI v113'));
+  assert(index.includes('window.MAKIDebugV113'));
+  assert(index.includes('maki-v111-hand-entry.js?v=m7v113'));
+  assert(index.indexOf('m8-v30.js?v=m7v113')<index.indexOf('maki-v111-hand-entry.js?v=m7v113'));
 });
 
 test('v111 exposes camera and manual hand registration on the score screen',()=>{
@@ -49,8 +49,8 @@ test('winner and ron/tsumo already entered in agariFlow are reused instead of as
 test('v111 service worker cache contains the new module',()=>{
   const sw=read('sw.js');
   const manifest=read('manifest.webmanifest');
-  assert(sw.includes('mahjong-score-app-m7-v112'));
+  assert(sw.includes('mahjong-score-app-m7-v113'));
   assert(sw.includes('./maki-v111-hand-entry.js'));
-  assert(sw.includes('manifest.webmanifest?v=m7v112'));
-  assert(manifest.includes('v=m7v112'));
+  assert(sw.includes('manifest.webmanifest?v=m7v113'));
+  assert(manifest.includes('v=m7v113'));
 });

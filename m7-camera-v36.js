@@ -2649,6 +2649,136 @@
   }
 
 
+  function detectorRecoverFourteenDuplicateMissingCandidates(boxes,row,cw,ch,count=14){
+    const sorted=(Array.isArray(boxes)?boxes:[]).slice().sort((a,b)=>(a.x+a.w/2)-(b.x+b.w/2));
+    if(sorted.length!==count)return [];
+    const medW=medianNumber(sorted.map(b=>b.w)),medH=medianNumber(sorted.map(b=>b.h));
+    const medCy=medianNumber(sorted.map(b=>b.y+b.h/2));
+    if(!(medW>5&&medH>8))return [];
+    const rawHighCount=sorted.filter(b=>Number(b.score)>=.25).length;
+    if(rawHighCount<count-2)return [];
+    // This repair is only valid for the multi-view YOLO production output.
+    // Older/synthetic box arrays without cross-view provenance must retain the
+    // strict geometry rejection so a single shifted tile is never "repaired"
+    // by inventing a missing slot.
+    if(!sorted.every(b=>Number.isFinite(Number(b.crossViewCount))&&Number(b.crossViewCount)>=1))return [];
+
+    // v113: rawCount=14 can still represent only 13 physical slots when YOLO
+    // double-detects one tile while missing another. Only consider an adjacent
+    // pair as the extra detection when their boxes overlap/are abnormally close
+    // and they agree on the same raw label (or overlap extremely strongly).
+    const suspiciousPairs=[];
+    for(let i=0;i<sorted.length-1;i++){
+      const a=sorted[i],b=sorted[i+1];
+      const ca=a.x+a.w/2,cb=b.x+b.w/2;
+      const gap=cb-ca;
+      const iou=detectorIoU(a,b);
+      const sameLabel=!!a.label&&a.label===b.label;
+      const close=gap<medW*.78;
+      if(!((sameLabel&&(close||iou>=.10))||iou>=.34))continue;
+      suspiciousPairs.push({i,j:i+1,iou,gap,sameLabel});
+    }
+    if(!suspiciousPairs.length)return [];
+
+    const fits=[];
+    for(const pair of suspiciousPairs){
+      for(const dropIndex of [pair.i,pair.j]){
+        const dropped=sorted[dropIndex];
+        const kept=sorted[dropIndex===pair.i?pair.j:pair.i];
+        const subset=sorted.filter((_,i)=>i!==dropIndex);
+        const subsetHighCount=subset.filter(b=>Number(b.score)>=.25).length;
+        // One observed low-confidence tile plus the synthetic missing slot is OK.
+        // With 11+ strong observed boxes this still stays conservative.
+        if(subsetHighCount<count-3)continue;
+
+        const subMedW=medianNumber(subset.map(b=>b.w)),subMedH=medianNumber(subset.map(b=>b.h));
+        const subMedCy=medianNumber(subset.map(b=>b.y+b.h/2));
+        for(let missing=0;missing<count;missing++){
+          const fit=detectorMissingSlotFit(subset,missing,count);
+          if(!fit||fit.fitResidualPitch>.15||fit.pitch<subMedW*.55||fit.pitch>subMedW*1.65)continue;
+          const synthetic={
+            x:Math.max(0,Math.min(cw-subMedW,fit.expectedX-subMedW/2)),
+            y:Math.max(0,Math.min(ch-subMedH,subMedCy-subMedH/2)),
+            w:subMedW,h:subMedH,score:0,label:'',classId:-1,view:'recovered',
+            rawIndex:-200-missing,synthetic:true,recovery:'drop-overlap-missing-slot',missingIndex:missing
+          };
+          const candidate=subset.concat(synthetic).sort((a,b)=>(a.x+a.w/2)-(b.x+b.w/2));
+          // Geometry confidence normally allows two low-score boxes. In this
+          // recovery the synthetic crop is intentionally score 0, so give only
+          // that synthetic box neutral confidence for geometry validation.
+          const evalCandidate=candidate.map(b=>b.synthetic?{...b,score:.25}:b);
+          const evaluated=detectorGeometryEvaluation(evalCandidate,row,count);
+          if(!evaluated.valid)continue;
+
+          let edgeResidualPitch=0;
+          if(row?.w&&row?.h){
+            const rowPitch=row.w/count;
+            const cc=candidate.map(b=>b.x+b.w/2).sort((a,b)=>a-b);
+            const expectedFirst=row.x+rowPitch*.5,expectedLast=row.x+row.w-rowPitch*.5;
+            edgeResidualPitch=(Math.abs(cc[0]-expectedFirst)+Math.abs(cc[cc.length-1]-expectedLast))/(2*Math.max(1,rowPitch));
+            if(edgeResidualPitch>.40)continue;
+          }
+
+          const dropStrongerPenalty=Math.max(0,(Number(dropped.score)||0)-(Number(kept.score)||0))*.18;
+          const overlapBonus=Math.min(.04,Math.max(0,pair.iou)*.04);
+          const score=evaluated.score+fit.fitResidualPitch*1.9+edgeResidualPitch*1.6+
+            .045+dropStrongerPenalty-overlapBonus;
+
+          fits.push({
+            type:'drop-overlap-missing-slot',
+            missingIndex:missing,
+            missingIndexes:[missing],
+            fitResidualPitch:fit.fitResidualPitch,
+            edgeResidualPitch,
+            score,
+            boxes:candidate,
+            droppedRawIndex:dropped.rawIndex,
+            droppedBox:{
+              rawIndex:dropped.rawIndex,
+              x:Number(dropped.x.toFixed(1)),y:Number(dropped.y.toFixed(1)),
+              w:Number(dropped.w.toFixed(1)),h:Number(dropped.h.toFixed(1)),
+              score:Number((Number(dropped.score)||0).toFixed(4)),
+              label:String(dropped.label||'')
+            },
+            duplicatePairRawIndexes:[sorted[pair.i].rawIndex,sorted[pair.j].rawIndex],
+            stats:{
+              ...evaluated.stats,
+              missingIndex:missing,missingIndexes:[missing],
+              fitResidualPitch14Repair:Number(fit.fitResidualPitch.toFixed(4)),
+              edgeResidualPitch:Number(edgeResidualPitch.toFixed(4)),
+              rawHighCount,subsetHighCount,
+              duplicateIoU:Number(pair.iou.toFixed(4)),
+              duplicateCenterGapRatio:Number((pair.gap/Math.max(1,medW)).toFixed(4)),
+              duplicateSameLabel:pair.sameLabel,
+              duplicatePairRawIndexes:[sorted[pair.i].rawIndex,sorted[pair.j].rawIndex],
+              droppedOverlapRawIndex:dropped.rawIndex,
+              droppedOverlapScore:Number((Number(dropped.score)||0).toFixed(4)),
+              droppedOverlapLabel:String(dropped.label||'')
+            }
+          });
+        }
+      }
+    }
+
+    fits.sort((a,b)=>a.score-b.score);
+    if(!fits.length)return [];
+    const best=fits[0],second=fits[1]||null;
+    if(best.fitResidualPitch>.10)return [];
+    if(second){
+      const samePhysicalRepair=
+        best.missingIndex===second.missingIndex&&
+        Array.isArray(best.duplicatePairRawIndexes)&&Array.isArray(second.duplicatePairRawIndexes)&&
+        best.duplicatePairRawIndexes.slice().sort().join(',')===second.duplicatePairRawIndexes.slice().sort().join(',');
+      const margin=second.score-best.score;
+      if(!samePhysicalRepair&&margin<.06)return [];
+      best.stats={...(best.stats||{}),repairMargin:Number(margin.toFixed(4)),equivalentDuplicateChoice:samePhysicalRepair};
+    }else{
+      best.stats={...(best.stats||{}),repairMargin:null,equivalentDuplicateChoice:false};
+    }
+    return [best];
+  }
+
+
   function selectDetectorProductionBoxes(result,source,row,count=14){
     const raw=(result?.boxes||[]).filter(b=>b&&Number.isFinite(b.x)&&Number.isFinite(b.y)&&Number.isFinite(b.w)&&Number.isFinite(b.h)&&Number.isFinite(b.score));
     const cw=source?.width||0,ch=source?.height||0;
@@ -2685,6 +2815,13 @@
         .map(boxes=>detectorGeometryEvaluation(boxes,row,count))
         .filter(x=>x.valid)
         .sort((a,b)=>a.score-b.score);
+      if(!evaluated.length&&raw.length===count){
+        const repaired=detectorRecoverFourteenDuplicateMissingCandidates(normalized,row,cw,ch,count);
+        if(repaired.length){
+          recovery=repaired[0];
+          evaluated=[{valid:true,score:recovery.score,reason:'accepted',boxes:recovery.boxes,stats:recovery.stats}];
+        }
+      }
       if(!evaluated.length){
         return {accepted:false,reason:raw.length===count?'geometry':'subset-no-valid',boxes:[],stats:{rawCount:raw.length,candidateCount:detectorSubsetCandidates(normalized,count).length}};
       }
@@ -2707,7 +2844,7 @@
       return {x:b.x+ix,y:b.y+iy,w:Math.max(2,b.w-ix*2),h:Math.max(4,b.h-iy*2),score:b.score,label:b.label,classId:b.classId,view:b.view,index:i,rawIndex:b.rawIndex,synthetic:b.synthetic===true,recovery:b.recovery||'',missingIndex:Number.isInteger(b.missingIndex)?b.missingIndex:null};
     });
     const subsetUsed=raw.length>count;
-    const recoveryUsed=(raw.length===count-1||raw.length===count-2)&&!!recovery;
+    const recoveryUsed=!!recovery;
     return {
       accepted:true,
       reason:recoveryUsed?('recover-'+raw.length+'-to-'+count+'-'+recovery.type):(subsetUsed?'subset-'+raw.length+'-to-'+count:'accepted'),
@@ -3150,12 +3287,24 @@
       for(const dir of [-1,1]){
         let i=anchor+dir;
         while(i>=0&&i<14&&run.length<YOLO_WHITE_RECOVERY_MAX_RUN&&whiteCount<4){
-          if(labels[i])break;
           const r=yolo[i]||{};
           const score=Number(r.score)||0;
-          if(score>YOLO_WHITE_RECOVERY_MAX_WEAK_SCORE||!feats[i])break;
-          const distances=anchors.map(a=>core.featureDistance(feats[i],feats[a])).filter(Number.isFinite);
+          const distances=feats[i]?anchors.map(a=>core.featureDistance(feats[i],feats[a])).filter(Number.isFinite):[];
           const distance=distances.length?Math.min(...distances):Infinity;
+
+          // v113: allow the search to pass through an already accepted white.
+          // This covers 白・白・[missing] where the first white is the anchor,
+          // the second white was directly classified, and only the third slot
+          // is synthetic. Never pass through another label or a visually
+          // dissimilar accepted white.
+          if(labels[i]){
+            if(labels[i]!=='白'||!feats[i]||distance>YOLO_WHITE_RECOVERY_MAX_DISTANCE)break;
+            run.push(i);
+            i+=dir;
+            continue;
+          }
+
+          if(score>YOLO_WHITE_RECOVERY_MAX_WEAK_SCORE||!feats[i])break;
           if(distance>YOLO_WHITE_RECOVERY_MAX_DISTANCE)break;
           labels[i]='白';
           sources[i]='white-recovery';
@@ -3258,7 +3407,7 @@
     const countText=(result.subsetSelected||result.recoveredMissing)&&result.rawCount?result.rawCount+'→'+result.count:result.count;
     label.textContent='認識詳細：'+countText+'牌 / '+result.elapsedMs+'ms';
     const recoveredCount=Math.max(1,Number(result.syntheticCount)||1);
-    const recoveryText=adopted&&result.recoveredMissing?' / 不足'+recoveredCount+'box補完('+((result.recoveryType||'').replace('drop-low-missing-slot-2','低信頼box除外+空きslot×2').replace('missing-slot-2','空きslot×2').replace('missing-slot','空きslot').replace('split-wide','横長box分割'))+')':'';
+    const recoveryText=adopted&&result.recoveredMissing?' / 不足'+recoveredCount+'box補完('+((result.recoveryType||'').replace('drop-overlap-missing-slot','重複box除外+空きslot').replace('drop-low-missing-slot-2','低信頼box除外+空きslot×2').replace('missing-slot-2','空きslot×2').replace('missing-slot','空きslot').replace('split-wide','横長box分割'))+')':'';
     const meta=document.createElement('div');meta.className='m7v85-detector-meta';
     meta.textContent=(adopted?'YOLO分割 採用':'YOLO分割 fallback')+
       ' / confidence 0.25以上 '+result.highCount+' / '+result.viewCount+'視点'+
@@ -3981,6 +4130,6 @@
   },true);
 
   window.M7CameraV36=Object.freeze({
-    armCameraTapShield,sourceRectForCover,locateTileRow,splitRow,boxCropQuality,canvasCropQuality,rowCropQuality,selectRowByCropQuality,rescueBrokenBox,tripletCropQuality,applyLocalBoundaryDelta,rescueLocalBoundaries,detectorWindows,detectorIoU,detectorConsensusCluster,detectorNms,decodeYoloOutput,runYoloTileDetectorDiagnostic,detectorGeometryEvaluation,detectorSubsetCandidates,detectorMissingSlotsFit,detectorMissingSlotFit,detectorRecoverThirteenCandidates,detectorRecoverTwelveCandidates,detectorRecoverThirteenLowExtraCandidates,selectDetectorProductionBoxes,yoloLabelToAppTile,shouldRunLegacyClassifier,mountDetectorDiagnostic,yoloRecognitionFromBoxes,yoloDuplicateVisualConflicts,yoloNearDuplicateLabelConflicts,yoloSortedSuitOrderConflicts,yoloClassAmbiguityConflicts,yoloLegacyLabelConflicts,yoloLegacySuitConflicts,shouldRunLegacyVerifier,chooseYoloPrimaryRecognition,recoverWhiteDragonGaps,axisAlignedYoloFaceCanvas,analyzeYoloTileBox,applyDetectorProductionCrops,renderDetectorResult,detectorFailureUserText,boundaryLikelihoodDiagnostics,refineRowOuterEdges,fitGlobalRowGrid,splitRowBySeams,analyzeGuideCanvas,featureFromBox,tileFaceRect,descriptorFromCanvas,detectFaceGeometry,detectFaceQuad,canonicalizeCanvas,orientedFaceCanvas,perspectiveFaceCanvas,warpQuadToCanvas,trainingImageDataUrl,estimateBleedSafeShift,safeInsetWindow,chooseRecognitionWindow,innerRecognitionCanvas,innerRecognitionWindowCanvas,innerFeatureFromCanonical,inferenceFeatureViews,analyzeTileBox,loadTrainingSamples,rebuildLibraryFromTrainingImages,loadLibrary,activeLibrary,saveLibrary,saveLibraryDetailed,persistVerifiedHand,persistFailureText,persistFailureUserText,loadLegacyLibrary,legacyLibraryKeys,convertLegacyDirectFeature,cropResampleFeatureMap,confidenceAssessment,confidentCandidate,confidenceReasonSummary,renderPickerPhoto,renderPickerSuggestions,pickerCurrentIndex,schedulePickerSuggestionSync,attachPickerSuggestionObserver
+    armCameraTapShield,sourceRectForCover,locateTileRow,splitRow,boxCropQuality,canvasCropQuality,rowCropQuality,selectRowByCropQuality,rescueBrokenBox,tripletCropQuality,applyLocalBoundaryDelta,rescueLocalBoundaries,detectorWindows,detectorIoU,detectorConsensusCluster,detectorNms,decodeYoloOutput,runYoloTileDetectorDiagnostic,detectorGeometryEvaluation,detectorSubsetCandidates,detectorMissingSlotsFit,detectorMissingSlotFit,detectorRecoverThirteenCandidates,detectorRecoverTwelveCandidates,detectorRecoverThirteenLowExtraCandidates,detectorRecoverFourteenDuplicateMissingCandidates,selectDetectorProductionBoxes,yoloLabelToAppTile,shouldRunLegacyClassifier,mountDetectorDiagnostic,yoloRecognitionFromBoxes,yoloDuplicateVisualConflicts,yoloNearDuplicateLabelConflicts,yoloSortedSuitOrderConflicts,yoloClassAmbiguityConflicts,yoloLegacyLabelConflicts,yoloLegacySuitConflicts,shouldRunLegacyVerifier,chooseYoloPrimaryRecognition,recoverWhiteDragonGaps,axisAlignedYoloFaceCanvas,analyzeYoloTileBox,applyDetectorProductionCrops,renderDetectorResult,detectorFailureUserText,boundaryLikelihoodDiagnostics,refineRowOuterEdges,fitGlobalRowGrid,splitRowBySeams,analyzeGuideCanvas,featureFromBox,tileFaceRect,descriptorFromCanvas,detectFaceGeometry,detectFaceQuad,canonicalizeCanvas,orientedFaceCanvas,perspectiveFaceCanvas,warpQuadToCanvas,trainingImageDataUrl,estimateBleedSafeShift,safeInsetWindow,chooseRecognitionWindow,innerRecognitionCanvas,innerRecognitionWindowCanvas,innerFeatureFromCanonical,inferenceFeatureViews,analyzeTileBox,loadTrainingSamples,rebuildLibraryFromTrainingImages,loadLibrary,activeLibrary,saveLibrary,saveLibraryDetailed,persistVerifiedHand,persistFailureText,persistFailureUserText,loadLegacyLibrary,legacyLibraryKeys,convertLegacyDirectFeature,cropResampleFeatureMap,confidenceAssessment,confidentCandidate,confidenceReasonSummary,renderPickerPhoto,renderPickerSuggestions,pickerCurrentIndex,schedulePickerSuggestionSync,attachPickerSuggestionObserver
   });
 })();

@@ -34,8 +34,8 @@ const server=http.createServer((req,res)=>{
     const errors=[];page.on('pageerror',e=>errors.push(String(e)));
     await page.goto('http://127.0.0.1:'+port+'/',{waitUntil:'domcontentloaded',timeout:30000});
     await page.waitForSelector('#go-confirm-button',{timeout:12000});
-    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'MAKI v112');
-    assert.equal(await page.$eval('#app-build-badge',e=>e.hidden),false,'v112 build badge should be visible during development');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'MAKI v113');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.hidden),false,'v113 build badge should be visible during development');
     assert(await page.evaluate(()=>!!window.M7V36CameraOwner),'v98 camera owner must bootstrap');
     await page.evaluate(()=>{
       const overlay=document.createElement('div');
@@ -492,6 +492,81 @@ const server=http.createServer((req,res)=>{
     });
     assert.deepEqual(v112MediumWhiteSafety.labels.slice(9,12),['白','',''],'v112 must not expand a 0.17 white into visually different synthetic crops '+JSON.stringify(v112MediumWhiteSafety));
 
+    const v113FourteenDuplicateMissing=await page.evaluate(()=>{
+      const api=window.M7CameraV36;
+      const count=14,pitch=50,w=42,h=70,x0=100,y=40;
+      const boxes=[];
+      const labelFor=i=>{
+        if(i<=5)return (i+1)+'m';
+        if(i===6)return '7p';
+        if(i===7)return '8p';
+        if(i===8)return '9p';
+        if(i===9||i===10)return '5z';
+        if(i>=12)return '7s';
+        return '';
+      };
+      for(let i=0;i<count;i++){
+        if(i===11)continue; // third white is missed
+        let score=.86;
+        if(i===4)score=.24; // exercise the screenshot-like 12/14 high-count edge
+        if(i===9)score=.35;
+        if(i===10)score=.19;
+        boxes.push({
+          x:x0+i*pitch-w/2,y,w,h,score,label:labelFor(i),
+          classId:0,view:'full',crossViewCount:2,crossViewSupport:2,crossViewShare:1,crossViewMargin:1
+        });
+      }
+      // YOLO double-detects 9p with a strongly overlapping second box.
+      boxes.push({
+        x:x0+8*pitch-w/2+9,y,w,h,
+        score:.90,label:'9p',classId:0,view:'tile-2',
+        crossViewCount:2,crossViewSupport:2,crossViewShare:1,crossViewMargin:1
+      });
+      const source={width:900,height:180};
+      const direct=api.detectorRecoverFourteenDuplicateMissingCandidates(boxes,null,source.width,source.height,14);
+      const selected=api.selectDetectorProductionBoxes({boxes},source,null,14);
+      const yolo=selected.accepted?api.yoloRecognitionFromBoxes(selected.boxes):[];
+      const primaryLabels=yolo.map(r=>r.label&&r.score>=.15?r.label:'');
+      const primary={
+        labels:primaryLabels,
+        sources:primaryLabels.map(x=>x?'yolo':'unresolved'),
+        yoloUsed:primaryLabels.filter(Boolean).length,
+        legacyUsed:0,
+        unresolved:primaryLabels.filter(x=>!x).length
+      };
+      const features=Array.from({length:14},(_,i)=>[10+i,10+i,10+i,10+i]);
+      features[9]=[0,0,0,0];
+      features[10]=[.01,0,.01,0];
+      features[11]=[.02,.01,0,.01];
+      const white=selected.accepted?api.recoverWhiteDragonGaps(primary,yolo,features,true):null;
+      return {
+        directCount:direct.length,
+        directType:direct[0]?.type||'',
+        accepted:selected.accepted,
+        reason:selected.reason,
+        recoveryType:selected.stats?.recoveryType||'',
+        missing:selected.stats?.missingIndexes||[],
+        synthetic:selected.stats?.syntheticCount||0,
+        dropped:selected.stats?.dropped||[],
+        rawHigh:selected.stats?.rawHighCount,
+        subsetHigh:selected.stats?.subsetHighCount,
+        labels:selected.boxes.map(b=>b.label||''),
+        whiteLabels:white?.labels?.slice(9,12)||[],
+        whiteRecovered:white?.whiteRecoveredIndexes||[]
+      };
+    });
+    assert.equal(v113FourteenDuplicateMissing.directCount,1,'v113 should find one duplicate+missing repair '+JSON.stringify(v113FourteenDuplicateMissing));
+    assert.equal(v113FourteenDuplicateMissing.directType,'drop-overlap-missing-slot','v113 direct recovery type mismatch '+JSON.stringify(v113FourteenDuplicateMissing));
+    assert.equal(v113FourteenDuplicateMissing.accepted,true,'v113 should accept the repaired 14-box layout '+JSON.stringify(v113FourteenDuplicateMissing));
+    assert.equal(v113FourteenDuplicateMissing.reason,'recover-14-to-14-drop-overlap-missing-slot','v113 should expose 14-to-14 repair reason '+JSON.stringify(v113FourteenDuplicateMissing));
+    assert.equal(v113FourteenDuplicateMissing.recoveryType,'drop-overlap-missing-slot','v113 selected recovery type mismatch '+JSON.stringify(v113FourteenDuplicateMissing));
+    assert.deepEqual(v113FourteenDuplicateMissing.missing,[11],'v113 should restore the missing third white slot '+JSON.stringify(v113FourteenDuplicateMissing));
+    assert.equal(v113FourteenDuplicateMissing.synthetic,1,'v113 should insert one synthetic box '+JSON.stringify(v113FourteenDuplicateMissing));
+    assert.equal(v113FourteenDuplicateMissing.dropped.length,1,'v113 should remove exactly one duplicate box '+JSON.stringify(v113FourteenDuplicateMissing));
+    assert.equal(v113FourteenDuplicateMissing.dropped[0].label,'9p','v113 should remove the overlapping duplicate 9p '+JSON.stringify(v113FourteenDuplicateMissing));
+    assert.deepEqual(v113FourteenDuplicateMissing.whiteLabels,['白','白','白'],'v113 repaired geometry should feed white-white-white recovery '+JSON.stringify(v113FourteenDuplicateMissing));
+    assert.deepEqual(v113FourteenDuplicateMissing.whiteRecovered,[11],'v113 should recover only the synthetic third white '+JSON.stringify(v113FourteenDuplicateMissing));
+
     const v97Consensus=await page.evaluate(()=>{
       const api=window.M7CameraV36;
       const base={x:10,y:10,w:20,h:30};
@@ -575,10 +650,10 @@ const server=http.createServer((req,res)=>{
     assert.equal(manifestBrand.name,'MAKI');
     assert.equal(manifestBrand.short_name,'MAKI');
     assert.equal(manifestBrand.id,'./');
-    assert(manifestBrand.icons.every(x=>String(x.src).includes('v=m7v112')),'v109 manifest icons must use fresh cache keys '+JSON.stringify(manifestBrand.icons));
+    assert(manifestBrand.icons.every(x=>String(x.src).includes('v=m7v113')),'v109 manifest icons must use fresh cache keys '+JSON.stringify(manifestBrand.icons));
     assert.equal(await page.$eval('meta[name="apple-mobile-web-app-title"]',e=>e.content),'MAKI');
     assert.equal(await page.$eval('meta[name="application-name"]',e=>e.content),'MAKI');
-    assert((await page.$eval('link[rel="apple-touch-icon"]',e=>e.getAttribute('href'))).includes('v=m7v112'));
+    assert((await page.$eval('link[rel="apple-touch-icon"]',e=>e.getAttribute('href'))).includes('v=m7v113'));
     for(const size of [180,192,512]){
       const p=path.join(root,'icon-'+size+'.png');
       assert(fs.existsSync(p),'MAKI icon missing '+p);
