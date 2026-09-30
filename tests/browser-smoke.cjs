@@ -1718,6 +1718,7 @@ const server=http.createServer((req,res)=>{
         aria:first.getAttribute('aria-label')||'',
         metaRedCount:window.M7CameraV36?.cameraHandMetaFromResultV122?.(root)?.redCount??-1
       };
+      document.getElementById('tile-picker-m7v5')?.remove();
       document.getElementById('hand-result-overlay-m7v5')?.remove();
       return {redLabels,afterRed,afterNormal};
     });
