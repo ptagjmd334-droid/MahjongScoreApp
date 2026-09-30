@@ -22575,24 +22575,56 @@ if (
    ======================================== */
 (() => {
   const TILE_OPTIONS_M7V5 = [
-    // v62: keep manzu in the first 9 positions; put pinzu/souzu directly below.
-    // Honors stay grouped on the right side of the same 12-column grid.
     '1萬','2萬','3萬','4萬','5萬','6萬','7萬','8萬','9萬','東','南','西',
     '1筒','2筒','3筒','4筒','5筒','6筒','7筒','8筒','9筒','北','白','發',
     '1索','2索','3索','4索','5索','6索','7索','8索','9索','中'
   ];
+  const RED_TILE_OPTIONS_M7V122=[
+    {label:'赤5萬',tile:'5萬',raw:'0m'},
+    {label:'赤5筒',tile:'5筒',raw:'0p'},
+    {label:'赤5索',tile:'5索',raw:'0s'}
+  ];
 
   function closeResultM7V5(){ document.getElementById('hand-result-overlay-m7v5')?.remove(); }
+
+  function applyTileChoiceM7V122(tileButton,label,tile,raw=''){
+    if(!tileButton)return;
+    tileButton.textContent=label;
+    tileButton.dataset.tile=tile;
+    tileButton.setAttribute('aria-label',label);
+    if(raw){
+      tileButton.dataset.m7v119RawLabel=raw;
+      tileButton.dataset.m7v122Red='1';
+      tileButton.classList.add('m7v122-red-tile');
+    }else{
+      delete tileButton.dataset.m7v119RawLabel;
+      delete tileButton.dataset.m7v122Red;
+      tileButton.classList.remove('m7v122-red-tile');
+    }
+  }
 
   function openTilePickerM7V5(index, tileButton){
     document.getElementById('tile-picker-m7v5')?.remove();
     const picker=document.createElement('div');
     picker.id='tile-picker-m7v5'; picker.className='tile-picker-m7v5';
-    picker.innerHTML=`<div class="tile-picker-card-m7v5"><div class="tile-picker-title-m7v5">${index+1}枚目を修正</div><div class="tile-picker-grid-m7v5"></div><button type="button" class="tile-picker-cancel-m7v5">閉じる</button></div>`;
+    picker.innerHTML=`<div class="tile-picker-card-m7v5"><div class="tile-picker-title-m7v5">${index+1}枚目を修正</div><div class="m7v122-red-options"><span>赤ドラ</span></div><div class="tile-picker-grid-m7v5"></div><button type="button" class="tile-picker-cancel-m7v5">閉じる</button></div>`;
     const grid=picker.querySelector('.tile-picker-grid-m7v5');
+    const redRow=picker.querySelector('.m7v122-red-options');
+    const choose=(label,tile,raw='')=>{
+      applyTileChoiceM7V122(tileButton,label,tile,raw);
+      picker.remove();
+      updateResultStatusM7V5();
+    };
+    RED_TILE_OPTIONS_M7V122.forEach(option=>{
+      const b=document.createElement('button');b.type='button';b.textContent=option.label;
+      b.dataset.tileName=option.label;b.dataset.m7v122Red='1';b.dataset.m7v122RawLabel=option.raw;
+      b.className='m7v122-red-option';
+      b.onclick=()=>choose(option.label,option.tile,option.raw);
+      redRow.appendChild(b);
+    });
     TILE_OPTIONS_M7V5.forEach(name=>{
-      const b=document.createElement('button'); b.type='button'; b.textContent=name;
-      b.onclick=()=>{ tileButton.textContent=name; tileButton.dataset.tile=name; tileButton.setAttribute('aria-label',name); picker.remove(); updateResultStatusM7V5(); };
+      const b=document.createElement('button');b.type='button';b.textContent=name;b.dataset.tileName=name;
+      b.onclick=()=>choose(name,name,'');
       grid.appendChild(b);
     });
     picker.querySelector('.tile-picker-cancel-m7v5').onclick=()=>picker.remove();
@@ -22607,6 +22639,8 @@ if (
     if(status) status.textContent = fixed===14 ? '14枚確認済み ✓' : `${fixed} / 14枚を確認済み`;
     const ok=root.querySelector('.hand-result-ok-m7v5'); if(ok) ok.disabled=fixed!==14;
   }
+
+  window.M7V122ResultPicker=Object.freeze({applyChoice:applyTileChoiceM7V122});
 
   window.showHandResultM7V5 = function(tiles){
     document.getElementById('hand-result-overlay-m7v5')?.remove();

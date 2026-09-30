@@ -34,8 +34,8 @@ const server=http.createServer((req,res)=>{
     const errors=[];page.on('pageerror',e=>errors.push(String(e)));
     await page.goto('http://127.0.0.1:'+port+'/',{waitUntil:'domcontentloaded',timeout:30000});
     await page.waitForSelector('#go-confirm-button',{timeout:12000});
-    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'MAKI v121');
-    assert.equal(await page.$eval('#app-build-badge',e=>e.hidden),false,'v121 build badge should be visible during development');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'MAKI v122');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.hidden),false,'v122 build badge should be visible during development');
     assert(await page.evaluate(()=>!!window.M7V36CameraOwner),'v98 camera owner must bootstrap');
     await page.evaluate(()=>{
       const overlay=document.createElement('div');
@@ -650,10 +650,10 @@ const server=http.createServer((req,res)=>{
     assert.equal(manifestBrand.name,'MAKI');
     assert.equal(manifestBrand.short_name,'MAKI');
     assert.equal(manifestBrand.id,'./');
-    assert(manifestBrand.icons.every(x=>String(x.src).includes('v=m7v121')),'v109 manifest icons must use fresh cache keys '+JSON.stringify(manifestBrand.icons));
+    assert(manifestBrand.icons.every(x=>String(x.src).includes('v=m7v122')),'v109 manifest icons must use fresh cache keys '+JSON.stringify(manifestBrand.icons));
     assert.equal(await page.$eval('meta[name="apple-mobile-web-app-title"]',e=>e.content),'MAKI');
     assert.equal(await page.$eval('meta[name="application-name"]',e=>e.content),'MAKI');
-    assert((await page.$eval('link[rel="apple-touch-icon"]',e=>e.getAttribute('href'))).includes('v=m7v121'));
+    assert((await page.$eval('link[rel="apple-touch-icon"]',e=>e.getAttribute('href'))).includes('v=m7v122'));
     for(const size of [180,192,512]){
       const p=path.join(root,'icon-'+size+'.png');
       assert(fs.existsSync(p),'MAKI icon missing '+p);
@@ -1331,6 +1331,45 @@ const server=http.createServer((req,res)=>{
     assert.deepEqual(shutter.pickerLayout.tileNames.slice(24,34),
       ['1索','2索','3索','4索','5索','6索','7索','8索','9索','中'],
       'v62 souzu must sit directly below pinzu '+JSON.stringify(shutter.pickerLayout.tileNames));
+
+    const v122RedCorrection=await page.evaluate(async()=>{
+      window.showHandResultM7V5?.(Array(14).fill(''));
+      const root=document.getElementById('hand-result-overlay-m7v5');
+      const first=root?.querySelector('.hand-result-tile-m7v5');
+      first?.click();
+      await new Promise(resolve=>setTimeout(resolve,80));
+      const picker=document.getElementById('tile-picker-m7v5');
+      const redButtons=[...picker.querySelectorAll('.m7v122-red-options button')];
+      const redNames=redButtons.map(b=>b.dataset.tileName||b.textContent.trim());
+      const redSou=redButtons.find(b=>b.dataset.m7v122RawLabel==='0s');
+      redSou?.click();
+      await new Promise(resolve=>setTimeout(resolve,80));
+      const afterRed={
+        tile:first?.dataset.tile||'',
+        raw:first?.dataset.m7v119RawLabel||'',
+        red:first?.dataset.m7v122Red||'',
+        aria:first?.getAttribute('aria-label')||'',
+        redClass:first?.classList.contains('m7v122-red-tile')||false
+      };
+      window.M7V122ResultPicker?.applyChoice?.(first,'5索','5索','');
+      await new Promise(resolve=>setTimeout(resolve,30));
+      const afterNormal={
+        tile:first?.dataset.tile||'',
+        raw:first?.dataset.m7v119RawLabel||'',
+        red:first?.dataset.m7v122Red||'',
+        aria:first?.getAttribute('aria-label')||'',
+        redClass:first?.classList.contains('m7v122-red-tile')||false
+      };
+      root?.remove();
+      document.getElementById('tile-picker-m7v5')?.remove();
+      return {redNames,afterRed,afterNormal};
+    });
+    assert.deepEqual(v122RedCorrection.redNames,['赤5萬','赤5筒','赤5索'],
+      'v122 correction picker must expose all three red fives '+JSON.stringify(v122RedCorrection));
+    assert.deepEqual(v122RedCorrection.afterRed,{tile:'5索',raw:'0s',red:'1',aria:'赤5索',redClass:true},
+      'v122 red 5-sou correction must preserve aka metadata while scoring as 5索 '+JSON.stringify(v122RedCorrection));
+    assert.deepEqual(v122RedCorrection.afterNormal,{tile:'5索',raw:'',red:'',aria:'5索',redClass:false},
+      'v122 choosing ordinary 5-sou must clear stale aka metadata '+JSON.stringify(v122RedCorrection));
     const structural=await page.evaluate(()=>{
       const core=window.M7RecognitionCoreV33,w=24,h=36,n=w*h;
       const make=(horizontal,shift=0)=>{
