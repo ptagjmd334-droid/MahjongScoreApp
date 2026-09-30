@@ -2,7 +2,7 @@
 (()=>{
   'use strict';
 
-  const VERSION='MAKI v113';
+  const VERSION='MAKI v114';
   const TILES=[
     '1萬','2萬','3萬','4萬','5萬','6萬','7萬','8萬','9萬',
     '1筒','2筒','3筒','4筒','5筒','6筒','7筒','8筒','9筒',
@@ -60,29 +60,45 @@
       min-height:34px;padding:5px 12px;border:0;border-radius:9px;background:#dde2df;color:#173b2a;font-weight:900
     }
     #maki-manual-hand-v111 .maki-v111-slots{
-      display:grid;grid-template-columns:repeat(14,minmax(42px,1fr));gap:4px;margin:7px 0
+      display:grid;grid-template-columns:repeat(14,minmax(46px,1fr));gap:6px;margin:8px 0 10px
     }
     #maki-manual-hand-v111 .maki-v111-slot{
-      min-width:0;min-height:46px;padding:3px 1px;border:2px solid #d4c9aa;border-radius:8px;
-      background:#fff;color:#17241e;font-size:11px;font-weight:900
+      min-width:0;min-height:72px;padding:4px;border:2px solid #d4c9aa;border-radius:12px;
+      background:linear-gradient(180deg,#fff,#f6f2e7);color:#17241e;font-size:11px;font-weight:900;
+      display:flex;align-items:center;justify-content:center;position:relative
     }
-    #maki-manual-hand-v111 .maki-v111-slot.active{border-color:#078cff;box-shadow:0 0 0 2px rgba(7,140,255,.15)}
+    #maki-manual-hand-v111 .maki-v111-slot.active{border-color:#078cff;box-shadow:0 0 0 3px rgba(7,140,255,.18)}
     #maki-manual-hand-v111 .maki-v111-slot.empty{color:#9b9587;background:#f2eee4}
+    #maki-manual-hand-v111 .maki-v111-slot-index{font-size:18px;line-height:1;font-weight:900;opacity:.85}
     #maki-manual-hand-v111 .maki-v111-picker{
-      display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-top:7px
+      display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:7px
     }
     #maki-manual-hand-v111 .maki-v111-group{
-      padding:6px;border-radius:10px;background:#ece8de;border:1px solid #d7d0c1
+      padding:8px;border-radius:12px;background:#ece8de;border:1px solid #d7d0c1
     }
-    #maki-manual-hand-v111 .maki-v111-group b{display:block;font-size:11px;margin-bottom:4px}
+    #maki-manual-hand-v111 .maki-v111-group b{display:block;font-size:12px;margin-bottom:6px}
     #maki-manual-hand-v111 .maki-v111-tile-grid{
-      display:grid;grid-template-columns:repeat(5,1fr);gap:3px
+      display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px
     }
     #maki-manual-hand-v111 .maki-v111-tile{
-      min-height:31px;padding:3px 1px;border:1px solid #c9c2b4;border-radius:6px;background:#fff;
-      color:#16261f;font-size:10px;font-weight:900
+      min-height:56px;padding:4px 2px;border:1px solid #c9c2b4;border-radius:10px;background:linear-gradient(180deg,#fff,#f6f2e7);
+      color:#16261f;font-size:10px;font-weight:900;display:flex;align-items:center;justify-content:center
     }
     #maki-manual-hand-v111 .maki-v111-tile:disabled{opacity:.34}
+    #maki-manual-hand-v111 .maki-v111-face{
+      width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:space-between;
+      border-radius:8px;background:linear-gradient(180deg,#ffffff,#fbf7ed);border:1px solid rgba(186,176,150,.55);
+      box-shadow:inset 0 -1px 0 rgba(0,0,0,.06);padding:3px 1px
+    }
+    #maki-manual-hand-v111 .maki-v111-slot .maki-v111-face{padding:5px 2px}
+    #maki-manual-hand-v111 .maki-v111-face-rank{font-size:14px;line-height:1;font-weight:900}
+    #maki-manual-hand-v111 .maki-v111-face-suit{font-size:23px;line-height:1.05;font-weight:900}
+    #maki-manual-hand-v111 .maki-v111-face-label{font-size:9px;line-height:1;font-weight:800;opacity:.82}
+    #maki-manual-hand-v111 .maki-v111-honor .maki-v111-face-main{font-size:28px;line-height:1.08;font-weight:900;margin:auto 0}
+    #maki-manual-hand-v111 .maki-v111-suit-man .maki-v111-face-rank,#maki-manual-hand-v111 .maki-v111-suit-man .maki-v111-face-suit,#maki-manual-hand-v111 .maki-v111-honor-white .maki-v111-face-main{color:#c6382c}
+    #maki-manual-hand-v111 .maki-v111-suit-pin .maki-v111-face-rank,#maki-manual-hand-v111 .maki-v111-suit-pin .maki-v111-face-suit,#maki-manual-hand-v111 .maki-v111-honor-east .maki-v111-face-main,#maki-manual-hand-v111 .maki-v111-honor-south .maki-v111-face-main,#maki-manual-hand-v111 .maki-v111-honor-west .maki-v111-face-main,#maki-manual-hand-v111 .maki-v111-honor-north .maki-v111-face-main{color:#1e2a24}
+    #maki-manual-hand-v111 .maki-v111-suit-sou .maki-v111-face-rank,#maki-manual-hand-v111 .maki-v111-suit-sou .maki-v111-face-suit,#maki-manual-hand-v111 .maki-v111-honor-green .maki-v111-face-main{color:#15754e}
+    #maki-manual-hand-v111 .maki-v111-honor-red .maki-v111-face-main{color:#c6382c}
     #maki-manual-hand-v111 .maki-v111-error{
       min-height:17px;margin:5px 0 0;color:#b33;font-size:11px;font-weight:900;text-align:center
     }
@@ -108,6 +124,10 @@
       margin:6px 0 8px;padding:7px 10px;border-radius:10px;background:#e9f7ef;
       color:#153d29;font-size:12px;font-weight:900;text-align:center
     }
+    #agari-overlay .limit-button.maki-v111-limit-recommend{
+      outline:3px solid #23c878!important;outline-offset:-3px!important;
+      background:rgba(35,200,120,.20)!important;border-color:#23c878!important;color:#fff!important
+    }
 
     @media (orientation:landscape) and (max-height:500px){
       #maki-hand-entry-v111{padding:5px 7px;margin:2px 0 4px}
@@ -116,10 +136,10 @@
       #maki-manual-hand-v111 .maki-v111-card{padding:8px 10px}
       #maki-manual-hand-v111 h2{font-size:17px}
       #maki-manual-hand-v111 .maki-v111-slots{margin:4px 0}
-      #maki-manual-hand-v111 .maki-v111-slot{min-height:37px;font-size:10px}
+      #maki-manual-hand-v111 .maki-v111-slot{min-height:58px;font-size:10px}
       #maki-manual-hand-v111 .maki-v111-picker{gap:4px;margin-top:4px}
       #maki-manual-hand-v111 .maki-v111-group{padding:4px}
-      #maki-manual-hand-v111 .maki-v111-tile{min-height:26px;font-size:9px}
+      #maki-manual-hand-v111 .maki-v111-tile{min-height:44px;font-size:9px}
       #maki-manual-hand-v111 .maki-v111-footer{margin-top:4px}
       #maki-manual-hand-v111 .maki-v111-footer button{min-height:31px}
     }
@@ -254,6 +274,28 @@
     return out;
   }
 
+  function tileFaceInfo(tile){
+    if(!tile)return null;
+    const suitMap={萬:{cls:'maki-v111-suit-man'},筒:{cls:'maki-v111-suit-pin'},索:{cls:'maki-v111-suit-sou'}};
+    const honorMap={東:{cls:'maki-v111-honor maki-v111-honor-east'},南:{cls:'maki-v111-honor maki-v111-honor-south'},西:{cls:'maki-v111-honor maki-v111-honor-west'},北:{cls:'maki-v111-honor maki-v111-honor-north'},白:{cls:'maki-v111-honor maki-v111-honor-white'},發:{cls:'maki-v111-honor maki-v111-honor-green'},中:{cls:'maki-v111-honor maki-v111-honor-red'}};
+    const m=String(tile).match(/^(\d)([萬筒索])$/);
+    if(m)return {kind:'suit',cls:suitMap[m[2]].cls,rank:m[1],symbol:m[2],label:tile};
+    if(honorMap[tile])return {kind:'honor',cls:honorMap[tile].cls,main:tile,label:tile};
+    return {kind:'text',cls:'',main:String(tile),label:tile};
+  }
+
+  function tileFaceHTML(tile){
+    const info=tileFaceInfo(tile);
+    if(!info)return '';
+    if(info.kind==='suit'){
+      return `<span class="maki-v111-face ${info.cls}"><span class="maki-v111-face-rank">${info.rank}</span><span class="maki-v111-face-suit">${info.symbol}</span><span class="maki-v111-face-label">${info.label}</span></span>`;
+    }
+    if(info.kind==='honor'){
+      return `<span class="maki-v111-face ${info.cls}"><span class="maki-v111-face-main">${info.main}</span><span class="maki-v111-face-label">${info.label}</span></span>`;
+    }
+    return `<span class="maki-v111-face"><span class="maki-v111-face-main">${info.main}</span><span class="maki-v111-face-label">${info.label}</span></span>`;
+  }
+
   function openManualEntry(){
     const ctx=context();
     if(!ctx.active||ctx.step!=='score'||!ctx.winner||!ctx.type){
@@ -306,7 +348,7 @@
       const title=document.createElement('b');title.textContent=name;box.appendChild(title);
       const grid=document.createElement('div');grid.className='maki-v111-tile-grid';
       for(const tile of tiles){
-        const b=document.createElement('button');b.type='button';b.className='maki-v111-tile';b.dataset.tile=tile;b.textContent=tile;
+        const b=document.createElement('button');b.type='button';b.className='maki-v111-tile';b.dataset.tile=tile;b.innerHTML=tileFaceHTML(tile);b.setAttribute('aria-label',tile);
         b.addEventListener('click',()=>{
           const counts=countsOf(values);
           const old=values[active];
@@ -330,7 +372,7 @@
     function render(){
       const buttons=[...slots.querySelectorAll('.maki-v111-slot')];
       buttons.forEach((b,i)=>{
-        b.textContent=values[i]||String(i+1);
+        b.innerHTML=values[i]?tileFaceHTML(values[i]):'<span class="maki-v111-slot-index">'+String(i+1)+'</span>';
         b.classList.toggle('empty',!values[i]);
         b.classList.toggle('active',i===active);
         b.setAttribute('aria-label',(i+1)+'枚目 '+(values[i]||'未入力'));
@@ -406,6 +448,40 @@
     });
   }
 
+  function finiteSuggested(...vals){
+    for(const v of vals){
+      if(v===null||v===undefined||v==='')continue;
+      if(v==='yakuman')return 'yakuman';
+      const n=Number(v);
+      if(Number.isFinite(n))return n;
+    }
+    return null;
+  }
+
+  function suggestedLimitKey(){
+    const han=finiteSuggested(window.m8SuggestedHanV23,window.m8SuggestedHanV22,window.m8SuggestedHanV9,window.m8SuggestedHanV6);
+    if(han==='yakuman')return 'yakuman';
+    if(!Number.isFinite(Number(han)))return '';
+    const n=Number(han);
+    if(n>=13)return 'yakuman';
+    if(n>=11)return 'sanbaiman';
+    if(n>=8)return 'baiman';
+    if(n>=6)return 'haneman';
+    if(n>=5)return 'mangan';
+    return '';
+  }
+
+  function decorateLimitRecommendation(){
+    const root=document.getElementById('agari-overlay');
+    if(!root)return;
+    const key=suggestedLimitKey();
+    root.querySelectorAll('.limit-button').forEach(btn=>{
+      const hit=!!key&&btn.dataset.limit===key;
+      btn.classList.toggle('maki-v111-limit-recommend',hit);
+      if(hit)btn.setAttribute('aria-label',(btn.textContent||'').trim()+' M8推奨');
+    });
+  }
+
   window.addEventListener('maki:verified-hand',e=>{
     const tiles=Array.isArray(e.detail?.tiles)?e.detail.tiles.slice():[];
     const pending=window.MAKIHandEntryPendingV111;
@@ -417,7 +493,7 @@
     if(!sameContext(pending,now))return;
     window.MAKIHandEntryStateV111={...pending,tiles,verifiedAt:Date.now()};
     window.MAKIHandEntryPendingV111=null;
-    setTimeout(mountScoreHandEntry,0);
+    setTimeout(()=>{mountScoreHandEntry();decorateLimitRecommendation();},0);
   });
 
   function decorateM8Context(){
@@ -480,18 +556,18 @@
         if(n.matches?.('#m8-context-v5,#m8-result-v1')||n.querySelector?.('#m8-context-v5,#m8-result-v1'))result=true;
       }
     }
-    if(score)requestAnimationFrame(mountScoreHandEntry);
+    if(score)requestAnimationFrame(()=>{mountScoreHandEntry();decorateLimitRecommendation();});
     if(result)setTimeout(decorateM8Context,0);
   });
   observer.observe(document.body,{childList:true,subtree:true});
 
   document.addEventListener('click',e=>{
-    if(e.target.closest?.('#agari-overlay'))setTimeout(mountScoreHandEntry,0);
+    if(e.target.closest?.('#agari-overlay'))setTimeout(()=>{mountScoreHandEntry();decorateLimitRecommendation();},0);
     if(e.target.closest?.('#m8-result-v1'))setTimeout(decorateM8Context,0);
   },true);
 
   window.addEventListener('pageshow',()=>{
-    setTimeout(mountScoreHandEntry,80);
+    setTimeout(()=>{mountScoreHandEntry();decorateLimitRecommendation();},80);
     setTimeout(decorateM8Context,100);
   },{passive:true});
 
@@ -503,5 +579,6 @@
   });
 
   mountScoreHandEntry();
+  decorateLimitRecommendation();
   decorateM8Context();
 })();
