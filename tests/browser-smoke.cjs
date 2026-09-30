@@ -34,8 +34,8 @@ const server=http.createServer((req,res)=>{
     const errors=[];page.on('pageerror',e=>errors.push(String(e)));
     await page.goto('http://127.0.0.1:'+port+'/',{waitUntil:'domcontentloaded',timeout:30000});
     await page.waitForSelector('#go-confirm-button',{timeout:12000});
-    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'MAKI v114');
-    assert.equal(await page.$eval('#app-build-badge',e=>e.hidden),false,'v114 build badge should be visible during development');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'MAKI v115');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.hidden),false,'v115 build badge should be visible during development');
     assert(await page.evaluate(()=>!!window.M7V36CameraOwner),'v98 camera owner must bootstrap');
     await page.evaluate(()=>{
       const overlay=document.createElement('div');
@@ -650,10 +650,10 @@ const server=http.createServer((req,res)=>{
     assert.equal(manifestBrand.name,'MAKI');
     assert.equal(manifestBrand.short_name,'MAKI');
     assert.equal(manifestBrand.id,'./');
-    assert(manifestBrand.icons.every(x=>String(x.src).includes('v=m7v114')),'v109 manifest icons must use fresh cache keys '+JSON.stringify(manifestBrand.icons));
+    assert(manifestBrand.icons.every(x=>String(x.src).includes('v=m7v115')),'v109 manifest icons must use fresh cache keys '+JSON.stringify(manifestBrand.icons));
     assert.equal(await page.$eval('meta[name="apple-mobile-web-app-title"]',e=>e.content),'MAKI');
     assert.equal(await page.$eval('meta[name="application-name"]',e=>e.content),'MAKI');
-    assert((await page.$eval('link[rel="apple-touch-icon"]',e=>e.getAttribute('href'))).includes('v=m7v114'));
+    assert((await page.$eval('link[rel="apple-touch-icon"]',e=>e.getAttribute('href'))).includes('v=m7v115'));
     for(const size of [180,192,512]){
       const p=path.join(root,'icon-'+size+'.png');
       assert(fs.existsSync(p),'MAKI icon missing '+p);
@@ -1556,28 +1556,56 @@ const server=http.createServer((req,res)=>{
     await page.waitForSelector('#maki-manual-hand-v111',{visible:true,timeout:4000});
     assert.equal(await page.evaluate(()=>document.querySelectorAll('#maki-manual-hand-v111 .maki-v111-slot').length),14,'v111 manual entry must have 14 slots');
     assert.equal(await page.evaluate(()=>document.querySelectorAll('#maki-manual-hand-v111 .maki-v111-tile').length),34,'v111 manual entry must offer 34 tile types');
-    const v114ManualUI=await page.evaluate(()=>({
-      faces:document.querySelectorAll('#maki-manual-hand-v111 .maki-v111-tile .maki-v111-face').length,
-      minTileHeight:Math.min(...[...document.querySelectorAll('#maki-manual-hand-v111 .maki-v111-tile')].map(x=>x.getBoundingClientRect().height)),
-      firstMarkup:document.querySelector('#maki-manual-hand-v111 .maki-v111-tile')?.innerHTML||''
-    }));
-    assert.equal(v114ManualUI.faces,34,'v114 manual choices must render as tile faces '+JSON.stringify(v114ManualUI));
-    assert(v114ManualUI.minTileHeight>=40,'v114 manual tile choices are still too small '+JSON.stringify(v114ManualUI));
-    assert(v114ManualUI.firstMarkup.includes('maki-v111-face-rank'),'v114 suited tile visual missing '+JSON.stringify(v114ManualUI));
+    const v115ManualUI=await page.evaluate(()=>{
+      const root=document.getElementById('maki-manual-hand-v111');
+      const card=root?.querySelector('.maki-v111-card');
+      const groups=[...root.querySelectorAll('.maki-v111-group')];
+      return {
+        faces:root.querySelectorAll('.maki-v111-tile .maki-v111-face').length,
+        glyphs:root.querySelectorAll('.maki-v111-tile .maki-v111-glyph').length,
+        groups:groups.length,
+        groupCounts:groups.map(g=>g.querySelectorAll('.maki-v111-tile').length),
+        groupTop:groups.map(g=>Math.round(g.getBoundingClientRect().top)),
+        cardHeight:Math.round(card.getBoundingClientRect().height),
+        cardBottom:Math.round(card.getBoundingClientRect().bottom),
+        viewport:window.innerHeight,
+        firstText:root.querySelector('.maki-v111-tile .maki-v111-glyph')?.textContent||''
+      };
+    });
+    assert.equal(v115ManualUI.faces,34,'v115 manual choices must render as tile faces '+JSON.stringify(v115ManualUI));
+    assert.equal(v115ManualUI.glyphs,34,'v115 manual choices must use mahjong glyphs '+JSON.stringify(v115ManualUI));
+    assert.deepEqual(v115ManualUI.groupCounts,[9,9,9,7],'v115 manual rows must be 9/9/9/7 '+JSON.stringify(v115ManualUI));
+    assert.equal(v115ManualUI.groups,4,'v115 manual input needs four horizontal rows '+JSON.stringify(v115ManualUI));
+    assert(v115ManualUI.cardBottom<=v115ManualUI.viewport+1,'v115 manual input must fit one landscape screen '+JSON.stringify(v115ManualUI));
+    assert(v115ManualUI.cardHeight<=430,'v115 manual input is too tall '+JSON.stringify(v115ManualUI));
+    assert(v115ManualUI.firstText.length>0,'v115 mahjong glyph missing '+JSON.stringify(v115ManualUI));
     await page.click('#maki-manual-hand-v111 .maki-v111-cancel');
     await page.waitForFunction(()=>!document.getElementById('maki-manual-hand-v111'),{timeout:3000});
-    const v114Limit=await page.evaluate(()=>{
+    const v115Limit=await page.evaluate(async()=>{
       window.m8SuggestedHanV23=6;
       window.MAKIV111?.decorateLimitRecommendation?.();
-      const active=[...document.querySelectorAll('#agari-overlay .limit-button.maki-v111-limit-recommend')].map(x=>x.dataset.limit);
-      window.m8SuggestedHanV23=8;
-      window.MAKIV111?.decorateLimitRecommendation?.();
-      const active8=[...document.querySelectorAll('#agari-overlay .limit-button.maki-v111-limit-recommend')].map(x=>x.dataset.limit);
+      const active6=[...document.querySelectorAll('#agari-overlay .limit-button.maki-v111-limit-recommend')].map(x=>x.dataset.limit);
+      window.m8SuggestedHanV23='yakuman';
+      window.dispatchEvent(new CustomEvent('maki:m8-recommendation-changed',{detail:{han:'yakuman'}}));
+      await new Promise(requestAnimationFrame);
+      const activeYakuman=[...document.querySelectorAll('#agari-overlay .limit-button.maki-v111-limit-recommend')].map(x=>x.dataset.limit);
       window.m8SuggestedHanV23=null;
-      return {active,active8};
+      return {active6,activeYakuman};
     });
-    assert.deepEqual(v114Limit.active,['haneman'],'v114 6-han recommendation should highlight haneman '+JSON.stringify(v114Limit));
-    assert.deepEqual(v114Limit.active8,['baiman'],'v114 8-han recommendation should highlight baiman '+JSON.stringify(v114Limit));
+    assert.deepEqual(v115Limit.active6,['haneman'],'v115 6-han recommendation should highlight haneman '+JSON.stringify(v115Limit));
+    assert.deepEqual(v115Limit.activeYakuman,['yakuman'],'v115 yakuman update must clear stale haneman and highlight yakuman '+JSON.stringify(v115Limit));
+    const v115NineGates=await page.evaluate(()=>{
+      const pure=['1萬','1萬','1萬','2萬','3萬','4萬','5萬','5萬','6萬','7萬','8萬','9萬','9萬','9萬'];
+      const ordinary=['1萬','1萬','1萬','1萬','2萬','3萬','4萬','5萬','6萬','7萬','8萬','9萬','9萬','9萬'];
+      return {
+        pure:window.M8V23?.detectNineGates?.(pure,{menzen:true},'5萬')||null,
+        ordinary:window.M8V23?.detectNineGates?.(ordinary,{menzen:true},'1萬')||null,
+        openRejected:window.M8V23?.detectNineGates?.(pure,{menzen:false},'5萬')||null
+      };
+    });
+    assert.equal(v115NineGates.pure,'純正九蓮宝燈','v115 must classify pure Nine Gates as yakuman '+JSON.stringify(v115NineGates));
+    assert.equal(v115NineGates.ordinary,'九蓮宝燈','v115 must classify ordinary Nine Gates as yakuman '+JSON.stringify(v115NineGates));
+    assert.equal(v115NineGates.openRejected,null,'v115 must reject open Nine Gates '+JSON.stringify(v115NineGates));
     await page.waitForSelector('#m8v30-review',{visible:true,timeout:4000});
     const score=await page.$eval('#agari-overlay',e=>{
       const card=e.querySelector('.agari-flow-card');
