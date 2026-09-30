@@ -513,13 +513,14 @@ const server=http.createServer((req,res)=>{
         if(i===10)score=.19;
         boxes.push({
           x:x0+i*pitch-w/2,y,w,h,score,label:labelFor(i),
-          classId:0,view:'full'
+          classId:0,view:'full',crossViewCount:2,crossViewSupport:2,crossViewShare:1,crossViewMargin:1
         });
       }
       // YOLO double-detects 9p with a strongly overlapping second box.
       boxes.push({
         x:x0+8*pitch-w/2+9,y,w,h,
-        score:.90,label:'9p',classId:0,view:'tile-2'
+        score:.90,label:'9p',classId:0,view:'tile-2',
+        crossViewCount:2,crossViewSupport:2,crossViewShare:1,crossViewMargin:1
       });
       const source={width:900,height:180};
       const direct=api.detectorRecoverFourteenDuplicateMissingCandidates(boxes,null,source.width,source.height,14);
