@@ -22587,6 +22587,22 @@ if (
 
   function closeResultM7V5(){ document.getElementById('hand-result-overlay-m7v5')?.remove(); }
 
+  function applyTileChoiceM7V122(tileButton,label,tile,raw=''){
+    if(!tileButton)return;
+    tileButton.textContent=label;
+    tileButton.dataset.tile=tile;
+    tileButton.setAttribute('aria-label',label);
+    if(raw){
+      tileButton.dataset.m7v119RawLabel=raw;
+      tileButton.dataset.m7v122Red='1';
+      tileButton.classList.add('m7v122-red-tile');
+    }else{
+      delete tileButton.dataset.m7v119RawLabel;
+      delete tileButton.dataset.m7v122Red;
+      tileButton.classList.remove('m7v122-red-tile');
+    }
+  }
+
   function openTilePickerM7V5(index, tileButton){
     document.getElementById('tile-picker-m7v5')?.remove();
     const picker=document.createElement('div');
@@ -22595,18 +22611,7 @@ if (
     const grid=picker.querySelector('.tile-picker-grid-m7v5');
     const redRow=picker.querySelector('.m7v122-red-options');
     const choose=(label,tile,raw='')=>{
-      tileButton.textContent=label;
-      tileButton.dataset.tile=tile;
-      tileButton.setAttribute('aria-label',label);
-      if(raw){
-        tileButton.dataset.m7v119RawLabel=raw;
-        tileButton.dataset.m7v122Red='1';
-        tileButton.classList.add('m7v122-red-tile');
-      }else{
-        delete tileButton.dataset.m7v119RawLabel;
-        delete tileButton.dataset.m7v122Red;
-        tileButton.classList.remove('m7v122-red-tile');
-      }
+      applyTileChoiceM7V122(tileButton,label,tile,raw);
       picker.remove();
       updateResultStatusM7V5();
     };
@@ -22634,6 +22639,8 @@ if (
     if(status) status.textContent = fixed===14 ? '14枚確認済み ✓' : `${fixed} / 14枚を確認済み`;
     const ok=root.querySelector('.hand-result-ok-m7v5'); if(ok) ok.disabled=fixed!==14;
   }
+
+  window.M7V122ResultPicker=Object.freeze({applyChoice:applyTileChoiceM7V122});
 
   window.showHandResultM7V5 = function(tiles){
     document.getElementById('hand-result-overlay-m7v5')?.remove();
