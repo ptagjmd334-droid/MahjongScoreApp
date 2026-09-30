@@ -3282,12 +3282,24 @@
       for(const dir of [-1,1]){
         let i=anchor+dir;
         while(i>=0&&i<14&&run.length<YOLO_WHITE_RECOVERY_MAX_RUN&&whiteCount<4){
-          if(labels[i])break;
           const r=yolo[i]||{};
           const score=Number(r.score)||0;
-          if(score>YOLO_WHITE_RECOVERY_MAX_WEAK_SCORE||!feats[i])break;
-          const distances=anchors.map(a=>core.featureDistance(feats[i],feats[a])).filter(Number.isFinite);
+          const distances=feats[i]?anchors.map(a=>core.featureDistance(feats[i],feats[a])).filter(Number.isFinite):[];
           const distance=distances.length?Math.min(...distances):Infinity;
+
+          // v113: allow the search to pass through an already accepted white.
+          // This covers 白・白・[missing] where the first white is the anchor,
+          // the second white was directly classified, and only the third slot
+          // is synthetic. Never pass through another label or a visually
+          // dissimilar accepted white.
+          if(labels[i]){
+            if(labels[i]!=='白'||!feats[i]||distance>YOLO_WHITE_RECOVERY_MAX_DISTANCE)break;
+            run.push(i);
+            i+=dir;
+            continue;
+          }
+
+          if(score>YOLO_WHITE_RECOVERY_MAX_WEAK_SCORE||!feats[i])break;
           if(distance>YOLO_WHITE_RECOVERY_MAX_DISTANCE)break;
           labels[i]='白';
           sources[i]='white-recovery';
