@@ -2,7 +2,7 @@
 (()=>{
   'use strict';
 
-  const VERSION='MAKI v117';
+  const VERSION='MAKI v118';
   const TILES=[
     '1萬','2萬','3萬','4萬','5萬','6萬','7萬','8萬','9萬',
     '1筒','2筒','3筒','4筒','5筒','6筒','7筒','8筒','9筒',
@@ -41,6 +41,37 @@
     #maki-hand-entry-v111 .maki-v111-manual{background:#fff;color:#173b2a;border:1px solid #9fc8b2}
     #maki-hand-entry-v111 .maki-v111-status{
       margin-top:5px;font-size:10px;font-weight:800;text-align:center;color:#43685a
+    }
+
+    #maki-hand-entry-v111 .maki-v118-dora{
+      margin-top:6px;padding:6px;border-radius:9px;background:#fffdf4;border:1px solid #d8c98a
+    }
+    #maki-hand-entry-v111 .maki-v118-dora-head{
+      display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px
+    }
+    #maki-hand-entry-v111 .maki-v118-dora-title{font-size:11px;font-weight:900;color:#463d16}
+    #maki-hand-entry-v111 .maki-v118-dora-total{font-size:10px;font-weight:900;color:#795f00}
+    #maki-hand-entry-v111 .maki-v118-dora-grid{
+      display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px
+    }
+    #maki-hand-entry-v111 .maki-v118-dora-counter{
+      display:grid;grid-template-columns:minmax(44px,1fr) 30px 32px 30px;align-items:center;gap:2px;
+      min-width:0;padding:3px;border-radius:8px;background:#f4f0df
+    }
+    #maki-hand-entry-v111 .maki-v118-dora-label{
+      overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px;font-weight:900;text-align:center
+    }
+    #maki-hand-entry-v111 .maki-v118-dora-counter button{
+      min-height:28px!important;padding:2px!important;border-radius:7px!important;background:#fff!important;
+      border:1px solid #cdbd79!important;color:#2b301f!important;font-size:16px!important;line-height:1!important
+    }
+    #maki-hand-entry-v111 .maki-v118-dora-value{
+      display:flex;align-items:center;justify-content:center;min-height:28px;border-radius:7px;
+      background:#fff;color:#18251e;font-size:14px;font-weight:900
+    }
+    #maki-hand-entry-v111 .maki-v118-dora-counter.disabled{opacity:.48}
+    #maki-hand-entry-v111 .maki-v118-dora-note{
+      margin-top:4px;font-size:9px;font-weight:800;text-align:center;color:#746b46
     }
 
     #maki-manual-hand-v111{
@@ -129,6 +160,12 @@
       #maki-hand-entry-v111{padding:5px 7px;margin:2px 0 4px}
       #maki-hand-entry-v111 .maki-v111-head{margin-bottom:3px}
       #maki-hand-entry-v111 button{min-height:31px;padding:4px 7px;font-size:11px}
+      #maki-hand-entry-v111 .maki-v118-dora{margin-top:3px;padding:4px}
+      #maki-hand-entry-v111 .maki-v118-dora-head{margin-bottom:2px}
+      #maki-hand-entry-v111 .maki-v118-dora-counter{grid-template-columns:minmax(38px,1fr) 27px 29px 27px;padding:2px}
+      #maki-hand-entry-v111 .maki-v118-dora-counter button{min-height:25px!important}
+      #maki-hand-entry-v111 .maki-v118-dora-value{min-height:25px}
+      #maki-hand-entry-v111 .maki-v118-dora-note{margin-top:2px;font-size:8px}
       #maki-manual-hand-v111 .maki-v111-card{padding:7px 9px;max-height:calc(100dvh - 8px);overflow:hidden}
       #maki-manual-hand-v111 h2{font-size:16px}
       #maki-manual-hand-v111 .maki-v111-help{font-size:10px}
@@ -216,6 +253,131 @@
     return sameContext(saved,ctx)&&Array.isArray(saved.tiles)&&saved.tiles.length===14?saved:null;
   }
 
+  window.MAKIDoraStatesV118=window.MAKIDoraStatesV118||{};
+
+  function doraContextKey(ctx=context()){
+    if(!ctx?.active||!ctx.winner||!ctx.type)return '';
+    return [ctx.round,ctx.type,ctx.winner,ctx.currentWinnerIndex].join('|');
+  }
+
+  function winnerIsRiichi(ctx=context()){
+    if(!ctx?.winner)return false;
+    try{return !!gameState?.riichi?.[ctx.winner];}catch(_){return false;}
+  }
+
+  function doraStateFor(ctx=context(),create=true){
+    const key=doraContextKey(ctx);
+    if(!key)return {dora:0,aka:0,ura:0,key:''};
+    let state=window.MAKIDoraStatesV118[key];
+    if(!state&&create){
+      state={dora:0,aka:0,ura:0,key,ctx:{winner:ctx.winner,type:ctx.type,round:ctx.round,currentWinnerIndex:ctx.currentWinnerIndex},updatedAt:Date.now()};
+      window.MAKIDoraStatesV118[key]=state;
+    }
+    return state||{dora:0,aka:0,ura:0,key};
+  }
+
+  function normalizedDoraCount(value){
+    const n=Math.floor(Number(value)||0);
+    return Math.max(0,Math.min(99,n));
+  }
+
+  function effectiveDoraState(ctx=context()){
+    const raw=doraStateFor(ctx,false);
+    return {
+      dora:normalizedDoraCount(raw.dora),
+      aka:normalizedDoraCount(raw.aka),
+      ura:winnerIsRiichi(ctx)?normalizedDoraCount(raw.ura):0,
+      riichi:winnerIsRiichi(ctx)
+    };
+  }
+
+  function applyDoraToRecommendation(base){
+    const src=base||{};
+    const copied={
+      han:src.yakuman?'yakuman':Number(src.han||0),
+      yakuman:!!src.yakuman,
+      items:(src.items||[]).map(x=>({...x}))
+    };
+    const d=effectiveDoraState();
+    if(copied.yakuman){
+      return {...copied,dora:d,bonusHan:0};
+    }
+    const baseHan=Number(copied.han||0);
+    if(!(baseHan>0)){
+      return {...copied,han:baseHan,dora:d,bonusHan:0,noYakuBonusSuppressed:(d.dora+d.aka+d.ura)>0};
+    }
+    const bonusItems=[];
+    if(d.dora>0)bonusItems.push({name:'ドラ',han:d.dora,bonus:true});
+    if(d.aka>0)bonusItems.push({name:'赤ドラ',han:d.aka,bonus:true});
+    if(d.ura>0)bonusItems.push({name:'裏ドラ',han:d.ura,bonus:true});
+    const bonusHan=bonusItems.reduce((s,x)=>s+x.han,0);
+    return {...copied,han:baseHan+bonusHan,items:[...copied.items,...bonusItems],dora:d,bonusHan,baseHan};
+  }
+
+  function invalidateScoreSelectionForDoraChange(){
+    try{
+      if(agariFlow?.active&&agariFlow.step==='score'){
+        agariFlow.currentScoreSelection=null;
+        const next=document.getElementById('score-next-button');
+        if(next)next.disabled=true;
+        document.querySelectorAll('#agari-overlay .score-cell.selected,#agari-overlay .limit-button.selected')
+          .forEach(x=>x.classList.remove('selected'));
+        const summary=document.querySelector('#agari-overlay .score-selected-summary');
+        if(summary)summary.textContent='ドラ変更後の推奨点数を選び直してください';
+      }
+    }catch(_){}
+  }
+
+  function refreshRecommendationForDora(){
+    const ctx=context();
+    if(!registeredFor(ctx))return;
+    const base=window.m8BaseYakuBreakdownV118;
+    if(base&&window.M8V22?.publishRecommendation){
+      window.M8V22.publishRecommendation(document.getElementById('m8-context-v5'),base);
+    }else{
+      window.dispatchEvent(new CustomEvent('maki:dora-changed',{detail:{...effectiveDoraState(ctx)}}));
+      requestAnimationFrame(decorateLimitRecommendation);
+    }
+  }
+
+  function setDoraCount(kind,value,ctx=context()){
+    if(!['dora','aka','ura'].includes(kind))return false;
+    if(kind==='ura'&&!winnerIsRiichi(ctx))value=0;
+    const state=doraStateFor(ctx,true);
+    state[kind]=normalizedDoraCount(value);
+    state.updatedAt=Date.now();
+    invalidateScoreSelectionForDoraChange();
+    renderDoraControls();
+    refreshRecommendationForDora();
+    return true;
+  }
+
+  function adjustDora(kind,delta){
+    const ctx=context(),state=doraStateFor(ctx,true);
+    return setDoraCount(kind,normalizedDoraCount(state[kind])+Number(delta||0),ctx);
+  }
+
+  function renderDoraControls(){
+    const panel=document.getElementById('maki-hand-entry-v111');
+    if(!panel)return;
+    const ctx=context(),state=doraStateFor(ctx,true),effective=effectiveDoraState(ctx),riichi=effective.riichi;
+    for(const kind of ['dora','aka','ura']){
+      const row=panel.querySelector('.maki-v118-dora-counter[data-kind="'+kind+'"]');
+      if(!row)continue;
+      const disabled=kind==='ura'&&!riichi;
+      row.classList.toggle('disabled',disabled);
+      row.querySelector('.maki-v118-dora-value').textContent=String(kind==='ura'&&!riichi?0:normalizedDoraCount(state[kind]));
+      row.querySelectorAll('button').forEach(b=>b.disabled=disabled);
+    }
+    const total=effective.dora+effective.aka+effective.ura;
+    const totalEl=panel.querySelector('.maki-v118-dora-total');
+    if(totalEl)totalEl.textContent=total?('合計 +'+total+'翻'):'合計 0翻';
+    const note=panel.querySelector('.maki-v118-dora-note');
+    if(note)note.textContent=riichi
+      ?'ドラは役ではありません。裏ドラも加算します。'
+      :'ドラは役ではありません。裏ドラはリーチ時のみ入力できます。';
+  }
+
   function mountScoreHandEntry(){
     const table=document.querySelector('#agari-overlay .score-switch-table');
     if(!table)return;
@@ -236,13 +398,38 @@
           <button type="button" class="maki-v111-manual">⌨️ 手動入力</button>
         </div>
         <div class="maki-v111-status">どちらかで14枚を登録すると、役・符判定へ進みます</div>
+        <div class="maki-v118-dora" aria-label="ドラ入力">
+          <div class="maki-v118-dora-head">
+            <span class="maki-v118-dora-title">ドラ入力</span>
+            <span class="maki-v118-dora-total">合計 0翻</span>
+          </div>
+          <div class="maki-v118-dora-grid">
+            <div class="maki-v118-dora-counter" data-kind="dora">
+              <span class="maki-v118-dora-label">ドラ</span><button type="button" data-dora-step="-1">−</button><strong class="maki-v118-dora-value">0</strong><button type="button" data-dora-step="1">＋</button>
+            </div>
+            <div class="maki-v118-dora-counter" data-kind="aka">
+              <span class="maki-v118-dora-label">赤ドラ</span><button type="button" data-dora-step="-1">−</button><strong class="maki-v118-dora-value">0</strong><button type="button" data-dora-step="1">＋</button>
+            </div>
+            <div class="maki-v118-dora-counter" data-kind="ura">
+              <span class="maki-v118-dora-label">裏ドラ</span><button type="button" data-dora-step="-1">−</button><strong class="maki-v118-dora-value">0</strong><button type="button" data-dora-step="1">＋</button>
+            </div>
+          </div>
+          <div class="maki-v118-dora-note"></div>
+        </div>
       `;
       table.insertAdjacentElement('beforebegin',panel);
       panel.querySelector('.maki-v111-camera').addEventListener('click',openCameraFromScore);
       panel.querySelector('.maki-v111-manual').addEventListener('click',openManualEntry);
+      panel.querySelectorAll('[data-dora-step]').forEach(button=>{
+        button.addEventListener('click',()=>{
+          const row=button.closest('.maki-v118-dora-counter');
+          adjustDora(row?.dataset.kind,Number(button.dataset.doraStep||0));
+        });
+      });
     }
 
     panel.querySelector('.maki-v111-context').textContent=contextText(ctx);
+    renderDoraControls();
     const saved=registeredFor(ctx);
     panel.querySelector('.maki-v111-status').textContent=saved
       ?((saved.source==='manual'?'手動':'カメラ')+'で14枚登録済み ✓　変更する場合は上のボタンから登録し直せます')
@@ -545,6 +732,11 @@
     }
   }catch(_){}
 
+  document.getElementById('agari-button')?.addEventListener('click',()=>{
+    window.MAKIDoraStatesV118={};
+    window.m8BaseYakuBreakdownV118=null;
+  });
+
   const observer=new MutationObserver(mutations=>{
     let score=false,result=false;
     for(const m of mutations){
@@ -573,13 +765,24 @@
     setTimeout(decorateM8Context,100);
   },{passive:true});
 
+  window.MAKIV118Dora=Object.freeze({
+    contextKey:doraContextKey,
+    state:doraStateFor,
+    effective:effectiveDoraState,
+    setCount:setDoraCount,
+    adjust:adjustDora,
+    applyToRecommendation:applyDoraToRecommendation,
+    render:renderDoraControls
+  });
+
   window.MAKIV111=Object.freeze({
     mountScoreHandEntry,
     openManualEntry,
     decorateM8Context,
     decorateLimitRecommendation,
     suggestedLimitKey,
-    context
+    context,
+    renderDoraControls
   });
 
   mountScoreHandEntry();
