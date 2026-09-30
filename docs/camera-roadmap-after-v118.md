@@ -19,11 +19,15 @@
 4. v121: redInkShare runtime hotfix. ✅
    - YOLO crop経路の未定義変数で全14枚fallbackする実機回帰を修正
    - Chromiumで対象helperを直接実行する回帰テストを追加
-5. v122 next: camera meld/kan support.
+5. v122: manual red-five correction metadata. ✅
+   - 要確認牌の手修正で赤5萬/赤5筒/赤5索を明示選択可能
+   - 赤5を通常5へ戻す時はaka metadataを確実に消去
+   - 赤5cropを通常5のlegacyテンプレートへ学習しない
+6. v123 next: camera meld/kan support.
    - チー / ポン / 明槓 / 暗槓（可能なら加槓）
    - 横向き牌・4枚組などを手牌本体と別領域として扱う
    - 既存の m8MeldStateV21（pon / minkan / ankan）へ接続
-6. Final ideal: shutterless auto-freeze.
+7. Final ideal: shutterless auto-freeze.
    - カメラをかざして、14枚の配置が一定時間安定したら自動で1フレームを凍結
    - 凍結した瞬間にライブ映像を停止/暗転し、その保存フレームだけで認識を続行
    - 暗転後はスマホを牌から離してよい状態にする
