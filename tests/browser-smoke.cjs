@@ -1658,6 +1658,22 @@ const server=http.createServer((req,res)=>{
     assert.equal(v119CameraDora.after?.aka,1,'v119 camera red-five metadata must set aka-dora count '+JSON.stringify(v119CameraDora));
     assert.equal(await page.evaluate(()=>!!document.querySelector('#maki-hand-entry-v111 .maki-v119-dora-camera')),true,
       'v119 dora indicator camera button missing');
+
+    const v120RedRepair=await page.evaluate(()=>{
+      const camera=window.M7CameraV36;
+      const raws=['3p','4p','0s','4m','5m','6m','3s','4s','5s','5p','5p','5p','5s','5s'];
+      const yolo=camera.yoloRecognitionFromBoxes(raws.map((label,i)=>({label,score:i===8?.41:(i===11?.63:.85),classMargin:.6,crossViewCount:1,crossViewSupport:1,crossViewShare:1,crossViewMargin:1})));
+      const redShares=Array(14).fill(.10);redShares[2]=.70;redShares[8]=.48;
+      const repaired=camera.repairRedFiveRecognition(yolo,redShares,true);
+      return repaired.map(x=>({raw:x.rawLabel,label:x.label,repair:x.redRepair||'',red:Number(x.redInkShare||0)}));
+    });
+    assert.equal(v120RedRepair[2].raw,'0p','v120 must repair screenshot-like red 5-pin misread as 0s '+JSON.stringify(v120RedRepair));
+    assert.equal(v120RedRepair[2].label,'5筒','v120 repaired red 5-pin must remain app tile 5筒 '+JSON.stringify(v120RedRepair));
+    assert.equal(v120RedRepair[2].repair,'context-suit','v120 red 5-pin context repair marker missing '+JSON.stringify(v120RedRepair));
+    assert.equal(v120RedRepair[8].raw,'0s','v120 visually-red 5-sou must become aka raw label '+JSON.stringify(v120RedRepair));
+    assert.equal(v120RedRepair[8].label,'5索','v120 visually-red 5-sou must keep app tile 5索 '+JSON.stringify(v120RedRepair));
+    assert.equal(v120RedRepair[8].repair,'visual-red','v120 visual red marker missing '+JSON.stringify(v120RedRepair));
+    assert.equal(v120RedRepair[10].raw,'5p','v120 ordinary 5-pin must not be promoted to aka '+JSON.stringify(v120RedRepair));
     await page.click('#maki-hand-entry-v111 .maki-v111-manual');
     await page.waitForSelector('#maki-manual-hand-v111',{visible:true,timeout:4000});
     assert.equal(await page.evaluate(()=>document.querySelectorAll('#maki-manual-hand-v111 .maki-v111-slot').length),14,'v111 manual entry must have 14 slots');
