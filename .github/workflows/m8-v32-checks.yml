@@ -93,6 +93,7 @@ on:
       - work/maki-v113-14dup-missing-slot
       - work/maki-v114-manual-tile-ui-limit-highlight
       - work/maki-v115-chuuren-and-compact-manual-grid
+      - work/maki-v116-yaku-breakdown-and-stale-yakuman-fix
   workflow_dispatch:
 
 jobs:
