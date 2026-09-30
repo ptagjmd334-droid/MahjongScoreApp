@@ -22624,17 +22624,40 @@ if (
       b.textContent=option.name;
       b.dataset.tileName=option.name;
       b.dataset.tileGlyph=window.MAHJONG_TILE_GLYPHS_M7?.[option.tile]||'';
+      b.dataset.m7v122RedRaw=option.raw;
+      b.dataset.m7v122BaseTile=option.tile;
       b.className='tile-picker-red-m7v122';
-      b.onclick=()=>{ applyTileChoiceM7V122(tileButton,option); picker.remove(); updateResultStatusM7V5(); };
       redRow.appendChild(b);
     });
     grid.insertAdjacentElement('beforebegin',redRow);
 
     TILE_OPTIONS_M7V5.forEach(name=>{
       const b=document.createElement('button'); b.type='button'; b.textContent=name;
-      b.onclick=()=>{ applyTileChoiceM7V122(tileButton,{name,tile:name,raw:''}); picker.remove(); updateResultStatusM7V5(); };
+      b.dataset.m7v122NormalTile=name;
       grid.appendChild(b);
     });
+
+    // Capture at the picker itself so later legacy/suggestion handlers cannot
+    // keep stale aka metadata when the user explicitly chooses a normal five.
+    picker.addEventListener('click',e=>{
+      const red=e.target.closest?.('.tile-picker-red-m7v122');
+      if(red&&picker.contains(red)){
+        e.preventDefault();e.stopImmediatePropagation();
+        applyTileChoiceM7V122(tileButton,{
+          name:red.dataset.tileName||red.textContent.trim(),
+          tile:red.dataset.m7v122BaseTile||'',
+          raw:red.dataset.m7v122RedRaw||''
+        });
+        picker.remove();updateResultStatusM7V5();return;
+      }
+      const normal=e.target.closest?.('.tile-picker-grid-m7v5 button[data-m7v122-normal-tile]');
+      if(normal&&picker.contains(normal)){
+        e.preventDefault();e.stopImmediatePropagation();
+        const name=normal.dataset.m7v122NormalTile;
+        applyTileChoiceM7V122(tileButton,{name,tile:name,raw:''});
+        picker.remove();updateResultStatusM7V5();
+      }
+    },true);
     picker.querySelector('.tile-picker-cancel-m7v5').onclick=()=>picker.remove();
     document.body.appendChild(picker);
   }
