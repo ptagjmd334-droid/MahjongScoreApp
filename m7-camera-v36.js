@@ -3955,7 +3955,7 @@
         const url=state.pendingCrops[i];
         if(url){b.classList.add('m7v36-crop');b.style.backgroundImage=`url("${url}")`;b.dataset.m7v36Index=String(i);}
         const rawRed=state.pendingRawLabels[i]||'';
-        if(rawRed){
+        if(rawRed&&b.dataset.m7v122ManualCorrection!=='1'){
           b.dataset.m7v119RawLabel=rawRed;
           b.dataset.m7v122Red='1';
           b.classList.add('m7v122-red');
