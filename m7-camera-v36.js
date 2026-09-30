@@ -3948,7 +3948,12 @@
         const url=state.pendingCrops[i];
         if(url){b.classList.add('m7v36-crop');b.style.backgroundImage=`url("${url}")`;b.dataset.m7v36Index=String(i);}
         const rawRed=state.pendingRawLabels[i]||'';
-        if(rawRed)b.dataset.m7v119RawLabel=rawRed;
+        if(rawRed){
+          b.dataset.m7v119RawLabel=rawRed;
+          b.dataset.m7v122Red='1';
+          b.classList.add('m7v122-red');
+          b.setAttribute('aria-label','赤'+(b.dataset.tile||''));
+        }
         const suggestions=(state.predictionDebug?.[i]||[]).map(x=>x.label).filter(Boolean);
         if(suggestions.length){
           b.dataset.m7v39Suggestions=JSON.stringify(suggestions.slice(0,3));
@@ -4196,11 +4201,8 @@
     return promise;
   }
 
-  // Start persistence as soon as the verified-hand button is pressed.
-  // ui-fixes waits for this exact promise before leaving the result screen.
-  document.addEventListener('click',e=>{
-    const ok=e.target.closest?.('.hand-result-ok-m7v5');if(!ok)return;
-    const root=document.getElementById('hand-result-overlay-m7v5');if(!root)return;
+  function cameraHandMetaFromResultV122(root=document.getElementById('hand-result-overlay-m7v5')){
+    if(!root)return null;
     const buttons=[...root.querySelectorAll('.hand-result-tile-m7v5')];
     const tiles=buttons.map(b=>b.dataset.tile||'');
     const rawLabels=buttons.map((b,i)=>{
@@ -4208,12 +4210,20 @@
       const normalized=yoloLabelToAppTile(raw);
       return raw&&normalized===tiles[i]?raw:'';
     });
-    window.MAKILastCameraHandMetaV119={
+    return {
       tiles:tiles.slice(),
       rawLabels:rawLabels.slice(),
       redCount:rawLabels.filter(x=>/^0[mps]$/.test(x)).length,
       createdAt:Date.now()
     };
+  }
+
+  // Start persistence as soon as the verified-hand button is pressed.
+  // ui-fixes waits for this exact promise before leaving the result screen.
+  document.addEventListener('click',e=>{
+    const ok=e.target.closest?.('.hand-result-ok-m7v5');if(!ok)return;
+    const root=document.getElementById('hand-result-overlay-m7v5');if(!root)return;
+    window.MAKILastCameraHandMetaV119=cameraHandMetaFromResultV122(root);
     const status=root.querySelector('.hand-result-status-m7v5');
     if(status)status.textContent='学習データを保存中…';
     persistVerifiedHand(root).then(result=>{
@@ -4226,6 +4236,6 @@
   },true);
 
   window.M7CameraV36=Object.freeze({
-    armCameraTapShield,sourceRectForCover,locateTileRow,splitRow,boxCropQuality,canvasCropQuality,rowCropQuality,selectRowByCropQuality,rescueBrokenBox,tripletCropQuality,applyLocalBoundaryDelta,rescueLocalBoundaries,detectorWindows,detectorIoU,detectorConsensusCluster,detectorNms,decodeYoloOutput,runYoloTileDetectorDiagnostic,detectorGeometryEvaluation,detectorSubsetCandidates,detectorMissingSlotsFit,detectorMissingSlotFit,detectorRecoverThirteenCandidates,detectorRecoverTwelveCandidates,detectorRecoverThirteenLowExtraCandidates,detectorRecoverFourteenDuplicateMissingCandidates,selectDetectorProductionBoxes,yoloLabelToAppTile,redInkShareFromCanvas,analyzeYoloTileBox,repairRedFiveRecognition,redFiveContextSuit,shouldRunLegacyClassifier,mountDetectorDiagnostic,yoloRecognitionFromBoxes,yoloDuplicateVisualConflicts,yoloNearDuplicateLabelConflicts,yoloSortedSuitOrderConflicts,yoloClassAmbiguityConflicts,yoloLegacyLabelConflicts,yoloLegacySuitConflicts,shouldRunLegacyVerifier,chooseYoloPrimaryRecognition,recoverWhiteDragonGaps,axisAlignedYoloFaceCanvas,analyzeYoloTileBox,applyDetectorProductionCrops,renderDetectorResult,detectorFailureUserText,boundaryLikelihoodDiagnostics,refineRowOuterEdges,fitGlobalRowGrid,splitRowBySeams,analyzeGuideCanvas,featureFromBox,tileFaceRect,descriptorFromCanvas,detectFaceGeometry,detectFaceQuad,canonicalizeCanvas,orientedFaceCanvas,perspectiveFaceCanvas,warpQuadToCanvas,trainingImageDataUrl,estimateBleedSafeShift,safeInsetWindow,chooseRecognitionWindow,innerRecognitionCanvas,innerRecognitionWindowCanvas,innerFeatureFromCanonical,inferenceFeatureViews,analyzeTileBox,loadTrainingSamples,rebuildLibraryFromTrainingImages,loadLibrary,activeLibrary,saveLibrary,saveLibraryDetailed,persistVerifiedHand,persistFailureText,persistFailureUserText,loadLegacyLibrary,legacyLibraryKeys,convertLegacyDirectFeature,cropResampleFeatureMap,confidenceAssessment,confidentCandidate,confidenceReasonSummary,renderPickerPhoto,renderPickerSuggestions,pickerCurrentIndex,schedulePickerSuggestionSync,attachPickerSuggestionObserver
+    armCameraTapShield,sourceRectForCover,locateTileRow,splitRow,boxCropQuality,canvasCropQuality,rowCropQuality,selectRowByCropQuality,rescueBrokenBox,tripletCropQuality,applyLocalBoundaryDelta,rescueLocalBoundaries,detectorWindows,detectorIoU,detectorConsensusCluster,detectorNms,decodeYoloOutput,runYoloTileDetectorDiagnostic,detectorGeometryEvaluation,detectorSubsetCandidates,detectorMissingSlotsFit,detectorMissingSlotFit,detectorRecoverThirteenCandidates,detectorRecoverTwelveCandidates,detectorRecoverThirteenLowExtraCandidates,detectorRecoverFourteenDuplicateMissingCandidates,selectDetectorProductionBoxes,yoloLabelToAppTile,redInkShareFromCanvas,analyzeYoloTileBox,repairRedFiveRecognition,redFiveContextSuit,shouldRunLegacyClassifier,mountDetectorDiagnostic,yoloRecognitionFromBoxes,yoloDuplicateVisualConflicts,yoloNearDuplicateLabelConflicts,yoloSortedSuitOrderConflicts,yoloClassAmbiguityConflicts,yoloLegacyLabelConflicts,yoloLegacySuitConflicts,shouldRunLegacyVerifier,chooseYoloPrimaryRecognition,recoverWhiteDragonGaps,axisAlignedYoloFaceCanvas,analyzeYoloTileBox,applyDetectorProductionCrops,renderDetectorResult,detectorFailureUserText,boundaryLikelihoodDiagnostics,refineRowOuterEdges,fitGlobalRowGrid,splitRowBySeams,analyzeGuideCanvas,featureFromBox,tileFaceRect,descriptorFromCanvas,detectFaceGeometry,detectFaceQuad,canonicalizeCanvas,orientedFaceCanvas,perspectiveFaceCanvas,warpQuadToCanvas,trainingImageDataUrl,estimateBleedSafeShift,safeInsetWindow,chooseRecognitionWindow,innerRecognitionCanvas,innerRecognitionWindowCanvas,innerFeatureFromCanonical,inferenceFeatureViews,analyzeTileBox,loadTrainingSamples,rebuildLibraryFromTrainingImages,loadLibrary,activeLibrary,saveLibrary,saveLibraryDetailed,persistVerifiedHand,cameraHandMetaFromResultV122,persistFailureText,persistFailureUserText,loadLegacyLibrary,legacyLibraryKeys,convertLegacyDirectFeature,cropResampleFeatureMap,confidenceAssessment,confidentCandidate,confidenceReasonSummary,renderPickerPhoto,renderPickerSuggestions,pickerCurrentIndex,schedulePickerSuggestionSync,attachPickerSuggestionObserver
   });
 })();
