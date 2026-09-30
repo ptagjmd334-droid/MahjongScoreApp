@@ -4,13 +4,13 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>MAKI｜麻雀対局管理</title>
-  <link rel="manifest" href="manifest.webmanifest?v=m7v113">
+  <link rel="manifest" href="manifest.webmanifest?v=m7v114">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="MAKI">
   <meta name="application-name" content="MAKI">
-  <link rel="apple-touch-icon" href="icon-180.png?v=m7v113">
-  <link rel="stylesheet" href="style.css?v=m7v113">
+  <link rel="apple-touch-icon" href="icon-180.png?v=m7v114">
+  <link rel="stylesheet" href="style.css?v=m7v114">
 </head>
 <body>
   <section id="setup-screen" class="screen active">
@@ -49,34 +49,34 @@
   </section>
   <div id="riichi-cancel-modal" class="modal hidden"><div class="modal-card"><h2>リーチを取り消しますか？</h2><p id="riichi-cancel-text"></p><div class="modal-buttons"><button id="riichi-cancel-back" class="modal-secondary">戻る</button><button id="riichi-cancel-confirm" class="modal-danger">取り消す</button></div></div></div>
   <div id="landscape-orientation-guard" aria-hidden="true"><div class="landscape-orientation-card"><div class="landscape-phone-icon">↻</div><strong>横向きにしてください</strong><span>このアプリは横画面専用です</span></div></div>
-  <div id="app-build-badge" style="position:fixed;left:max(8px,env(safe-area-inset-left));bottom:max(6px,env(safe-area-inset-bottom));z-index:1000000;background:rgba(0,0,0,.72);color:#fff;border-radius:999px;padding:4px 9px;font:700 11px/1.2 -apple-system,BlinkMacSystemFont,sans-serif;pointer-events:none;opacity:.88">MAKI v113</div>
+  <div id="app-build-badge" style="position:fixed;left:max(8px,env(safe-area-inset-left));bottom:max(6px,env(safe-area-inset-bottom));z-index:1000000;background:rgba(0,0,0,.72);color:#fff;border-radius:999px;padding:4px 9px;font:700 11px/1.2 -apple-system,BlinkMacSystemFont,sans-serif;pointer-events:none;opacity:.88">MAKI v114</div>
   <script>
-    (()=>{const badge=document.getElementById('app-build-badge');if(!badge)return;badge.hidden=false;window.MAKIDebugV113={apply(){badge.hidden=false;return true;}};window.MAKIDebugV112=window.MAKIDebugV113;window.MAKIDebugV111=window.MAKIDebugV113;window.MAKIDebugV110=window.MAKIDebugV113;window.MAKIDebugV109=window.MAKIDebugV110;window.MAKIDebugV108=window.MAKIDebugV110;window.MAKIDebugV107=window.MAKIDebugV110;window.MAKIDebugV106=window.MAKIDebugV110;window.MAKIDebugV105=window.MAKIDebugV110;window.MAKIDebugV104=window.MAKIDebugV110;window.MAKIDebugV103=window.MAKIDebugV110;window.MAKIDebugV102=window.MAKIDebugV110;window.MAKIDebugV101=window.MAKIDebugV110;window.MAKIDebugV100=window.MAKIDebugV110;window.MAKIDebugV99=window.MAKIDebugV110;window.MAKIDebugV98=window.MAKIDebugV110;window.MAKIDebugV97=window.MAKIDebugV110;window.MAKIDebugV96=window.MAKIDebugV110;window.MAKIDebugV95=window.MAKIDebugV110;window.MAKIDebugV94=window.MAKIDebugV110;window.MAKIDebugV93=window.MAKIDebugV110;window.MAKIDebugV92=window.MAKIDebugV110;window.MAKIDebugV91=window.MAKIDebugV110;window.MAKIDebugV90=window.MAKIDebugV110;window.MAKIDebugV89=window.MAKIDebugV110;})();
+    (()=>{const badge=document.getElementById('app-build-badge');if(!badge)return;badge.hidden=false;window.MAKIDebugV114={apply(){badge.hidden=false;return true;}};window.MAKIDebugV113=window.MAKIDebugV114;window.MAKIDebugV112=window.MAKIDebugV114;window.MAKIDebugV111=window.MAKIDebugV113;window.MAKIDebugV110=window.MAKIDebugV113;window.MAKIDebugV109=window.MAKIDebugV110;window.MAKIDebugV108=window.MAKIDebugV110;window.MAKIDebugV107=window.MAKIDebugV110;window.MAKIDebugV106=window.MAKIDebugV110;window.MAKIDebugV105=window.MAKIDebugV110;window.MAKIDebugV104=window.MAKIDebugV110;window.MAKIDebugV103=window.MAKIDebugV110;window.MAKIDebugV102=window.MAKIDebugV110;window.MAKIDebugV101=window.MAKIDebugV110;window.MAKIDebugV100=window.MAKIDebugV110;window.MAKIDebugV99=window.MAKIDebugV110;window.MAKIDebugV98=window.MAKIDebugV110;window.MAKIDebugV97=window.MAKIDebugV110;window.MAKIDebugV96=window.MAKIDebugV110;window.MAKIDebugV95=window.MAKIDebugV110;window.MAKIDebugV94=window.MAKIDebugV110;window.MAKIDebugV93=window.MAKIDebugV110;window.MAKIDebugV92=window.MAKIDebugV110;window.MAKIDebugV91=window.MAKIDebugV110;window.MAKIDebugV90=window.MAKIDebugV110;window.MAKIDebugV89=window.MAKIDebugV110;})();
   </script>
-  <script src="script.js?v=m7v113"></script>
-  <script src="m7-recognition-core.js?v=m7v113"></script>
-  <script src="m7-camera-v36.js?v=m7v113"></script>
-  <script src="ui-fixes.js?v=m7v113"></script>
-  <script src="m8-v3.js?v=m7v113"></script>
-  <script src="m8-v5.js?v=m7v113"></script>
-  <script src="m8-v6.js?v=m7v113"></script>
-  <script src="m8-v7.js?v=m7v113"></script>
-  <script src="m8-v8.js?v=m7v113"></script>
-  <script src="m8-v9.js?v=m7v113"></script>
-  <script src="m8-v12.js?v=m7v113"></script>
-  <script src="m8-v18.js?v=m7v113"></script>
-  <script src="m8-v19.js?v=m7v113"></script>
-  <script src="m8-scoring-core.js?v=m7v113"></script>
-  <script src="m8-v21.js?v=m7v113"></script>
-  <script src="m8-v22.js?v=m7v113"></script>
-  <script src="m8-v23.js?v=m7v113"></script>
-  <script src="m8-v24.js?v=m7v113"></script>
-  <script src="m8-v25.js?v=m7v113"></script>
-  <script src="m8-v26.js?v=m7v113"></script>
+  <script src="script.js?v=m7v114"></script>
+  <script src="m7-recognition-core.js?v=m7v114"></script>
+  <script src="m7-camera-v36.js?v=m7v114"></script>
+  <script src="ui-fixes.js?v=m7v114"></script>
+  <script src="m8-v3.js?v=m7v114"></script>
+  <script src="m8-v5.js?v=m7v114"></script>
+  <script src="m8-v6.js?v=m7v114"></script>
+  <script src="m8-v7.js?v=m7v114"></script>
+  <script src="m8-v8.js?v=m7v114"></script>
+  <script src="m8-v9.js?v=m7v114"></script>
+  <script src="m8-v12.js?v=m7v114"></script>
+  <script src="m8-v18.js?v=m7v114"></script>
+  <script src="m8-v19.js?v=m7v114"></script>
+  <script src="m8-scoring-core.js?v=m7v114"></script>
+  <script src="m8-v21.js?v=m7v114"></script>
+  <script src="m8-v22.js?v=m7v114"></script>
+  <script src="m8-v23.js?v=m7v114"></script>
+  <script src="m8-v24.js?v=m7v114"></script>
+  <script src="m8-v25.js?v=m7v114"></script>
+  <script src="m8-v26.js?v=m7v114"></script>
   
 
   
-  <script src="m8-v30.js?v=m7v113"></script>
-  <script src="maki-v111-hand-entry.js?v=m7v113"></script>\n  <script id="maki-v113-final-badge">(()=>{const b=document.getElementById('app-build-badge');if(b)b.textContent='MAKI v113';})();</script>
+  <script src="m8-v30.js?v=m7v114"></script>
+  <script src="maki-v111-hand-entry.js?v=m7v114"></script>\n  <script id="maki-v114-final-badge">(()=>{const b=document.getElementById('app-build-badge');if(b)b.textContent='MAKI v114';})();</script>
 </body>
 </html>
