@@ -22613,6 +22613,7 @@ if (
     document.getElementById('tile-picker-m7v5')?.remove();
     const picker=document.createElement('div');
     picker.id='tile-picker-m7v5'; picker.className='tile-picker-m7v5';
+    picker.__m7v122TileButton=tileButton;
     picker.innerHTML=`<div class="tile-picker-card-m7v5"><div class="tile-picker-title-m7v5">${index+1}枚目を修正</div><div class="tile-picker-grid-m7v5"></div><button type="button" class="tile-picker-cancel-m7v5">閉じる</button></div>`;
     const grid=picker.querySelector('.tile-picker-grid-m7v5');
     const redRow=document.createElement('div');
@@ -22637,30 +22638,33 @@ if (
       grid.appendChild(b);
     });
 
-    // Capture at the picker itself so later legacy/suggestion handlers cannot
-    // keep stale aka metadata when the user explicitly chooses a normal five.
-    picker.addEventListener('click',e=>{
-      const red=e.target.closest?.('.tile-picker-red-m7v122');
-      if(red&&picker.contains(red)){
-        e.preventDefault();e.stopImmediatePropagation();
-        applyTileChoiceM7V122(tileButton,{
-          name:red.dataset.tileName||red.textContent.trim(),
-          tile:red.dataset.m7v122BaseTile||'',
-          raw:red.dataset.m7v122RedRaw||''
-        });
-        picker.remove();updateResultStatusM7V5();return;
-      }
-      const normal=e.target.closest?.('.tile-picker-grid-m7v5 button[data-m7v122-normal-tile]');
-      if(normal&&picker.contains(normal)){
-        e.preventDefault();e.stopImmediatePropagation();
-        const name=normal.dataset.m7v122NormalTile;
-        applyTileChoiceM7V122(tileButton,{name,tile:name,raw:''});
-        picker.remove();updateResultStatusM7V5();
-      }
-    },true);
     picker.querySelector('.tile-picker-cancel-m7v5').onclick=()=>picker.remove();
     document.body.appendChild(picker);
   }
+
+  document.addEventListener('click',e=>{
+    const picker=e.target.closest?.('#tile-picker-m7v5');
+    if(!picker)return;
+    const tileButton=picker.__m7v122TileButton;
+    if(!tileButton)return;
+    const red=e.target.closest?.('.tile-picker-red-m7v122');
+    if(red&&picker.contains(red)){
+      e.preventDefault();e.stopImmediatePropagation();
+      applyTileChoiceM7V122(tileButton,{
+        name:red.dataset.tileName||red.textContent.trim(),
+        tile:red.dataset.m7v122BaseTile||'',
+        raw:red.dataset.m7v122RedRaw||''
+      });
+      picker.remove();updateResultStatusM7V5();return;
+    }
+    const normal=e.target.closest?.('.tile-picker-grid-m7v5 button[data-m7v122-normal-tile]');
+    if(normal&&picker.contains(normal)){
+      e.preventDefault();e.stopImmediatePropagation();
+      const name=normal.dataset.m7v122NormalTile;
+      applyTileChoiceM7V122(tileButton,{name,tile:name,raw:''});
+      picker.remove();updateResultStatusM7V5();
+    }
+  },true);
 
   window.MAKIV122RedCorrection=Object.freeze({
     redOptions:RED_TILE_OPTIONS_M7V122.map(x=>({...x})),
