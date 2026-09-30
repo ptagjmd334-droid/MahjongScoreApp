@@ -14,6 +14,7 @@
   style.textContent=`
     #m8v22-extra-yaku{margin:5px 0 6px;padding:6px 8px;border-radius:9px;background:#eef7f1;color:#173129;font-size:11px;font-weight:900;text-align:center}
     #m8v22-extra-yaku .sub{display:block;margin-top:2px;font-size:9px;font-weight:700;color:#526159}
+    #m8v116-han-breakdown{margin:3px 0 6px;padding:5px 8px;border-radius:8px;background:#f4f0e4;color:#24352d;font-size:10px;font-weight:900;text-align:center;line-height:1.35}
   `;
   document.head.appendChild(style);
 
@@ -133,6 +134,44 @@
     return 0;
   }
 
+  function normalItems(names,menzen){
+    const seen=new Set(),items=[];
+    for(const name of names){
+      if(seen.has(name))continue;
+      seen.add(name);
+      const han=baseHanFor(name,menzen);
+      if(han>0)items.push({name,han});
+    }
+    return items;
+  }
+  function breakdownText(items){
+    return items.map(x=>`${x.name} ${x.han}翻`).join(' ＋ ');
+  }
+  function renderBreakdown(panel,state){
+    let box=document.getElementById('m8v116-han-breakdown');
+    if(!box){
+      box=document.createElement('div');
+      box.id='m8v116-han-breakdown';
+      panel.querySelector('.m8v5-han')?.insertAdjacentElement('afterend',box);
+    }
+    if(state?.yakuman){
+      box.textContent=(state.items||[]).map(x=>x.name+'（役満）').join(' / ')||'役満';
+      return;
+    }
+    const items=state?.items||[];
+    box.textContent=items.length?`内訳：${breakdownText(items)} ＝ ${state.han}翻`:'内訳：判定できる役なし';
+  }
+  function publishRecommendation(panel,state){
+    window.m8YakuBreakdownV116={
+      han:state.yakuman?'yakuman':Number(state.han||0),
+      yakuman:!!state.yakuman,
+      items:(state.items||[]).map(x=>({...x})),
+      updatedAt:Date.now()
+    };
+    renderBreakdown(panel,window.m8YakuBreakdownV116);
+    window.dispatchEvent(new CustomEvent('maki:m8-recommendation-changed',{detail:window.m8YakuBreakdownV116}));
+  }
+
   function existingYaku(tiles,c){
     const j=window.judgeMahjongWinM8V4?.(tiles);const y=[...(j?.yaku||[])];
     if(c.winner){
@@ -165,7 +204,8 @@
     const tiles=getTiles();if(tiles.length!==14)return;
     const c=ctx();if(c.menzen==null)return;
     const existing=existingYaku(tiles,c);
-    const baseYakuman=existing.some(y=>yakumanNames.some(k=>y.includes(k)));
+    const baseYakumanNames=existing.filter(y=>yakumanNames.some(k=>y.includes(k)));
+    const baseYakuman=baseYakumanNames.length>0;
     const best=bestExtras(tiles,c);
     const extras=best.names.filter(n=>!existing.includes(n));
 
@@ -173,13 +213,22 @@
     if(!box){box=document.createElement('div');box.id='m8v22-extra-yaku';panel.querySelector('.m8v5-extra')?.before(box);}
     box.innerHTML=extras.length?`追加役判定：${extras.join(' / ')}<span class="sub">面子分解のうち翻数が最大になる成立形を採用</span>`:'追加役判定：該当なし';
 
-    if(baseYakuman)return;
-    const all=[...existing,...extras];
-    const han=all.reduce((s,n)=>s+baseHanFor(n,c.menzen),0);
     const hanBox=panel.querySelector('.m8v5-han');
-    if(hanBox&&han>0)hanBox.textContent=`現在判定できる範囲：${han}翻`;
-    if(han>0){window.m8SuggestedHanV22=han;window.m8SuggestedHanV9=han;window.m8SuggestedHanV6=han;}
+    if(baseYakuman){
+      if(hanBox)hanBox.textContent='現在の判定：役満';
+      window.m8SuggestedHanV22=null;window.m8SuggestedHanV9=null;window.m8SuggestedHanV6='yakuman';
+      publishRecommendation(panel,{yakuman:true,items:baseYakumanNames.map(name=>({name,han:'yakuman'}))});
+      return;
+    }
+
+    const all=[...existing,...extras];
+    const items=normalItems(all,c.menzen);
+    const han=items.reduce((s,x)=>s+x.han,0);
+    if(hanBox)hanBox.textContent=han>0?`現在判定できる範囲：${han}翻`:'現在判定できる範囲：0翻';
+    window.m8SuggestedHanV22=han||null;window.m8SuggestedHanV9=han||null;window.m8SuggestedHanV6=han||null;
+    publishRecommendation(panel,{yakuman:false,han,items});
   }
+  window.M8V22=Object.freeze({baseHanFor,normalItems,breakdownText,renderBreakdown,publishRecommendation,refresh});
   function queue(){if(queued)return;queued=true;requestAnimationFrame(refresh);}
 
   document.addEventListener('click',e=>{
