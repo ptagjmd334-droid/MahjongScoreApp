@@ -22590,6 +22590,7 @@ if (
   function applyTileChoiceM7V122(tileButton,{name,tile,raw=''}) {
     tileButton.textContent=name;
     tileButton.dataset.tile=tile;
+    tileButton.dataset.m7v122ManualCorrection='1';
     if(raw){
       tileButton.setAttribute('data-m7v119-raw-label',raw);
       tileButton.setAttribute('data-m7v122-red','1');
