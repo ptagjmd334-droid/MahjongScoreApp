@@ -1662,7 +1662,7 @@ const server=http.createServer((req,res)=>{
     const v120RedRepair=await page.evaluate(()=>{
       const camera=window.M7CameraV36;
       const raws=['3p','4p','0s','4m','5m','6m','3s','4s','5s','5p','5p','5p','5s','5s'];
-      const yolo=camera.yoloRecognitionFromBoxes(raws.map((label,i)=>({label,score:i===8?.41:(i===11?.63:.85),classMargin:.6,crossViewCount:1,crossViewSupport:1,crossViewShare:1,crossViewMargin:1})));
+      const yolo=camera.yoloRecognitionFromBoxes(raws.map((label,i)=>({label,score:i===8 ? .41 : (i===11 ? .63 : .85),classMargin:.6,crossViewCount:1,crossViewSupport:1,crossViewShare:1,crossViewMargin:1})));
       const redShares=Array(14).fill(.10);redShares[2]=.70;redShares[8]=.48;
       const repaired=camera.repairRedFiveRecognition(yolo,redShares,true);
       return repaired.map(x=>({raw:x.rawLabel,label:x.label,repair:x.redRepair||'',red:Number(x.redInkShare||0)}));
