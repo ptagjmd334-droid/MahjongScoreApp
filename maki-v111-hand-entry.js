@@ -575,6 +575,8 @@
     mountScoreHandEntry,
     openManualEntry,
     decorateM8Context,
+    decorateLimitRecommendation,
+    suggestedLimitKey,
     context
   });
 
