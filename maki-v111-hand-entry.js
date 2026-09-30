@@ -540,7 +540,7 @@
       const previous=renderScoreTable;
       renderScoreTable=function(...args){
         const result=previous.apply(this,args);
-        requestAnimationFrame(mountScoreHandEntry);
+        requestAnimationFrame(()=>{mountScoreHandEntry();decorateLimitRecommendation();});
         return result;
       };
       window.MAKIV111RenderWrapped=true;
