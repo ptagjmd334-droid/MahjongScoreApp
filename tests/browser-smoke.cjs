@@ -34,8 +34,8 @@ const server=http.createServer((req,res)=>{
     const errors=[];page.on('pageerror',e=>errors.push(String(e)));
     await page.goto('http://127.0.0.1:'+port+'/',{waitUntil:'domcontentloaded',timeout:30000});
     await page.waitForSelector('#go-confirm-button',{timeout:12000});
-    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'MAKI v115');
-    assert.equal(await page.$eval('#app-build-badge',e=>e.hidden),false,'v115 build badge should be visible during development');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'MAKI v116');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.hidden),false,'v116 build badge should be visible during development');
     assert(await page.evaluate(()=>!!window.M7V36CameraOwner),'v98 camera owner must bootstrap');
     await page.evaluate(()=>{
       const overlay=document.createElement('div');
@@ -650,10 +650,10 @@ const server=http.createServer((req,res)=>{
     assert.equal(manifestBrand.name,'MAKI');
     assert.equal(manifestBrand.short_name,'MAKI');
     assert.equal(manifestBrand.id,'./');
-    assert(manifestBrand.icons.every(x=>String(x.src).includes('v=m7v115')),'v109 manifest icons must use fresh cache keys '+JSON.stringify(manifestBrand.icons));
+    assert(manifestBrand.icons.every(x=>String(x.src).includes('v=m7v116')),'v109 manifest icons must use fresh cache keys '+JSON.stringify(manifestBrand.icons));
     assert.equal(await page.$eval('meta[name="apple-mobile-web-app-title"]',e=>e.content),'MAKI');
     assert.equal(await page.$eval('meta[name="application-name"]',e=>e.content),'MAKI');
-    assert((await page.$eval('link[rel="apple-touch-icon"]',e=>e.getAttribute('href'))).includes('v=m7v115'));
+    assert((await page.$eval('link[rel="apple-touch-icon"]',e=>e.getAttribute('href'))).includes('v=m7v116'));
     for(const size of [180,192,512]){
       const p=path.join(root,'icon-'+size+'.png');
       assert(fs.existsSync(p),'MAKI icon missing '+p);
@@ -1581,19 +1581,72 @@ const server=http.createServer((req,res)=>{
     assert(v115ManualUI.firstText.length>0,'v115 mahjong glyph missing '+JSON.stringify(v115ManualUI));
     await page.click('#maki-manual-hand-v111 .maki-v111-cancel');
     await page.waitForFunction(()=>!document.getElementById('maki-manual-hand-v111'),{timeout:3000});
-    const v115Limit=await page.evaluate(async()=>{
-      window.m8SuggestedHanV23=6;
-      window.MAKIV111?.decorateLimitRecommendation?.();
-      const active6=[...document.querySelectorAll('#agari-overlay .limit-button.maki-v111-limit-recommend')].map(x=>x.dataset.limit);
-      window.m8SuggestedHanV23='yakuman';
-      window.dispatchEvent(new CustomEvent('maki:m8-recommendation-changed',{detail:{han:'yakuman'}}));
+    const v116Breakdown=await page.evaluate(async()=>{
+      const panel=document.getElementById('m8-context-v5');
+      window.M8V22?.publishRecommendation?.(panel,{
+        yakuman:false,
+        han:9,
+        items:[
+          {name:'清一色',han:6},
+          {name:'三暗刻',han:2},
+          {name:'門前清自摸和',han:1}
+        ]
+      });
       await new Promise(requestAnimationFrame);
-      const activeYakuman=[...document.querySelectorAll('#agari-overlay .limit-button.maki-v111-limit-recommend')].map(x=>x.dataset.limit);
-      window.m8SuggestedHanV23=null;
-      return {active6,activeYakuman};
+      return {
+        text:document.getElementById('m8v116-han-breakdown')?.textContent||'',
+        state:window.m8YakuBreakdownV116
+      };
     });
-    assert.deepEqual(v115Limit.active6,['haneman'],'v115 6-han recommendation should highlight haneman '+JSON.stringify(v115Limit));
-    assert.deepEqual(v115Limit.activeYakuman,['yakuman'],'v115 yakuman update must clear stale haneman and highlight yakuman '+JSON.stringify(v115Limit));
+    assert(v116Breakdown.text.includes('清一色 6翻'),'v116 result breakdown must show yaku + han '+JSON.stringify(v116Breakdown));
+    assert(v116Breakdown.text.includes('三暗刻 2翻'),'v116 result breakdown missing 三暗刻 '+JSON.stringify(v116Breakdown));
+    assert(v116Breakdown.text.includes('門前清自摸和 1翻'),'v116 result breakdown missing tsumo '+JSON.stringify(v116Breakdown));
+    assert(v116Breakdown.text.includes('9翻'),'v116 result breakdown total missing '+JSON.stringify(v116Breakdown));
+
+    const v116StaleYakuman=await page.evaluate(async()=>{
+      // Reproduce the v115 report: the current hand is 7 han, but an old v23/v6
+      // global still says yakuman. The canonical current-hand state must win.
+      window.m8YakuBreakdownV116={
+        han:7,
+        yakuman:false,
+        items:[{name:'清一色',han:6},{name:'門前清自摸和',han:1}],
+        updatedAt:Date.now()
+      };
+      window.m8SuggestedHanV23='yakuman';
+      window.m8SuggestedHanV6='yakuman';
+      window.m8SuggestedHanV22=7;
+      window.m8SuggestedHanV9=7;
+      window.dispatchEvent(new CustomEvent('maki:m8-recommendation-changed',{detail:window.m8YakuBreakdownV116}));
+      await new Promise(requestAnimationFrame);
+      await new Promise(resolve=>setTimeout(resolve,80));
+      return {
+        key:window.MAKIV111?.suggestedLimitKey?.()||'',
+        active:[...document.querySelectorAll('#agari-overlay .limit-button.maki-v111-limit-recommend')].map(x=>x.dataset.limit),
+        summary:document.getElementById('m8v25-score-summary')?.textContent||''
+      };
+    });
+    assert.equal(v116StaleYakuman.key,'haneman','v116 stale yakuman must not override a current 7-han hand '+JSON.stringify(v116StaleYakuman));
+    assert.deepEqual(v116StaleYakuman.active,['haneman'],'v116 7-han hand must highlight haneman, not yakuman '+JSON.stringify(v116StaleYakuman));
+    assert(v116StaleYakuman.summary.includes('7翻'),'v116 score summary must explain current han '+JSON.stringify(v116StaleYakuman));
+    assert(v116StaleYakuman.summary.includes('清一色 6翻'),'v116 score summary must include yaku breakdown '+JSON.stringify(v116StaleYakuman));
+    assert(!v116StaleYakuman.summary.includes('役満 →'),'v116 score summary kept stale yakuman copy '+JSON.stringify(v116StaleYakuman));
+
+    const v116Yakuman=await page.evaluate(async()=>{
+      window.m8YakuBreakdownV116={
+        han:'yakuman',
+        yakuman:true,
+        items:[{name:'九蓮宝燈',han:'yakuman'}],
+        updatedAt:Date.now()
+      };
+      window.dispatchEvent(new CustomEvent('maki:m8-recommendation-changed',{detail:window.m8YakuBreakdownV116}));
+      await new Promise(requestAnimationFrame);
+      return {
+        active:[...document.querySelectorAll('#agari-overlay .limit-button.maki-v111-limit-recommend')].map(x=>x.dataset.limit),
+        summary:document.getElementById('m8v25-score-summary')?.textContent||''
+      };
+    });
+    assert.deepEqual(v116Yakuman.active,['yakuman'],'v116 current yakuman must still highlight yakuman '+JSON.stringify(v116Yakuman));
+    assert(v116Yakuman.summary.includes('九蓮宝燈（役満）'),'v116 yakuman summary should name the yakuman '+JSON.stringify(v116Yakuman));
     const v115NineGates=await page.evaluate(()=>{
       const pure=['1萬','1萬','1萬','2萬','3萬','4萬','5萬','5萬','6萬','7萬','8萬','9萬','9萬','9萬'];
       const ordinary=['1萬','1萬','1萬','1萬','2萬','3萬','4萬','5萬','6萬','7萬','8萬','9萬','9萬','9萬'];
