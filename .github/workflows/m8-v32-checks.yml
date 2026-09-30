@@ -95,6 +95,7 @@ on:
       - work/maki-v115-chuuren-and-compact-manual-grid
       - work/maki-v116-yaku-breakdown-and-stale-yakuman-fix
       - work/maki-v117-kokushi-yakuman-progress
+      - work/maki-v118-dora-foundation
   workflow_dispatch:
 
 jobs:
