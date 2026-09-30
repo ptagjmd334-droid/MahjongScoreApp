@@ -92,6 +92,7 @@ on:
       - work/maki-v112-13hybrid-white-run
       - work/maki-v113-14dup-missing-slot
       - work/maki-v114-manual-tile-ui-limit-highlight
+      - work/maki-v115-chuuren-and-compact-manual-grid
   workflow_dispatch:
 
 jobs:

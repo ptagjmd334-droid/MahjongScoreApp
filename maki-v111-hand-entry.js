@@ -2,7 +2,7 @@
 (()=>{
   'use strict';
 
-  const VERSION='MAKI v114';
+  const VERSION='MAKI v115';
   const TILES=[
     '1萬','2萬','3萬','4萬','5萬','6萬','7萬','8萬','9萬',
     '1筒','2筒','3筒','4筒','5筒','6筒','7筒','8筒','9筒',
@@ -60,45 +60,41 @@
       min-height:34px;padding:5px 12px;border:0;border-radius:9px;background:#dde2df;color:#173b2a;font-weight:900
     }
     #maki-manual-hand-v111 .maki-v111-slots{
-      display:grid;grid-template-columns:repeat(14,minmax(46px,1fr));gap:6px;margin:8px 0 10px
+      display:grid;grid-template-columns:repeat(14,minmax(36px,1fr));gap:4px;margin:4px 0 3px
     }
     #maki-manual-hand-v111 .maki-v111-slot{
-      min-width:0;min-height:72px;padding:4px;border:2px solid #d4c9aa;border-radius:12px;
-      background:linear-gradient(180deg,#fff,#f6f2e7);color:#17241e;font-size:11px;font-weight:900;
-      display:flex;align-items:center;justify-content:center;position:relative
+      min-width:0;height:45px;padding:2px;border:2px solid #d4c9aa;border-radius:8px;
+      background:#fff;color:#17241e;font-weight:900;display:flex;align-items:center;justify-content:center
     }
-    #maki-manual-hand-v111 .maki-v111-slot.active{border-color:#078cff;box-shadow:0 0 0 3px rgba(7,140,255,.18)}
-    #maki-manual-hand-v111 .maki-v111-slot.empty{color:#9b9587;background:#f2eee4}
-    #maki-manual-hand-v111 .maki-v111-slot-index{font-size:18px;line-height:1;font-weight:900;opacity:.85}
+    #maki-manual-hand-v111 .maki-v111-slot.active{border-color:#078cff;box-shadow:0 0 0 2px rgba(7,140,255,.18)}
+    #maki-manual-hand-v111 .maki-v111-slot.empty{color:#078cff;background:#fafafa}
+    #maki-manual-hand-v111 .maki-v111-slot-index{font-size:19px;line-height:1;font-weight:800}
     #maki-manual-hand-v111 .maki-v111-picker{
-      display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:7px
+      display:grid;grid-template-columns:1fr;gap:3px;margin-top:3px
     }
     #maki-manual-hand-v111 .maki-v111-group{
-      padding:8px;border-radius:12px;background:#ece8de;border:1px solid #d7d0c1
+      display:grid;grid-template-columns:42px minmax(0,1fr);align-items:center;gap:5px;
+      padding:3px 5px;border-radius:8px;background:#ece8de;border:1px solid #d7d0c1
     }
-    #maki-manual-hand-v111 .maki-v111-group b{display:block;font-size:12px;margin-bottom:6px}
+    #maki-manual-hand-v111 .maki-v111-group b{
+      display:block;margin:0;text-align:center;font-size:11px;white-space:nowrap
+    }
     #maki-manual-hand-v111 .maki-v111-tile-grid{
-      display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px
+      display:grid;grid-template-columns:repeat(9,minmax(0,1fr));gap:4px
     }
     #maki-manual-hand-v111 .maki-v111-tile{
-      min-height:56px;padding:4px 2px;border:1px solid #c9c2b4;border-radius:10px;background:linear-gradient(180deg,#fff,#f6f2e7);
-      color:#16261f;font-size:10px;font-weight:900;display:flex;align-items:center;justify-content:center
+      height:45px;min-height:45px;padding:1px;border:1px solid #c9c2b4;border-radius:7px;background:#fff;
+      color:#16261f;font-weight:900;display:flex;align-items:center;justify-content:center;overflow:hidden
     }
     #maki-manual-hand-v111 .maki-v111-tile:disabled{opacity:.34}
     #maki-manual-hand-v111 .maki-v111-face{
-      width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:space-between;
-      border-radius:8px;background:linear-gradient(180deg,#ffffff,#fbf7ed);border:1px solid rgba(186,176,150,.55);
-      box-shadow:inset 0 -1px 0 rgba(0,0,0,.06);padding:3px 1px
+      width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:#fff;border-radius:6px
     }
-    #maki-manual-hand-v111 .maki-v111-slot .maki-v111-face{padding:5px 2px}
-    #maki-manual-hand-v111 .maki-v111-face-rank{font-size:14px;line-height:1;font-weight:900}
-    #maki-manual-hand-v111 .maki-v111-face-suit{font-size:23px;line-height:1.05;font-weight:900}
-    #maki-manual-hand-v111 .maki-v111-face-label{font-size:9px;line-height:1;font-weight:800;opacity:.82}
-    #maki-manual-hand-v111 .maki-v111-honor .maki-v111-face-main{font-size:28px;line-height:1.08;font-weight:900;margin:auto 0}
-    #maki-manual-hand-v111 .maki-v111-suit-man .maki-v111-face-rank,#maki-manual-hand-v111 .maki-v111-suit-man .maki-v111-face-suit,#maki-manual-hand-v111 .maki-v111-honor-white .maki-v111-face-main{color:#c6382c}
-    #maki-manual-hand-v111 .maki-v111-suit-pin .maki-v111-face-rank,#maki-manual-hand-v111 .maki-v111-suit-pin .maki-v111-face-suit,#maki-manual-hand-v111 .maki-v111-honor-east .maki-v111-face-main,#maki-manual-hand-v111 .maki-v111-honor-south .maki-v111-face-main,#maki-manual-hand-v111 .maki-v111-honor-west .maki-v111-face-main,#maki-manual-hand-v111 .maki-v111-honor-north .maki-v111-face-main{color:#1e2a24}
-    #maki-manual-hand-v111 .maki-v111-suit-sou .maki-v111-face-rank,#maki-manual-hand-v111 .maki-v111-suit-sou .maki-v111-face-suit,#maki-manual-hand-v111 .maki-v111-honor-green .maki-v111-face-main{color:#15754e}
-    #maki-manual-hand-v111 .maki-v111-honor-red .maki-v111-face-main{color:#c6382c}
+    #maki-manual-hand-v111 .maki-v111-glyph{
+      display:block;font-family:"Apple Symbols","Noto Sans Symbols 2","Segoe UI Symbol",sans-serif;
+      font-size:31px;line-height:1;transform:translateY(-1px)
+    }
+    #maki-manual-hand-v111 .maki-v111-slot .maki-v111-glyph{font-size:30px}
     #maki-manual-hand-v111 .maki-v111-error{
       min-height:17px;margin:5px 0 0;color:#b33;font-size:11px;font-weight:900;text-align:center
     }
@@ -133,14 +129,19 @@
       #maki-hand-entry-v111{padding:5px 7px;margin:2px 0 4px}
       #maki-hand-entry-v111 .maki-v111-head{margin-bottom:3px}
       #maki-hand-entry-v111 button{min-height:31px;padding:4px 7px;font-size:11px}
-      #maki-manual-hand-v111 .maki-v111-card{padding:8px 10px}
-      #maki-manual-hand-v111 h2{font-size:17px}
-      #maki-manual-hand-v111 .maki-v111-slots{margin:4px 0}
-      #maki-manual-hand-v111 .maki-v111-slot{min-height:58px;font-size:10px}
-      #maki-manual-hand-v111 .maki-v111-picker{gap:4px;margin-top:4px}
-      #maki-manual-hand-v111 .maki-v111-group{padding:4px}
-      #maki-manual-hand-v111 .maki-v111-tile{min-height:44px;font-size:9px}
-      #maki-manual-hand-v111 .maki-v111-footer{margin-top:4px}
+      #maki-manual-hand-v111 .maki-v111-card{padding:7px 9px;max-height:calc(100dvh - 8px);overflow:hidden}
+      #maki-manual-hand-v111 h2{font-size:16px}
+      #maki-manual-hand-v111 .maki-v111-help{font-size:10px}
+      #maki-manual-hand-v111 .maki-v111-manual-head{margin-bottom:2px}
+      #maki-manual-hand-v111 .maki-v111-slots{margin:2px 0}
+      #maki-manual-hand-v111 .maki-v111-slot{height:39px;min-height:39px}
+      #maki-manual-hand-v111 .maki-v111-picker{gap:2px;margin-top:2px}
+      #maki-manual-hand-v111 .maki-v111-group{padding:2px 4px}
+      #maki-manual-hand-v111 .maki-v111-tile{height:39px;min-height:39px}
+      #maki-manual-hand-v111 .maki-v111-glyph{font-size:27px}
+      #maki-manual-hand-v111 .maki-v111-slot .maki-v111-glyph{font-size:26px}
+      #maki-manual-hand-v111 .maki-v111-error{min-height:12px;margin:1px 0 0;font-size:9px}
+      #maki-manual-hand-v111 .maki-v111-footer{margin-top:2px}
       #maki-manual-hand-v111 .maki-v111-footer button{min-height:31px}
     }
   `;
@@ -274,26 +275,16 @@
     return out;
   }
 
-  function tileFaceInfo(tile){
-    if(!tile)return null;
-    const suitMap={萬:{cls:'maki-v111-suit-man'},筒:{cls:'maki-v111-suit-pin'},索:{cls:'maki-v111-suit-sou'}};
-    const honorMap={東:{cls:'maki-v111-honor maki-v111-honor-east'},南:{cls:'maki-v111-honor maki-v111-honor-south'},西:{cls:'maki-v111-honor maki-v111-honor-west'},北:{cls:'maki-v111-honor maki-v111-honor-north'},白:{cls:'maki-v111-honor maki-v111-honor-white'},發:{cls:'maki-v111-honor maki-v111-honor-green'},中:{cls:'maki-v111-honor maki-v111-honor-red'}};
-    const m=String(tile).match(/^(\d)([萬筒索])$/);
-    if(m)return {kind:'suit',cls:suitMap[m[2]].cls,rank:m[1],symbol:m[2],label:tile};
-    if(honorMap[tile])return {kind:'honor',cls:honorMap[tile].cls,main:tile,label:tile};
-    return {kind:'text',cls:'',main:String(tile),label:tile};
-  }
+  const TILE_GLYPHS={
+    '東':'🀀','南':'🀁','西':'🀂','北':'🀃','中':'🀄','發':'🀅','白':'🀆',
+    '1萬':'🀇','2萬':'🀈','3萬':'🀉','4萬':'🀊','5萬':'🀋','6萬':'🀌','7萬':'🀍','8萬':'🀎','9萬':'🀏',
+    '1索':'🀐','2索':'🀑','3索':'🀒','4索':'🀓','5索':'🀔','6索':'🀕','7索':'🀖','8索':'🀗','9索':'🀘',
+    '1筒':'🀙','2筒':'🀚','3筒':'🀛','4筒':'🀜','5筒':'🀝','6筒':'🀞','7筒':'🀟','8筒':'🀠','9筒':'🀡'
+  };
 
   function tileFaceHTML(tile){
-    const info=tileFaceInfo(tile);
-    if(!info)return '';
-    if(info.kind==='suit'){
-      return `<span class="maki-v111-face ${info.cls}"><span class="maki-v111-face-rank">${info.rank}</span><span class="maki-v111-face-suit">${info.symbol}</span><span class="maki-v111-face-label">${info.label}</span></span>`;
-    }
-    if(info.kind==='honor'){
-      return `<span class="maki-v111-face ${info.cls}"><span class="maki-v111-face-main">${info.main}</span><span class="maki-v111-face-label">${info.label}</span></span>`;
-    }
-    return `<span class="maki-v111-face"><span class="maki-v111-face-main">${info.main}</span><span class="maki-v111-face-label">${info.label}</span></span>`;
+    const glyph=TILE_GLYPHS[tile]||String(tile||'');
+    return `<span class="maki-v111-face"><span class="maki-v111-glyph" aria-hidden="true">${glyph}</span></span>`;
   }
 
   function openManualEntry(){
@@ -315,7 +306,7 @@
     root.innerHTML=`
       <div class="maki-v111-card" role="dialog" aria-modal="true" aria-label="手牌を手動入力">
         <div class="maki-v111-manual-head">
-          <div><h2>手牌を手動入力</h2><div class="maki-v111-help">14枚を順番に選択してください。入力済みの枠をタップすると、その位置だけ変更できます。</div></div>
+          <div><h2>手牌を連続入力</h2><div class="maki-v111-help">選ぶと自動で次へ。上の1〜14をタップすると、その位置だけ変更できます。</div></div>
           <button type="button" class="maki-v111-close">閉じる</button>
         </div>
         <div class="maki-v111-slots"></div>
@@ -344,7 +335,7 @@
     }
 
     for(const [name,tiles] of GROUPS){
-      const box=document.createElement('section');box.className='maki-v111-group';
+      const box=document.createElement('section');box.className='maki-v111-group';box.dataset.group=name;
       const title=document.createElement('b');title.textContent=name;box.appendChild(title);
       const grid=document.createElement('div');grid.className='maki-v111-tile-grid';
       for(const tile of tiles){
@@ -565,6 +556,10 @@
     if(e.target.closest?.('#agari-overlay'))setTimeout(()=>{mountScoreHandEntry();decorateLimitRecommendation();},0);
     if(e.target.closest?.('#m8-result-v1'))setTimeout(decorateM8Context,0);
   },true);
+
+  window.addEventListener('maki:m8-recommendation-changed',()=>{
+    requestAnimationFrame(decorateLimitRecommendation);
+  });
 
   window.addEventListener('pageshow',()=>{
     setTimeout(()=>{mountScoreHandEntry();decorateLimitRecommendation();},80);
