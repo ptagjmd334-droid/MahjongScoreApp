@@ -94,6 +94,7 @@ on:
       - work/maki-v114-manual-tile-ui-limit-highlight
       - work/maki-v115-chuuren-and-compact-manual-grid
       - work/maki-v116-yaku-breakdown-and-stale-yakuman-fix
+      - work/maki-v117-kokushi-yakuman-progress
   workflow_dispatch:
 
 jobs:
