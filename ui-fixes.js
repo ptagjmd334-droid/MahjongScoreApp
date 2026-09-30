@@ -98,7 +98,39 @@ console.log("ui-fixes.js loaded");
   }
   window.MAKIV88=Object.freeze({verifiedHandFailureText:verifiedHandFailureTextV88});
   const style=document.createElement('style');style.textContent=`#m8-result-v1{position:fixed;inset:0;z-index:2147483000;background:rgba(0,0,0,.62);display:flex;align-items:center;justify-content:center;padding:20px}#m8-result-v1 .m8-card{width:min(650px,88vw);background:#f7f3e9;color:#102019;border-radius:22px;padding:22px;text-align:center;box-shadow:0 18px 55px rgba(0,0,0,.35)}#m8-result-v1 h2{font-size:28px;margin:0 0 8px}#m8-result-v1 p{font-size:16px;margin:0 0 12px}#m8-result-v1 .m8-yaku-v4{margin:10px 0 14px;padding:11px 14px;border-radius:13px;background:#e9f5ed;font-size:16px;font-weight:800}#m8-result-v1 .m8-yaku-v4.none{background:#f1efe9;font-weight:700}#m8-result-v1 button{width:100%;min-height:52px;border:0;border-radius:14px;font-size:18px;font-weight:800;background:#e7e7e7;color:#111}`;document.head.appendChild(style);
-  function showResult(tiles){document.getElementById('m8-result-v1')?.remove();const r=judge(tiles);const root=document.createElement('div');root.id='m8-result-v1';const yakuText=r.win?(r.yaku.length?`判定できた役：${r.yaku.join(' / ')}`:'手牌だけで確定できる役は未検出'):'役判定はアガリ形成立後に行います';root.innerHTML=`<div class="m8-card"><h2>${r.win?'アガリ形です ✓':'まだアガリ形ではありません'}</h2><p>${r.win?`成立形：${r.type}`:'通常形・七対子・国士無双のいずれにも成立していません。'}</p><div class="m8-yaku-v4${r.win&&r.yaku.length?'':' none'}">${yakuText}</div><p><small>MAKI：確認した14枚をアガリ判定へ接続済みです。和了牌・門前/副露など必要な条件だけ確認してください。</small></p><button type="button">確認</button></div>`;root.querySelector('button').onclick=()=>root.remove();document.body.appendChild(root);}
+  function publishKokushiYakumanV117(){
+    const state={han:'yakuman',yakuman:true,items:[{name:'国士無双',han:'yakuman'}],updatedAt:Date.now()};
+    window.m8YakuBreakdownV116=state;
+    window.m8SuggestedHanV23='yakuman';window.m8SuggestedHanV22=null;window.m8SuggestedHanV9=null;window.m8SuggestedHanV6='yakuman';
+    window.dispatchEvent(new CustomEvent('maki:m8-recommendation-changed',{detail:state}));
+    return state;
+  }
+  function finishResultV117(root,result){
+    if(!root||root.dataset.makiV117Finished==='1')return;
+    root.dataset.makiV117Finished='1';
+    const kokushi=result?.type==='国士無双';
+    if(kokushi)publishKokushiYakumanV117();
+    root.remove();
+    if(!kokushi)return;
+    requestAnimationFrame(()=>{
+      window.MAKIV111?.decorateLimitRecommendation?.();
+      const button=document.querySelector('#agari-overlay .limit-button[data-limit="yakuman"]');
+      if(button&&!button.classList.contains('selected'))button.click();
+    });
+  }
+  function showResult(tiles){
+    document.getElementById('m8-result-v1')?.remove();
+    const r=judge(tiles),root=document.createElement('div');root.id='m8-result-v1';
+    const yakuText=r.win?(r.yaku.length?`判定できた役：${r.yaku.join(' / ')}`:'手牌だけで確定できる役は未検出'):'役判定はアガリ形成立後に行います';
+    const help=r.type==='国士無双'
+      ?'国士無双は符計算と和了牌の選択が不要です。「確認」で役満を自動選択して点数入力へ戻ります。'
+      :'MAKI：確認した14枚をアガリ判定へ接続済みです。和了牌・門前/副露など必要な条件だけ確認してください。';
+    root.innerHTML=`<div class="m8-card"><h2>${r.win?'アガリ形です ✓':'まだアガリ形ではありません'}</h2><p>${r.win?`成立形：${r.type}`:'通常形・七対子・国士無双のいずれにも成立していません。'}</p><div class="m8-yaku-v4${r.win&&r.yaku.length?'':' none'}">${yakuText}</div><p><small>${help}</small></p><button type="button" id="m8-result-confirm-v117">確認</button></div>`;
+    const confirm=root.querySelector('#m8-result-confirm-v117');
+    confirm.addEventListener('click',e=>{e.preventDefault();e.stopImmediatePropagation();finishResultV117(root,r);},true);
+    document.body.appendChild(root);
+  }
+  window.MAKIV117=Object.freeze({publishKokushiYakuman:publishKokushiYakumanV117,finishResult:finishResultV117});
   window.acceptVerifiedHandM8V87=function(tiles,options={}){const published=publishVerifiedHandM8V87(tiles);if(!published.ok)return published;if(options.show!==false)showResult(published.tiles);return published;};
   document.addEventListener('click',async e=>{const ok=e.target.closest?.('.hand-result-ok-m7v5');if(!ok)return;const root=document.getElementById('hand-result-overlay-m7v5');if(!root)return;const status=root.querySelector('.hand-result-status-m7v5');const note=root.querySelector('.hand-result-note-m7v5');status?.setAttribute('aria-live','polite');note?.setAttribute('aria-live','polite');const tiles=[...root.querySelectorAll('.hand-result-tile-m7v5')].map(b=>b.dataset.tile).filter(Boolean);if(tiles.length!==14){e.preventDefault();e.stopImmediatePropagation();if(status)status.textContent='14枚を確認してください';if(note)note.textContent='未選択の牌があります。14枚すべてを確認・修正してから進んでください。';return;}e.preventDefault();e.stopImmediatePropagation();ok.disabled=true;if(status)status.textContent='学習データを保存中…';let saved={ok:true};if(typeof window.M7CameraV36?.persistVerifiedHand==='function'){try{saved=await window.M7CameraV36.persistVerifiedHand(root);}catch(_){saved={ok:false,reason:'persist-exception'};}}let learningWarning='';if(!saved?.ok){learningWarning=typeof window.M7CameraV36?.persistFailureUserText==='function'?window.M7CameraV36.persistFailureUserText(saved):'学習データを保存できませんでしたが、手牌判定には影響しません。';window.MAKILastLearningWarningV95={message:learningWarning,reason:saved?.reason||'unknown'};}const published=publishVerifiedHandM8V87(tiles);if(!published.ok){ok.disabled=false;if(status)status.textContent='手牌データを確認してください';if(note)note.textContent=verifiedHandFailureTextV88(published);return;}root.remove();showResult(published.tiles);if(learningWarning){const card=document.querySelector('#m8-result-v1 .m8-card');if(card){const p=document.createElement('p');p.className='maki-learning-warning-v95';p.innerHTML='<small>'+learningWarning+'</small>';card.appendChild(p);}}},true);
 })();
