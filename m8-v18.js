@@ -270,9 +270,14 @@
     let box=root.querySelector('#m8v18-result-fu');
     if(!box){box=document.createElement('div');box.id='m8v18-result-fu';const fu=root.querySelector('#m8-fu-start-v7');(fu||root.querySelector('#m8-context-v5'))?.insertAdjacentElement('afterend',box);}
     if(!box)return;
+    const judged=window.judgeMahjongWinM8V4?.(hand.tiles);
+    if(judged?.type==='国士無双'){
+      box.textContent='M8符：国士無双は符計算なし・和了牌の選択不要';
+      return;
+    }
     if(!hand.win){box.textContent='M8符：和了牌を選ぶと計算準備ができます';return;}
     const r=calculateFuDetailed(hand.tiles,hand.win,ctx);
-    if(r.noFu){box.textContent='M8符：国士無双は符計算なし';return;}
+    if(r.noFu){box.textContent='M8符：国士無双は符計算なし・和了牌の選択不要';return;}
     if(r.values.length===1){box.textContent=`M8符：${r.values[0]}符候補（${r.reason}）`;return;}
     if(r.values.length>1){box.textContent=`M8符候補：${r.values.join('・')}符（${r.reason}）`;return;}
     box.textContent=`M8符：まだ確定できません — ${r.reason}`;
