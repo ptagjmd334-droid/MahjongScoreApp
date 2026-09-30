@@ -2657,6 +2657,11 @@
     if(!(medW>5&&medH>8))return [];
     const rawHighCount=sorted.filter(b=>Number(b.score)>=.25).length;
     if(rawHighCount<count-2)return [];
+    // This repair is only valid for the multi-view YOLO production output.
+    // Older/synthetic box arrays without cross-view provenance must retain the
+    // strict geometry rejection so a single shifted tile is never "repaired"
+    // by inventing a missing slot.
+    if(!sorted.every(b=>Number.isFinite(Number(b.crossViewCount))&&Number(b.crossViewCount)>=1))return [];
 
     // v113: rawCount=14 can still represent only 13 physical slots when YOLO
     // double-detects one tile while missing another. Only consider an adjacent
