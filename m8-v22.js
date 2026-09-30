@@ -148,6 +148,8 @@
     return items.map(x=>`${x.name} ${x.han}翻`).join(' ＋ ');
   }
   function renderBreakdown(panel,state){
+    panel=panel||document.getElementById('m8-context-v5');
+    if(!panel)return;
     let box=document.getElementById('m8v116-han-breakdown');
     if(!box){
       box=document.createElement('div');
