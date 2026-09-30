@@ -1338,3 +1338,11 @@
 **原因:** v120で赤インク比率を追加した際、`analyzeTileBox()` には `const redInkShare=...` を入れたが、実運用のYOLO軸平行crop経路 `analyzeYoloTileBox()` では変数宣言を入れ忘れ、returnだけ `redInkShare` を参照した。静的構文テストでは検出できない実行時ReferenceErrorだった。  
 **修正:** v121でYOLO crop経路にも `redInkShareFromCanvas(canonical)` を必ず実行し、legacy/perspective経路も同じ戻り値契約に統一。Chromium smokeで `analyzeYoloTileBox()` を実際に呼び、`redInkShare` が有限値として返ることを固定回帰にした。  
 **再発防止:** 画像解析helperへ新しい戻り値を追加した時は、同名の複数経路すべてを更新し、構文・文字列検査だけでなく少なくとも1回はブラウザ上で対象関数を実行する。  
+
+
+## M151: 要確認の赤5を手修正すると普通の5になり、赤ドラ情報が消える
+**時期:** MAKI v121→v122  
+**実機症状:** 赤5自体は2枚認識できたが、要確認に落ちた赤5索を結果画面で手修正して「5索」を選ぶと、最終的に普通の5索として扱われて赤ドラ枚数へ入らなかった。  
+**原因:** M8の手牌表現は赤5も通常5と同じ `5萬/5筒/5索` を使い、赤かどうかはYOLO raw `0m/0p/0s` を別metadataで保持している。従来の手修正pickerは34種の通常牌しか選べず、修正時にraw赤情報を設定する手段がなかった。逆に一度赤だった牌を普通5へ直す時に古いraw情報が残る危険もあった。  
+**修正:** v122で結果画面の手修正pickerに「赤5萬・赤5筒・赤5索」を専用選択肢として追加。選択時は scoring tile は通常5のまま、raw metadataだけ `0m/0p/0s` を保持する。通常5を選んだ場合はraw赤metadataを明示的に削除し、camera側のpending raw stateも同期する。赤5画像は通常5のlegacy学習テンプレートへ保存しない。  
+**再発防止:** 「表示/点数計算用tile」と「視覚属性metadata」を別stateで持つ場合、手修正UIにも属性を選び直す導線を必ず用意する。E2Eで赤5索を選ぶ→redCount=1、同じ牌を通常5索へ戻す→redCount=0まで固定回帰する。  
