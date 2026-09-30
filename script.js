@@ -22591,16 +22591,19 @@ if (
     tileButton.textContent=name;
     tileButton.dataset.tile=tile;
     if(raw){
-      tileButton.dataset.m7v119RawLabel=raw;
-      tileButton.dataset.m7v122Red='1';
+      tileButton.setAttribute('data-m7v119-raw-label',raw);
+      tileButton.setAttribute('data-m7v122-red','1');
       tileButton.classList.add('m7v122-red');
       tileButton.setAttribute('aria-label',name);
     }else{
-      delete tileButton.dataset.m7v119RawLabel;
-      delete tileButton.dataset.m7v122Red;
+      tileButton.removeAttribute('data-m7v119-raw-label');
+      tileButton.removeAttribute('data-m7v122-red');
       tileButton.classList.remove('m7v122-red');
       tileButton.setAttribute('aria-label',tile);
     }
+    const root=tileButton.closest('#hand-result-overlay-m7v5');
+    const index=root?[...root.querySelectorAll('.hand-result-tile-m7v5')].indexOf(tileButton):-1;
+    window.dispatchEvent(new CustomEvent('maki:m7-tile-corrected',{detail:{index,tile,raw:String(raw||'')}}));
   }
 
   function closeResultM7V5(){ document.getElementById('hand-result-overlay-m7v5')?.remove(); }
