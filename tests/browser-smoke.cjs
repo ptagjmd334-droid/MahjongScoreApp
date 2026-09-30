@@ -34,8 +34,8 @@ const server=http.createServer((req,res)=>{
     const errors=[];page.on('pageerror',e=>errors.push(String(e)));
     await page.goto('http://127.0.0.1:'+port+'/',{waitUntil:'domcontentloaded',timeout:30000});
     await page.waitForSelector('#go-confirm-button',{timeout:12000});
-    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'MAKI v120');
-    assert.equal(await page.$eval('#app-build-badge',e=>e.hidden),false,'v120 build badge should be visible during development');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'MAKI v121');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.hidden),false,'v121 build badge should be visible during development');
     assert(await page.evaluate(()=>!!window.M7V36CameraOwner),'v98 camera owner must bootstrap');
     await page.evaluate(()=>{
       const overlay=document.createElement('div');
@@ -650,10 +650,10 @@ const server=http.createServer((req,res)=>{
     assert.equal(manifestBrand.name,'MAKI');
     assert.equal(manifestBrand.short_name,'MAKI');
     assert.equal(manifestBrand.id,'./');
-    assert(manifestBrand.icons.every(x=>String(x.src).includes('v=m7v120')),'v109 manifest icons must use fresh cache keys '+JSON.stringify(manifestBrand.icons));
+    assert(manifestBrand.icons.every(x=>String(x.src).includes('v=m7v121')),'v109 manifest icons must use fresh cache keys '+JSON.stringify(manifestBrand.icons));
     assert.equal(await page.$eval('meta[name="apple-mobile-web-app-title"]',e=>e.content),'MAKI');
     assert.equal(await page.$eval('meta[name="application-name"]',e=>e.content),'MAKI');
-    assert((await page.$eval('link[rel="apple-touch-icon"]',e=>e.getAttribute('href'))).includes('v=m7v120'));
+    assert((await page.$eval('link[rel="apple-touch-icon"]',e=>e.getAttribute('href'))).includes('v=m7v121'));
     for(const size of [180,192,512]){
       const p=path.join(root,'icon-'+size+'.png');
       assert(fs.existsSync(p),'MAKI icon missing '+p);
@@ -1674,6 +1674,19 @@ const server=http.createServer((req,res)=>{
     assert.equal(v120RedRepair[8].label,'5索','v120 visually-red 5-sou must keep app tile 5索 '+JSON.stringify(v120RedRepair));
     assert.equal(v120RedRepair[8].repair,'visual-red','v120 visual red marker missing '+JSON.stringify(v120RedRepair));
     assert.equal(v120RedRepair[10].raw,'5p','v120 ordinary 5-pin must not be promoted to aka '+JSON.stringify(v120RedRepair));
+
+    const v121RedInkRuntime=await page.evaluate(()=>{
+      const canvas=document.createElement('canvas');
+      canvas.width=120;canvas.height=180;
+      const x=canvas.getContext('2d',{willReadFrequently:true});
+      x.fillStyle='#eee';x.fillRect(0,0,120,180);
+      x.fillStyle='#222';x.fillRect(42,30,8,100);
+      x.fillStyle='#c33';x.fillRect(64,58,12,56);
+      const tile=window.M7CameraV36.analyzeYoloTileBox(x,{x:8,y:8,w:104,h:164},0,14);
+      return {red:Number(tile.redInkShare),feature:!!tile.feature};
+    });
+    assert.equal(Number.isFinite(v121RedInkRuntime.red),true,'v121 redInkShare must exist at runtime '+JSON.stringify(v121RedInkRuntime));
+    assert.equal(v121RedInkRuntime.feature,true,'v121 YOLO crop feature missing '+JSON.stringify(v121RedInkRuntime));
     await page.click('#maki-hand-entry-v111 .maki-v111-manual');
     await page.waitForSelector('#maki-manual-hand-v111',{visible:true,timeout:4000});
     assert.equal(await page.evaluate(()=>document.querySelectorAll('#maki-manual-hand-v111 .maki-v111-slot').length),14,'v111 manual entry must have 14 slots');
