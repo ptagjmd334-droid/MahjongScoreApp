@@ -91,6 +91,7 @@ on:
       - work/maki-v111-score-hand-entry
       - work/maki-v112-13hybrid-white-run
       - work/maki-v113-14dup-missing-slot
+      - work/maki-v114-manual-tile-ui-limit-highlight
   workflow_dispatch:
 
 jobs:
