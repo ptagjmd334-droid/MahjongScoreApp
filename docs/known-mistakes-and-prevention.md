@@ -1330,3 +1330,11 @@
 **原因:** v7は国士無双を特例として和了牌pickerを作らない正しい処理だったが、v18の結果表示は `hand.win` の存在確認を役満/符不要判定より先に行っていた。さらに結果画面の「確認」は単にモーダルを閉じるだけで、国士無双の役満点数を実際のscore selectionへ反映しておらず、点数表へ戻っても「次へ」がdisabledのまま残り得た。  
 **修正:** v117では国士無双を符・和了牌とも不要な経路として先に判定し、矛盾表示を廃止。「確認」で現在手を国士無双役満としてcanonical recommendationへ発行し、点数表の役満ボタンを実際に選択して `currentScoreSelection` を作る。結果モーダルの確認ボタンには専用IDとcapture handlerを持たせ、他のclick装飾処理より先に確実に閉じる。  
 **再発防止:** 「入力不要な特殊役」は、表示だけ省略するのではなく、その後段の必須状態も自動で満たす。回帰テストでは国士無双14枚 → 和了牌picker 0個 → 符計算なし表示 → 確認 → 結果モーダル消去 → 役満score selection作成 → 次へ有効、まで1本のE2Eとして固定する。  
+
+
+## M150: 赤5補正用 redInkShare をYOLO crop経路で未定義のまま返し、全14枚fallback
+**時期:** MAKI v120→v121  
+**実機症状:** 撮影後の結果画面が「自動認識 0/14 / 要確認14枚」となり、認識詳細に `Can't find variable: redInkShare` が表示された。14枚のcrop画像自体は出るが、YOLO本処理が例外で止まり、全牌がlegacy/fallback扱いになった。  
+**原因:** v120で赤インク比率を追加した際、`analyzeTileBox()` には `const redInkShare=...` を入れたが、実運用のYOLO軸平行crop経路 `analyzeYoloTileBox()` では変数宣言を入れ忘れ、returnだけ `redInkShare` を参照した。静的構文テストでは検出できない実行時ReferenceErrorだった。  
+**修正:** v121でYOLO crop経路にも `redInkShareFromCanvas(canonical)` を必ず実行し、legacy/perspective経路も同じ戻り値契約に統一。Chromium smokeで `analyzeYoloTileBox()` を実際に呼び、`redInkShare` が有限値として返ることを固定回帰にした。  
+**再発防止:** 画像解析helperへ新しい戻り値を追加した時は、同名の複数経路すべてを更新し、構文・文字列検査だけでなく少なくとも1回はブラウザ上で対象関数を実行する。  
