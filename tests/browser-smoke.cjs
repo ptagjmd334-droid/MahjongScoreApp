@@ -34,8 +34,8 @@ const server=http.createServer((req,res)=>{
     const errors=[];page.on('pageerror',e=>errors.push(String(e)));
     await page.goto('http://127.0.0.1:'+port+'/',{waitUntil:'domcontentloaded',timeout:30000});
     await page.waitForSelector('#go-confirm-button',{timeout:12000});
-    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'MAKI v119');
-    assert.equal(await page.$eval('#app-build-badge',e=>e.hidden),false,'v119 build badge should be visible during development');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'MAKI v120');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.hidden),false,'v120 build badge should be visible during development');
     assert(await page.evaluate(()=>!!window.M7V36CameraOwner),'v98 camera owner must bootstrap');
     await page.evaluate(()=>{
       const overlay=document.createElement('div');
@@ -650,10 +650,10 @@ const server=http.createServer((req,res)=>{
     assert.equal(manifestBrand.name,'MAKI');
     assert.equal(manifestBrand.short_name,'MAKI');
     assert.equal(manifestBrand.id,'./');
-    assert(manifestBrand.icons.every(x=>String(x.src).includes('v=m7v119')),'v109 manifest icons must use fresh cache keys '+JSON.stringify(manifestBrand.icons));
+    assert(manifestBrand.icons.every(x=>String(x.src).includes('v=m7v120')),'v109 manifest icons must use fresh cache keys '+JSON.stringify(manifestBrand.icons));
     assert.equal(await page.$eval('meta[name="apple-mobile-web-app-title"]',e=>e.content),'MAKI');
     assert.equal(await page.$eval('meta[name="application-name"]',e=>e.content),'MAKI');
-    assert((await page.$eval('link[rel="apple-touch-icon"]',e=>e.getAttribute('href'))).includes('v=m7v119'));
+    assert((await page.$eval('link[rel="apple-touch-icon"]',e=>e.getAttribute('href'))).includes('v=m7v120'));
     for(const size of [180,192,512]){
       const p=path.join(root,'icon-'+size+'.png');
       assert(fs.existsSync(p),'MAKI icon missing '+p);
@@ -1658,6 +1658,38 @@ const server=http.createServer((req,res)=>{
     assert.equal(v119CameraDora.after?.aka,1,'v119 camera red-five metadata must set aka-dora count '+JSON.stringify(v119CameraDora));
     assert.equal(await page.evaluate(()=>!!document.querySelector('#maki-hand-entry-v111 .maki-v119-dora-camera')),true,
       'v119 dora indicator camera button missing');
+
+    const v120RedFiveGuard=await page.evaluate(()=>{
+      const cam=window.M7CameraV36;
+      const y=cam.yoloRecognitionFromBoxes([
+        {label:'3p',score:.86,classMargin:.86,crossViewSupport:1,crossViewShare:1,crossViewMargin:1},
+        {label:'4p',score:.88,classMargin:.88,crossViewSupport:1,crossViewShare:1,crossViewMargin:1},
+        {label:'0s',score:.85,classMargin:.85,crossViewSupport:1,crossViewShare:1,crossViewMargin:1},
+        {label:'4m',score:.85,classMargin:.85,crossViewSupport:1,crossViewShare:1,crossViewMargin:1},
+        {label:'5m',score:.89,classMargin:.89,crossViewSupport:1,crossViewShare:1,crossViewMargin:1},
+        {label:'6m',score:.79,classMargin:.79,crossViewSupport:1,crossViewShare:1,crossViewMargin:1},
+        {label:'3s',score:.73,classMargin:.73,crossViewSupport:1,crossViewShare:1,crossViewMargin:1},
+        {label:'4s',score:.75,classMargin:.75,crossViewSupport:1,crossViewShare:1,crossViewMargin:1},
+        {label:'0s',score:.41,classMargin:.41,crossViewSupport:1,crossViewShare:1,crossViewMargin:1},
+        {label:'5p',score:.85,classMargin:.85,crossViewSupport:1,crossViewShare:1,crossViewMargin:1},
+        {label:'5p',score:.84,classMargin:.84,crossViewSupport:1,crossViewShare:1,crossViewMargin:1},
+        {label:'5p',score:.63,classMargin:.63,crossViewSupport:1,crossViewShare:1,crossViewMargin:1},
+        {label:'5s',score:.93,classMargin:.93,crossViewSupport:1,crossViewShare:1,crossViewMargin:1},
+        {label:'5s',score:.95,classMargin:.95,crossViewSupport:1,crossViewShare:1,crossViewMargin:1}
+      ]);
+      const protectedIdx=cam.yoloStrongRedFiveIndexes(y,true);
+      const primary=cam.chooseYoloPrimaryRecognition(y,[],true,.15,[]);
+      return {
+        protectedIdx,
+        rawKeys:y.map(x=>cam.yoloRawVisualKey(x)),
+        labels:primary.labels,
+        unresolved:primary.unresolved
+      };
+    });
+    assert.deepEqual(v120RedFiveGuard.protectedIdx,[2,8],'v120 must protect both explicit red-5 detections from generic guards '+JSON.stringify(v120RedFiveGuard));
+    assert.equal(v120RedFiveGuard.rawKeys[2],'0s','v120 red 5s must keep raw visual key '+JSON.stringify(v120RedFiveGuard));
+    assert.equal(v120RedFiveGuard.rawKeys[12],'5索','v120 black 5s must remain a separate visual key '+JSON.stringify(v120RedFiveGuard));
+    assert.equal(v120RedFiveGuard.unresolved,0,'v120 screenshot fixture should allow all 14 model labels before later safety checks '+JSON.stringify(v120RedFiveGuard));
     await page.click('#maki-hand-entry-v111 .maki-v111-manual');
     await page.waitForSelector('#maki-manual-hand-v111',{visible:true,timeout:4000});
     assert.equal(await page.evaluate(()=>document.querySelectorAll('#maki-manual-hand-v111 .maki-v111-slot').length),14,'v111 manual entry must have 14 slots');
