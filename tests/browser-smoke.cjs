@@ -1688,7 +1688,7 @@ const server=http.createServer((req,res)=>{
     assert.equal(Number.isFinite(v121RedInkRuntime.red),true,'v121 redInkShare must exist at runtime '+JSON.stringify(v121RedInkRuntime));
     assert.equal(v121RedInkRuntime.feature,true,'v121 YOLO crop feature missing '+JSON.stringify(v121RedInkRuntime));
 
-    const v122ManualRed=await page.evaluate(()=>{
+    const v122ManualRed=await page.evaluate(async()=>{
       const hand=['5索','1萬','2萬','3萬','4萬','5萬','6萬','7萬','8萬','9萬','1筒','2筒','3筒','東'];
       window.showHandResultM7V5(hand);
       const root=document.getElementById('hand-result-overlay-m7v5');
@@ -1698,6 +1698,7 @@ const server=http.createServer((req,res)=>{
       const redButtons=[...picker.querySelectorAll('.tile-picker-red-m7v122')];
       const redLabels=redButtons.map(b=>b.textContent.trim());
       redButtons.find(b=>b.textContent.trim()==='赤5索')?.click();
+      await new Promise(requestAnimationFrame);
       const afterRed={
         tile:first.dataset.tile,
         raw:first.dataset.m7v119RawLabel||'',
@@ -1709,6 +1710,7 @@ const server=http.createServer((req,res)=>{
       const normal=[...document.querySelectorAll('#tile-picker-m7v5 .tile-picker-grid-m7v5 button')]
         .find(b=>(b.dataset.tileName||b.textContent.trim())==='5索');
       normal?.click();
+      await new Promise(requestAnimationFrame);
       const afterNormal={
         tile:first.dataset.tile,
         raw:first.dataset.m7v119RawLabel||'',
