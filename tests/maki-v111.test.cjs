@@ -74,14 +74,14 @@ test('v118 adds manual dora, aka-dora and ura-dora foundation for future camera 
 test('v119 wires camera red-dora metadata and dora-indicator camera into v118 dora state',()=>{
   const hand=read('maki-v111-hand-entry.js');
   const camera=read('m7-camera-v36.js');
-  assert(hand.includes('MAKI v119'));
+  assert(hand.includes('MAKI v120'));
   assert(hand.includes('maki-v119-dora-camera'));
   assert(hand.includes('window.MAKIV119DoraCamera'));
   assert(hand.includes('doraTileFromIndicatorRaw'));
   assert(hand.includes('runYoloTileDetectorDiagnostic'));
   assert(hand.includes('applyCameraHandMetaV119'));
   assert(camera.includes('MAKILastCameraHandMetaV119'));
-  assert(camera.includes('m7v120RawLabel'));
+  assert(camera.includes('m7v119RawLabel'));
   assert(camera.includes('M7V119PendingRawLabels'));
   assert(camera.includes("/^0[mps]$/"));
 });
