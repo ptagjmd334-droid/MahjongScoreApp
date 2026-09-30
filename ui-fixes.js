@@ -71,6 +71,7 @@ console.log("ui-fixes.js loaded");
     window.m8SuggestedFuV7=null;window.m8SuggestedFuV8=null;window.m8SuggestedFuV11=null;
     window.m8SuggestedFuV18=null;window.m8SuggestedFuV20=null;window.m8SuggestedFuV21=null;
     window.m8SuggestedHanV6=null;window.m8SuggestedHanV9=null;window.m8SuggestedHanV22=null;window.m8SuggestedHanV23=null;
+    window.m8YakuBreakdownV116=null;
     window.m8FuCandidatesV11=[];window.m8FuCandidatesV12=[];window.m8FuCandidatesV18=[];
     window.m8MeldStateV21={};window.m8ChiOnlyV21=false;
     window.m8CachedHandV15=null;

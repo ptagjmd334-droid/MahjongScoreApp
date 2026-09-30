@@ -151,25 +151,51 @@
   function refresh(){
     queued=false;const root=document.getElementById('m8-result-v1'),panel=document.getElementById('m8-context-v5');if(!root||!panel)return;
     const tiles=getTiles();if(tiles.length!==14)return;const c=ctx();if(c.menzen==null)return;
+    if(!window.m8YakuBreakdownV116)window.M8V22?.refresh?.();
+
     const r=best(tiles,c);
     const normal=r.normal.names.filter(n=>!baseHas(root,n));
     const yakuman=r.yakuman.filter(n=>!baseHas(root,n));
     let box=document.getElementById('m8v23-extra');if(!box){box=document.createElement('div');box.id='m8v23-extra';document.getElementById('m8v22-extra-yaku')?.insertAdjacentElement('afterend',box);if(!box.isConnected)panel.querySelector('.m8v5-extra')?.before(box);}
 
-    if(yakuman.length){
-      box.className='yakuman';box.innerHTML=`追加役満判定：${yakuman.join(' / ')}<span class="sub">手牌形・和了方法・槓子内訳から判定</span>`;
+    const baseState=window.m8YakuBreakdownV116;
+    const baseYakumanNames=baseState?.yakuman?(baseState.items||[]).map(x=>x.name):[];
+    if(baseYakumanNames.length||yakuman.length){
+      const names=[...new Set([...baseYakumanNames,...yakuman])];
+      box.className='yakuman';
+      box.innerHTML=yakuman.length?`追加役満判定：${yakuman.join(' / ')}<span class="sub">手牌形・和了方法・槓子内訳から判定</span>`:'追加役満判定：該当なし';
       const hb=panel.querySelector('.m8v5-han');if(hb)hb.textContent='現在の判定：役満';
       window.m8SuggestedHanV23='yakuman';window.m8SuggestedHanV22=null;window.m8SuggestedHanV9=null;window.m8SuggestedHanV6='yakuman';
-      window.dispatchEvent(new CustomEvent('maki:m8-recommendation-changed',{detail:{han:'yakuman',yakuman:yakuman.slice()}}));
+      if(window.M8V22?.publishRecommendation){
+        window.M8V22.publishRecommendation(panel,{yakuman:true,items:names.map(name=>({name,han:'yakuman'}))});
+      }else{
+        window.m8YakuBreakdownV116={han:'yakuman',yakuman:true,items:names.map(name=>({name,han:'yakuman'})),updatedAt:Date.now()};
+        window.dispatchEvent(new CustomEvent('maki:m8-recommendation-changed',{detail:window.m8YakuBreakdownV116}));
+      }
       return;
     }
 
     box.className='';box.innerHTML=normal.length?`追加役判定：${normal.join(' / ')}<span class="sub">チャンタ系は全ての面子・雀頭に么九牌が含まれるかで判定</span>`:'追加役判定：該当なし';
-    if(normal.length){
-      const cur=readCurrentHan(panel),add=normal.reduce((s,n)=>s+normalHan(n,c.menzen),0),total=cur+add;
-      const hb=panel.querySelector('.m8v5-han');if(hb&&total>0)hb.textContent=`現在判定できる範囲：${total}翻`;
-      window.m8SuggestedHanV23=total;window.m8SuggestedHanV22=total;window.m8SuggestedHanV9=total;window.m8SuggestedHanV6=total;
-      window.dispatchEvent(new CustomEvent('maki:m8-recommendation-changed',{detail:{han:total}}));
+
+    const items=(baseState?.items||[]).filter(x=>Number(x.han)>0).map(x=>({name:x.name,han:Number(x.han)}));
+    const seen=new Set(items.map(x=>x.name));
+    for(const name of normal){
+      if(seen.has(name))continue;
+      const han=normalHan(name,c.menzen);
+      if(han>0){items.push({name,han});seen.add(name);}
+    }
+    const total=items.reduce((s,x)=>s+x.han,0);
+    const hb=panel.querySelector('.m8v5-han');if(hb)hb.textContent=`現在判定できる範囲：${total}翻`;
+
+    // v115 bug fix: always overwrite the previous recommendation, even when
+    // this hand has no v23-only extra yaku. Otherwise an old "yakuman"
+    // survives and can turn the yakuman score button green on a 7-han hand.
+    window.m8SuggestedHanV23=total||null;window.m8SuggestedHanV22=total||null;window.m8SuggestedHanV9=total||null;window.m8SuggestedHanV6=total||null;
+    if(window.M8V22?.publishRecommendation){
+      window.M8V22.publishRecommendation(panel,{yakuman:false,han:total,items});
+    }else{
+      window.m8YakuBreakdownV116={han:total,yakuman:false,items,updatedAt:Date.now()};
+      window.dispatchEvent(new CustomEvent('maki:m8-recommendation-changed',{detail:window.m8YakuBreakdownV116}));
     }
   }
   window.M8V23=Object.freeze({detectNineGates,best,refresh});

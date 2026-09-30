@@ -17,6 +17,7 @@
       font-size:12px;
       font-weight:900;
       text-align:center;
+      line-height:1.35;
       flex:none;
     }
   `;
@@ -102,13 +103,19 @@
       return;
     }
 
-    const yakuman=window.m8SuggestedHanV23==='yakuman'||window.m8SuggestedHanV6==='yakuman';
-    const han=finiteNumber([
-      window.m8SuggestedHanV23,
-      window.m8SuggestedHanV22,
-      window.m8SuggestedHanV9,
-      window.m8SuggestedHanV6
-    ]);
+    const breakdown=window.m8YakuBreakdownV116;
+    const hasCanonical=!!breakdown&&Array.isArray(breakdown.items);
+    const yakuman=hasCanonical
+      ?breakdown.yakuman===true
+      :(window.m8SuggestedHanV23==='yakuman'||window.m8SuggestedHanV6==='yakuman');
+    const han=hasCanonical&&!yakuman
+      ?Number(breakdown.han)
+      :finiteNumber([
+        window.m8SuggestedHanV23,
+        window.m8SuggestedHanV22,
+        window.m8SuggestedHanV9,
+        window.m8SuggestedHanV6
+      ]);
     const fu=finiteNumber([
       window.m8SuggestedFuV21,
       window.m8SuggestedFuV20,
@@ -116,14 +123,17 @@
       window.m8SuggestedFuV8,
       window.m8SuggestedFuV7
     ]);
+    const details=hasCanonical
+      ?breakdown.items.map(x=>yakuman?`${x.name}（役満）`:`${x.name} ${x.han}翻`).join(' ＋ ')
+      :'';
 
     let text='';
     if(yakuman){
-      text='M8総合判定：役満 → 役満欄を使用';
-    }else if(han&&fu){
-      text=`M8総合判定：${fu}符 ${han}翻 → 緑枠が推奨点数`;
-    }else if(han){
-      text=`M8総合判定：${han}翻 → 符を確定すると推奨点数を表示`;
+      text=`M8総合判定：役満${details?'（'+details+'）':''} → 役満欄を使用`;
+    }else if(Number.isFinite(han)&&han>0&&fu){
+      text=`M8総合判定：${fu}符 ${han}翻${details?'（'+details+'）':''} → 緑枠が推奨点数`;
+    }else if(Number.isFinite(han)&&han>0){
+      text=`M8総合判定：${han}翻${details?'（'+details+'）':''} → 符を確定すると推奨点数を表示`;
     }else{
       old?.remove();
       return;
@@ -148,6 +158,10 @@
     requestAnimationFrame(refresh);
     setTimeout(refresh,60);
   },true);
+
+  window.addEventListener('maki:m8-recommendation-changed',()=>{
+    requestAnimationFrame(updateScoreSummary);
+  });
 
   ['pageshow','resize','orientationchange'].forEach(ev=>{
     window.addEventListener(ev,refresh,{passive:true});
