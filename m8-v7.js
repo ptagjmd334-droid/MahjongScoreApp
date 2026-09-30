@@ -206,7 +206,7 @@
       box.innerHTML='<div class="m8v7-fu-title">符の自動判定</div><div class="m8v7-fu-note">七対子なので 25符（固定）</div>';
     }else if(judged.type==='国士無双'){
       window.m8SuggestedFuV7=null;
-      box.innerHTML='<div class="m8v7-fu-title">符の自動判定</div><div class="m8v7-fu-note">国士無双は役満のため符計算なし</div>';
+      box.innerHTML='<div class="m8v7-fu-title">符の自動判定</div><div class="m8v7-fu-note">国士無双は役満のため符計算なし・和了牌の選択不要。「確認」で役満を自動選択します。</div>';
     }else{
       box.innerHTML='<div class="m8v7-fu-title">符判定の準備：和了牌を選択</div><div class="m8v7-win-tiles"></div><div class="m8v7-fu-note">和了牌を選ぶと待ち形を判定します</div>';
       const row=box.querySelector('.m8v7-win-tiles');
