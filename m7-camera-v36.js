@@ -158,6 +158,10 @@
       pointer-events:none
     }
     #hand-result-overlay-m7v5 .hand-result-tile-m7v5[data-tile] .m7v53-top1{display:none!important}
+    #hand-result-overlay-m7v5 .hand-result-tile-m7v5 .m7v120-red-five-badge{
+      position:absolute;right:3px;top:3px;z-index:5;min-width:22px;padding:3px 5px;border-radius:999px;
+      background:#d53b34;color:#fff;font:900 11px/1 -apple-system,BlinkMacSystemFont,sans-serif;text-align:center
+    }
     #hand-result-overlay-m7v5 .m7v36-photo{
       width:100%;height:70px;max-height:23%;object-fit:contain;background:#272727;border-radius:8px;flex:none
     }
@@ -2942,6 +2946,29 @@
     }));
   }
 
+  function yoloRawVisualKey(r){
+    const raw=String(r?.rawLabel||'').trim();
+    if(/^0[mps]$/.test(raw))return raw;
+    return String(r?.label||'');
+  }
+
+  function yoloStrongRedFiveIndexes(yoloRecognition,detectorAdopted=false){
+    const yolo=Array.isArray(yoloRecognition)?yoloRecognition:[];
+    if(!detectorAdopted||yolo.length!==14)return [];
+    const out=[];
+    for(let i=0;i<14;i++){
+      const r=yolo[i]||{},raw=String(r.rawLabel||'');
+      if(!/^0[mps]$/.test(raw))continue;
+      const score=Number(r.score)||0;
+      const modelMargin=Number.isFinite(Number(r.classMargin))?Number(r.classMargin):0;
+      const crossMargin=Number.isFinite(Number(r.crossViewMargin))?Number(r.crossViewMargin):1;
+      const support=Math.max(1,Number(r.crossViewSupport)||1);
+      const share=Number.isFinite(Number(r.crossViewShare))?Number(r.crossViewShare):1;
+      if(score>=.35&&Math.min(modelMargin,crossMargin)>=.20&&support>=1&&share>=.67)out.push(i);
+    }
+    return out;
+  }
+
   function yoloDuplicateVisualConflicts(yoloRecognition,features,detectorAdopted=false,scoreThreshold=YOLO_CLASS_USE_THRESHOLD,closeDistance=YOLO_DUPLICATE_CLOSE_DISTANCE,outlierDistance=YOLO_DUPLICATE_OUTLIER_DISTANCE){
     const yolo=Array.isArray(yoloRecognition)?yoloRecognition:[];
     const feats=Array.isArray(features)?features:[];
@@ -2950,7 +2977,8 @@
     for(let i=0;i<14;i++){
       const r=yolo[i]||{};
       if(!r.label||Number(r.score)<scoreThreshold||!feats[i])continue;
-      (groups[r.label]||(groups[r.label]=[])).push(i);
+      const visualKey=yoloRawVisualKey(r);
+      (groups[visualKey]||(groups[visualKey]=[])).push(i);
     }
     const conflicts=new Set();
     for(const indexes of Object.values(groups)){
@@ -3127,6 +3155,11 @@
       const sa=Number(ra.score)||0,sb=Number(rb.score)||0;
       const ma=Number.isFinite(Number(ra.classMargin))?Number(ra.classMargin):0;
       const mb=Number.isFinite(Number(rb.classMargin))?Number(rb.classMargin):0;
+      const cma=Number.isFinite(Number(ra.crossViewMargin))?Number(ra.crossViewMargin):1;
+      const cmb=Number.isFinite(Number(rb.crossViewMargin))?Number(rb.crossViewMargin):1;
+      const strongA=sa>=.55&&Math.min(ma,cma)>=.25;
+      const strongB=sb>=.55&&Math.min(mb,cmb)>=.25;
+      if(strongA&&strongB)continue;
       if(Math.abs(sa-sb)>=scoreGap){conflicts.add(sa<sb?a:b);continue;}
       if(Math.abs(ma-mb)>=.02){conflicts.add(ma<mb?a:b);continue;}
       conflicts.add(a);conflicts.add(b);
@@ -3820,7 +3853,10 @@
     const duplicateGuardIndexes=yoloDuplicateVisualConflicts(analysis.yoloRecognition||[],features,analysis.detectorAdopted===true);
     const nearDuplicateConflictIndexes=yoloNearDuplicateLabelConflicts(analysis.yoloRecognition||[],features,analysis.detectorAdopted===true);
     const sortedSuitConflictIndexes=yoloSortedSuitOrderConflicts(analysis.yoloRecognition||[],analysis.detectorAdopted===true);
-    const initialBlocked=[...new Set([...duplicateGuardIndexes,...nearDuplicateConflictIndexes,...sortedSuitConflictIndexes])].sort((a,b)=>a-b);
+    const protectedRedFiveIndexes=yoloStrongRedFiveIndexes(analysis.yoloRecognition||[],analysis.detectorAdopted===true);
+    const protectedRedSet=new Set(protectedRedFiveIndexes);
+    const initialBlocked=[...new Set([...duplicateGuardIndexes,...nearDuplicateConflictIndexes,...sortedSuitConflictIndexes])]
+      .filter(i=>!protectedRedSet.has(i)).sort((a,b)=>a-b);
     const yoloFirst=chooseYoloPrimaryRecognition(analysis.yoloRecognition||[],[],analysis.detectorAdopted===true,YOLO_CLASS_USE_THRESHOLD,initialBlocked);
     let legacyPredicted=Array(14).fill('');
     let legacyClassifierRan=false;
@@ -3833,12 +3869,14 @@
       while(legacyPredicted.length<14)legacyPredicted.push('');
       suitConflictIndexes=yoloLegacyLabelConflicts(analysis.yoloRecognition||[],legacyPredicted,analysis.detectorAdopted===true);
       ambiguityConflictIndexes=yoloClassAmbiguityConflicts(analysis.yoloRecognition||[],legacyPredicted,state.predictionDebug||[],analysis.detectorAdopted===true);
-      const blocked=[...new Set([...initialBlocked,...suitConflictIndexes,...ambiguityConflictIndexes])].sort((a,b)=>a-b);
+      const blocked=[...new Set([...initialBlocked,...suitConflictIndexes,...ambiguityConflictIndexes])]
+        .filter(i=>!protectedRedSet.has(i)).sort((a,b)=>a-b);
       primary=chooseYoloPrimaryRecognition(analysis.yoloRecognition||[],legacyPredicted,analysis.detectorAdopted===true,YOLO_CLASS_USE_THRESHOLD,blocked);
       legacyClassifierRan=true;
     }else{
       ambiguityConflictIndexes=yoloClassAmbiguityConflicts(analysis.yoloRecognition||[],legacyPredicted,[],analysis.detectorAdopted===true);
-      const blocked=[...new Set([...initialBlocked,...ambiguityConflictIndexes])].sort((a,b)=>a-b);
+      const blocked=[...new Set([...initialBlocked,...ambiguityConflictIndexes])]
+        .filter(i=>!protectedRedSet.has(i)).sort((a,b)=>a-b);
       primary=chooseYoloPrimaryRecognition(analysis.yoloRecognition||[],legacyPredicted,analysis.detectorAdopted===true,YOLO_CLASS_USE_THRESHOLD,blocked);
       resetLegacyPredictionStateForYolo();
     }
@@ -3858,6 +3896,7 @@
     analysis.yoloSortedSuitConflictIndexes=sortedSuitConflictIndexes.slice();
     analysis.yoloLegacySuitConflictIndexes=suitConflictIndexes.slice();
     analysis.yoloAmbiguityConflictIndexes=ambiguityConflictIndexes.slice();
+    analysis.yoloProtectedRedFiveIndexes=protectedRedFiveIndexes.slice();
     analysis.legacyClassifierRan=legacyClassifierRan;
     if(window.M7V36LastDiagnostics){
       window.M7V36LastDiagnostics.predictions=(state.predictionDebug||[]).map(x=>x.slice());
@@ -3868,6 +3907,7 @@
       window.M7V36LastDiagnostics.yoloSortedSuitConflictIndexes=sortedSuitConflictIndexes.slice();
       window.M7V36LastDiagnostics.yoloLegacySuitConflictIndexes=suitConflictIndexes.slice();
       window.M7V36LastDiagnostics.yoloAmbiguityConflictIndexes=ambiguityConflictIndexes.slice();
+      window.M7V36LastDiagnostics.yoloProtectedRedFiveIndexes=protectedRedFiveIndexes.slice();
       window.M7V36LastDiagnostics.legacyClassifierRan=legacyClassifierRan;
       window.M7V36LastDiagnostics.legacyRecognitionMs=state.lastRecognitionMs||0;
     }
@@ -3879,7 +3919,13 @@
         const url=state.pendingCrops[i];
         if(url){b.classList.add('m7v36-crop');b.style.backgroundImage=`url("${url}")`;b.dataset.m7v36Index=String(i);}
         const rawRed=state.pendingRawLabels[i]||'';
-        if(rawRed)b.dataset.m7v119RawLabel=rawRed;
+        if(rawRed){
+          b.dataset.m7v119RawLabel=rawRed;
+          b.classList.add('m7v120-red-five');
+          const red=document.createElement('span');
+          red.className='m7v120-red-five-badge';red.textContent='赤';
+          b.appendChild(red);
+        }
         const suggestions=(state.predictionDebug?.[i]||[]).map(x=>x.label).filter(Boolean);
         if(suggestions.length){
           b.dataset.m7v39Suggestions=JSON.stringify(suggestions.slice(0,3));
@@ -4152,6 +4198,6 @@
   },true);
 
   window.M7CameraV36=Object.freeze({
-    armCameraTapShield,sourceRectForCover,locateTileRow,splitRow,boxCropQuality,canvasCropQuality,rowCropQuality,selectRowByCropQuality,rescueBrokenBox,tripletCropQuality,applyLocalBoundaryDelta,rescueLocalBoundaries,detectorWindows,detectorIoU,detectorConsensusCluster,detectorNms,decodeYoloOutput,runYoloTileDetectorDiagnostic,detectorGeometryEvaluation,detectorSubsetCandidates,detectorMissingSlotsFit,detectorMissingSlotFit,detectorRecoverThirteenCandidates,detectorRecoverTwelveCandidates,detectorRecoverThirteenLowExtraCandidates,detectorRecoverFourteenDuplicateMissingCandidates,selectDetectorProductionBoxes,yoloLabelToAppTile,shouldRunLegacyClassifier,mountDetectorDiagnostic,yoloRecognitionFromBoxes,yoloDuplicateVisualConflicts,yoloNearDuplicateLabelConflicts,yoloSortedSuitOrderConflicts,yoloClassAmbiguityConflicts,yoloLegacyLabelConflicts,yoloLegacySuitConflicts,shouldRunLegacyVerifier,chooseYoloPrimaryRecognition,recoverWhiteDragonGaps,axisAlignedYoloFaceCanvas,analyzeYoloTileBox,applyDetectorProductionCrops,renderDetectorResult,detectorFailureUserText,boundaryLikelihoodDiagnostics,refineRowOuterEdges,fitGlobalRowGrid,splitRowBySeams,analyzeGuideCanvas,featureFromBox,tileFaceRect,descriptorFromCanvas,detectFaceGeometry,detectFaceQuad,canonicalizeCanvas,orientedFaceCanvas,perspectiveFaceCanvas,warpQuadToCanvas,trainingImageDataUrl,estimateBleedSafeShift,safeInsetWindow,chooseRecognitionWindow,innerRecognitionCanvas,innerRecognitionWindowCanvas,innerFeatureFromCanonical,inferenceFeatureViews,analyzeTileBox,loadTrainingSamples,rebuildLibraryFromTrainingImages,loadLibrary,activeLibrary,saveLibrary,saveLibraryDetailed,persistVerifiedHand,persistFailureText,persistFailureUserText,loadLegacyLibrary,legacyLibraryKeys,convertLegacyDirectFeature,cropResampleFeatureMap,confidenceAssessment,confidentCandidate,confidenceReasonSummary,renderPickerPhoto,renderPickerSuggestions,pickerCurrentIndex,schedulePickerSuggestionSync,attachPickerSuggestionObserver
+    armCameraTapShield,sourceRectForCover,locateTileRow,splitRow,boxCropQuality,canvasCropQuality,rowCropQuality,selectRowByCropQuality,rescueBrokenBox,tripletCropQuality,applyLocalBoundaryDelta,rescueLocalBoundaries,detectorWindows,detectorIoU,detectorConsensusCluster,detectorNms,decodeYoloOutput,runYoloTileDetectorDiagnostic,detectorGeometryEvaluation,detectorSubsetCandidates,detectorMissingSlotsFit,detectorMissingSlotFit,detectorRecoverThirteenCandidates,detectorRecoverTwelveCandidates,detectorRecoverThirteenLowExtraCandidates,detectorRecoverFourteenDuplicateMissingCandidates,selectDetectorProductionBoxes,yoloLabelToAppTile,shouldRunLegacyClassifier,mountDetectorDiagnostic,yoloRecognitionFromBoxes,yoloRawVisualKey,yoloStrongRedFiveIndexes,yoloDuplicateVisualConflicts,yoloNearDuplicateLabelConflicts,yoloSortedSuitOrderConflicts,yoloClassAmbiguityConflicts,yoloLegacyLabelConflicts,yoloLegacySuitConflicts,shouldRunLegacyVerifier,chooseYoloPrimaryRecognition,recoverWhiteDragonGaps,axisAlignedYoloFaceCanvas,analyzeYoloTileBox,applyDetectorProductionCrops,renderDetectorResult,detectorFailureUserText,boundaryLikelihoodDiagnostics,refineRowOuterEdges,fitGlobalRowGrid,splitRowBySeams,analyzeGuideCanvas,featureFromBox,tileFaceRect,descriptorFromCanvas,detectFaceGeometry,detectFaceQuad,canonicalizeCanvas,orientedFaceCanvas,perspectiveFaceCanvas,warpQuadToCanvas,trainingImageDataUrl,estimateBleedSafeShift,safeInsetWindow,chooseRecognitionWindow,innerRecognitionCanvas,innerRecognitionWindowCanvas,innerFeatureFromCanonical,inferenceFeatureViews,analyzeTileBox,loadTrainingSamples,rebuildLibraryFromTrainingImages,loadLibrary,activeLibrary,saveLibrary,saveLibraryDetailed,persistVerifiedHand,persistFailureText,persistFailureUserText,loadLegacyLibrary,legacyLibraryKeys,convertLegacyDirectFeature,cropResampleFeatureMap,confidenceAssessment,confidentCandidate,confidenceReasonSummary,renderPickerPhoto,renderPickerSuggestions,pickerCurrentIndex,schedulePickerSuggestionSync,attachPickerSuggestionObserver
   });
 })();
