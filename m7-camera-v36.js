@@ -4134,7 +4134,12 @@
       if(state.pendingFeatures.length!==14)return {ok:false,reason:'features-missing',learned:0,rawSaved:false,rawVerified:false};
 
       const lib=activeLibrary(),raw=[];
-      const learnableIndexes=labels.map((_,i)=>i).filter(i=>!state.pendingBroken[i]);
+      // Red fives share the normal 5 tile identity in scoring, but their visual
+      // crop must not be learned as a normal 5 template. Keep the aka raw label
+      // only as metadata and skip it from the legacy image library.
+      const learnableIndexes=labels.map((_,i)=>i).filter(i=>
+        !state.pendingBroken[i]&&!/^0[mps]$/.test(String(buttons[i]?.dataset?.m7v119RawLabel||''))
+      );
       const learnableLabels=[...new Set(learnableIndexes.map(i=>labels[i]))];
       for(let i=0;i<14;i++){
         const label=labels[i],feature=state.pendingFeatures[i],imageDataUrl=state.pendingTrainingImages[i];
