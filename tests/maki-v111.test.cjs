@@ -54,3 +54,18 @@ test('v111 service worker cache contains the new module',()=>{
   assert(sw.includes('manifest.webmanifest?v=m7v118'));
   assert(manifest.includes('v=m7v118'));
 });
+
+
+test('v118 adds manual dora, aka-dora and ura-dora foundation for future camera input',()=>{
+  const hand=read('maki-v111-hand-entry.js');
+  const m8=read('m8-v22.js');
+  assert(hand.includes('ドラ入力'));
+  assert(hand.includes('赤ドラ'));
+  assert(hand.includes('裏ドラ'));
+  assert(hand.includes('window.MAKIV118Dora'));
+  assert(hand.includes('applyDoraToRecommendation'));
+  assert(hand.includes("kind==='ura'&&!winnerIsRiichi"));
+  assert(hand.includes('ドラは役ではありません'));
+  assert(m8.includes('m8BaseYakuBreakdownV118'));
+  assert(m8.includes('MAKIV118Dora?.applyToRecommendation'));
+});
