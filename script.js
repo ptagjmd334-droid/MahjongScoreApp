@@ -22575,11 +22575,15 @@ if (
    ======================================== */
 (() => {
   const TILE_OPTIONS_M7V5 = [
-    // v62: keep manzu in the first 9 positions; put pinzu/souzu directly below.
-    // Honors stay grouped on the right side of the same 12-column grid.
+    // v122: the picker keeps the 34 normal tile identities used by M8, plus
+    // three explicit red-five choices. Red options publish the normal 5 tile
+    // to scoring and preserve the aka raw label separately for dora counting.
     '1萬','2萬','3萬','4萬','5萬','6萬','7萬','8萬','9萬','東','南','西',
     '1筒','2筒','3筒','4筒','5筒','6筒','7筒','8筒','9筒','北','白','發',
-    '1索','2索','3索','4索','5索','6索','7索','8索','9索','中'
+    '1索','2索','3索','4索','5索','6索','7索','8索','9索','中',
+    {label:'赤5萬',tile:'5萬',raw:'0m'},
+    {label:'赤5筒',tile:'5筒',raw:'0p'},
+    {label:'赤5索',tile:'5索',raw:'0s'}
   ];
 
   function closeResultM7V5(){ document.getElementById('hand-result-overlay-m7v5')?.remove(); }
@@ -22590,9 +22594,34 @@ if (
     picker.id='tile-picker-m7v5'; picker.className='tile-picker-m7v5';
     picker.innerHTML=`<div class="tile-picker-card-m7v5"><div class="tile-picker-title-m7v5">${index+1}枚目を修正</div><div class="tile-picker-grid-m7v5"></div><button type="button" class="tile-picker-cancel-m7v5">閉じる</button></div>`;
     const grid=picker.querySelector('.tile-picker-grid-m7v5');
-    TILE_OPTIONS_M7V5.forEach(name=>{
-      const b=document.createElement('button'); b.type='button'; b.textContent=name;
-      b.onclick=()=>{ tileButton.textContent=name; tileButton.dataset.tile=name; tileButton.setAttribute('aria-label',name); picker.remove(); updateResultStatusM7V5(); };
+    TILE_OPTIONS_M7V5.forEach(option=>{
+      const red=typeof option==='object'&&option!==null;
+      const label=red?option.label:String(option);
+      const tile=red?option.tile:String(option);
+      const raw=red?option.raw:'';
+      const b=document.createElement('button'); b.type='button'; b.textContent=label;
+      b.dataset.tileName=label;
+      if(red){
+        b.dataset.m7v122Red='1';
+        b.dataset.m7v122RawLabel=raw;
+        b.classList.add('m7v122-red-option');
+      }
+      b.onclick=()=>{
+        tileButton.textContent=label;
+        tileButton.dataset.tile=tile;
+        tileButton.setAttribute('aria-label',label);
+        if(red){
+          tileButton.dataset.m7v119RawLabel=raw;
+          tileButton.dataset.m7v122Red='1';
+          tileButton.classList.add('m7v122-red-tile');
+        }else{
+          delete tileButton.dataset.m7v119RawLabel;
+          delete tileButton.dataset.m7v122Red;
+          tileButton.classList.remove('m7v122-red-tile');
+        }
+        picker.remove();
+        updateResultStatusM7V5();
+      };
       grid.appendChild(b);
     });
     picker.querySelector('.tile-picker-cancel-m7v5').onclick=()=>picker.remove();
