@@ -99,6 +99,7 @@ on:
       - work/maki-v119-camera-dora-red
       - work/maki-v120-red-five-repair
       - work/maki-v121-redink-runtime-hotfix
+      - work/maki-v122-manual-red-five-correction
   workflow_dispatch:
 
 jobs:
