@@ -1371,8 +1371,24 @@
   window.addEventListener('maki:m7-tile-corrected',e=>{
     const index=Number(e.detail?.index);
     if(!Number.isInteger(index)||index<0||index>=14)return;
-    state.pendingRawLabels[index]=String(e.detail?.raw||'');
+    const raw=String(e.detail?.raw||'');
+    state.pendingRawLabels[index]=raw;
     window.M7V119PendingRawLabels=state.pendingRawLabels.slice();
+    queueMicrotask(()=>{
+      const b=resultButtons()[index];
+      if(!b||b.dataset.m7v122ManualCorrection!=='1')return;
+      if(raw){
+        b.setAttribute('data-m7v119-raw-label',raw);
+        b.setAttribute('data-m7v122-red','1');
+        b.classList.add('m7v122-red');
+        b.setAttribute('aria-label','赤'+(b.dataset.tile||''));
+      }else{
+        b.removeAttribute('data-m7v119-raw-label');
+        b.removeAttribute('data-m7v122-red');
+        b.classList.remove('m7v122-red');
+        b.setAttribute('aria-label',b.dataset.tile||'');
+      }
+    });
   });
 
   function resultButtons(){
@@ -4213,7 +4229,10 @@
     const buttons=[...root.querySelectorAll('.hand-result-tile-m7v5')];
     const tiles=buttons.map(b=>b.dataset.tile||'');
     const rawLabels=buttons.map((b,i)=>{
-      const raw=String(b.dataset.m7v119RawLabel||'');
+      const manual=b.dataset.m7v122ManualCorrection==='1';
+      const raw=manual
+        ?String(state.pendingRawLabels[i]||'')
+        :String(b.dataset.m7v119RawLabel||'');
       const normalized=yoloLabelToAppTile(raw);
       return raw&&normalized===tiles[i]?raw:'';
     });
