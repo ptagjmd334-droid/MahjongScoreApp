@@ -2,7 +2,7 @@
 (()=>{
   'use strict';
 
-  const VERSION='MAKI v115';
+  const VERSION='MAKI v116';
   const TILES=[
     '1萬','2萬','3萬','4萬','5萬','6萬','7萬','8萬','9萬',
     '1筒','2筒','3筒','4筒','5筒','6筒','7筒','8筒','9筒',
@@ -450,7 +450,13 @@
   }
 
   function suggestedLimitKey(){
-    const han=finiteSuggested(window.m8SuggestedHanV23,window.m8SuggestedHanV22,window.m8SuggestedHanV9,window.m8SuggestedHanV6);
+    const canonical=window.m8YakuBreakdownV116;
+    let han=null;
+    if(canonical&&Array.isArray(canonical.items)){
+      han=canonical.yakuman?'yakuman':Number(canonical.han);
+    }else{
+      han=finiteSuggested(window.m8SuggestedHanV23,window.m8SuggestedHanV22,window.m8SuggestedHanV9,window.m8SuggestedHanV6);
+    }
     if(han==='yakuman')return 'yakuman';
     if(!Number.isFinite(Number(han)))return '';
     const n=Number(han);
@@ -470,6 +476,7 @@
       const hit=!!key&&btn.dataset.limit===key;
       btn.classList.toggle('maki-v111-limit-recommend',hit);
       if(hit)btn.setAttribute('aria-label',(btn.textContent||'').trim()+' M8推奨');
+      else btn.removeAttribute('aria-label');
     });
   }
 
