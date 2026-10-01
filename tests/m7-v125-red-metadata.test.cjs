@@ -15,7 +15,8 @@ test('v125 enforces red metadata only on matching red fives',()=>{
   assert(script.includes("delete tileButton.dataset.m7v119RawLabel"));
   assert(script.includes("delete tileButton.dataset.m7v122Red"));
   assert(script.includes("tileButton.classList.remove('m7v122-red-tile')"));
-  assert(script.includes('window.M7V126ResultPicker=Object.freeze'));\n  assert(script.includes('window.M7V125ResultPicker=window.M7V126ResultPicker'));
+  assert(script.includes('window.M7V126ResultPicker=Object.freeze'));
+  assert(script.includes('window.M7V125ResultPicker=window.M7V126ResultPicker'));
 });
 
 test('v125 manual correction always routes through red-state sanitizer',()=>{
