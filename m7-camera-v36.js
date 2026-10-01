@@ -4017,6 +4017,7 @@
         if(url){b.classList.add('m7v36-crop');b.style.backgroundImage=`url("${url}")`;b.dataset.m7v36Index=String(i);}
         const rawRed=state.pendingRawLabels[i]||'';
         if(rawRed)b.dataset.m7v119RawLabel=rawRed;
+        window.M7V125ResultPicker?.sanitizeRedState?.(b);
         const suggestions=(state.predictionDebug?.[i]||[]).map(x=>x.label).filter(Boolean);
         if(suggestions.length){
           b.dataset.m7v39Suggestions=JSON.stringify(suggestions.slice(0,3));
@@ -4265,6 +4266,7 @@
     const ok=e.target.closest?.('.hand-result-ok-m7v5');if(!ok)return;
     const root=document.getElementById('hand-result-overlay-m7v5');if(!root)return;
     const buttons=[...root.querySelectorAll('.hand-result-tile-m7v5')];
+    buttons.forEach(b=>window.M7V125ResultPicker?.sanitizeRedState?.(b));
     const tiles=buttons.map(b=>b.dataset.tile||'');
     const rawLabels=buttons.map((b,i)=>{
       const raw=String(b.dataset.m7v119RawLabel||'');
