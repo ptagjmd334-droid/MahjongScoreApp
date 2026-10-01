@@ -37,6 +37,7 @@ const server=http.createServer((req,res)=>{
     assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'MAKI v123');
     assert.equal(await page.$eval('#app-build-badge',e=>e.hidden),false,'v123 build badge should be visible during development');
     assert(await page.evaluate(()=>!!window.M7V36CameraOwner),'v98 camera owner must bootstrap');
+    assert(await page.evaluate(()=>!!window.MAKIV123Benchmark),'v123 recognition benchmark logger must bootstrap');
     await page.evaluate(()=>{
       const overlay=document.createElement('div');
       overlay.id='realtime-hand-camera-m7v3';
