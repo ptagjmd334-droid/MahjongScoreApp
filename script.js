@@ -22587,20 +22587,38 @@ if (
 
   function closeResultM7V5(){ document.getElementById('hand-result-overlay-m7v5')?.remove(); }
 
+  const RED_RAW_BY_TILE_M7V125=Object.freeze({'5萬':'0m','5筒':'0p','5索':'0s'});
+
+  function sanitizeRedTileStateM7V125(tileButton){
+    if(!tileButton)return false;
+    const tile=String(tileButton.dataset.tile||'');
+    const raw=String(tileButton.dataset.m7v119RawLabel||'');
+    const expected=RED_RAW_BY_TILE_M7V125[tile]||'';
+    const validRed=!!expected&&raw===expected;
+    if(validRed){
+      tileButton.dataset.m7v122Red='1';
+      tileButton.classList.add('m7v122-red-tile');
+      tileButton.setAttribute('aria-label','赤'+tile);
+      return true;
+    }
+    // Red metadata is valid only for the matching five of the same suit.
+    // Any manual correction to 1-4/6-9/honors, or a mismatched red raw class,
+    // must clear both visual and scoring metadata immediately.
+    delete tileButton.dataset.m7v119RawLabel;
+    delete tileButton.dataset.m7v122Red;
+    tileButton.classList.remove('m7v122-red-tile');
+    if(tile)tileButton.setAttribute('aria-label',tile);
+    return false;
+  }
+
   function applyTileChoiceM7V122(tileButton,label,tile,raw=''){
     if(!tileButton)return;
     tileButton.textContent=label;
     tileButton.dataset.tile=tile;
     tileButton.setAttribute('aria-label',label);
-    if(raw){
-      tileButton.dataset.m7v119RawLabel=raw;
-      tileButton.dataset.m7v122Red='1';
-      tileButton.classList.add('m7v122-red-tile');
-    }else{
-      delete tileButton.dataset.m7v119RawLabel;
-      delete tileButton.dataset.m7v122Red;
-      tileButton.classList.remove('m7v122-red-tile');
-    }
+    if(raw)tileButton.dataset.m7v119RawLabel=raw;
+    else delete tileButton.dataset.m7v119RawLabel;
+    sanitizeRedTileStateM7V125(tileButton);
   }
 
   function openTilePickerM7V5(index, tileButton){
@@ -22634,13 +22652,15 @@ if (
   function updateResultStatusM7V5(){
     const root=document.getElementById('hand-result-overlay-m7v5'); if(!root) return;
     const buttons=[...root.querySelectorAll('.hand-result-tile-m7v5')];
+    buttons.forEach(sanitizeRedTileStateM7V125);
     const fixed=buttons.filter(b=>b.dataset.tile).length;
     const status=root.querySelector('.hand-result-status-m7v5');
     if(status) status.textContent = fixed===14 ? '14枚確認済み ✓' : `${fixed} / 14枚を確認済み`;
     const ok=root.querySelector('.hand-result-ok-m7v5'); if(ok) ok.disabled=fixed!==14;
   }
 
-  window.M7V122ResultPicker=Object.freeze({applyChoice:applyTileChoiceM7V122});
+  window.M7V125ResultPicker=Object.freeze({applyChoice:applyTileChoiceM7V122,sanitizeRedState:sanitizeRedTileStateM7V125});
+  window.M7V122ResultPicker=window.M7V125ResultPicker;
 
   window.showHandResultM7V5 = function(tiles){
     document.getElementById('hand-result-overlay-m7v5')?.remove();
