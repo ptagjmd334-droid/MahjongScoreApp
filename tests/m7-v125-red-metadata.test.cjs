@@ -15,7 +15,7 @@ test('v125 enforces red metadata only on matching red fives',()=>{
   assert(script.includes("delete tileButton.dataset.m7v119RawLabel"));
   assert(script.includes("delete tileButton.dataset.m7v122Red"));
   assert(script.includes("tileButton.classList.remove('m7v122-red-tile')"));
-  assert(script.includes('window.M7V125ResultPicker=Object.freeze'));
+  assert(script.includes('window.M7V126ResultPicker=Object.freeze'));\n  assert(script.includes('window.M7V125ResultPicker=window.M7V126ResultPicker'));
 });
 
 test('v125 manual correction always routes through red-state sanitizer',()=>{
@@ -32,6 +32,6 @@ test('v125 camera and UI boundaries defensively sanitize stale red state',()=>{
 });
 
 test('v125 build marker and cache key are current',()=>{
-  assert(index.includes('MAKI v125'));
-  assert(index.includes('v=m7v125'));
+  assert(index.includes('MAKI v126'));
+  assert(index.includes('v=m7v126'));
 });
