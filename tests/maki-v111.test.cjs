@@ -51,6 +51,7 @@ test('v111 service worker cache contains the new module',()=>{
   const manifest=read('manifest.webmanifest');
   assert(sw.includes('mahjong-score-app-m7-v123'));
   assert(sw.includes('./maki-v111-hand-entry.js'));
+  assert(sw.includes('./m7-benchmark-v123.js'));
   assert(sw.includes('manifest.webmanifest?v=m7v123'));
   assert(manifest.includes('v=m7v123'));
 });
