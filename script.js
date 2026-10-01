@@ -22659,8 +22659,9 @@ if (
     const ok=root.querySelector('.hand-result-ok-m7v5'); if(ok) ok.disabled=fixed!==14;
   }
 
-  window.M7V125ResultPicker=Object.freeze({applyChoice:applyTileChoiceM7V122,sanitizeRedState:sanitizeRedTileStateM7V125});
-  window.M7V122ResultPicker=window.M7V125ResultPicker;
+  window.M7V126ResultPicker=Object.freeze({applyChoice:applyTileChoiceM7V122,sanitizeRedState:sanitizeRedTileStateM7V125});
+  window.M7V125ResultPicker=window.M7V126ResultPicker;
+  window.M7V122ResultPicker=window.M7V126ResultPicker;
 
   window.showHandResultM7V5 = function(tiles){
     document.getElementById('hand-result-overlay-m7v5')?.remove();

@@ -1,4 +1,4 @@
-// M8 v3.1: 14枚連続入力 + 選択状況表示 + 基本役候補
+// M8 v3.2: 14枚連続入力 + 赤5を含む選択対象の一元管理 + 基本役候補
 (() => {
   const glyphs = window.MAHJONG_TILE_GLYPHS_M7 || {};
   const style=document.createElement('style');
@@ -56,10 +56,47 @@
   function slots(){return [...(root()?.querySelectorAll('.hand-result-tile-m7v5')||[])];}
   function refresh(){const r=root();if(!r)return;const s=slots(),n=s.filter(b=>b.dataset.tile).length;const st=r.querySelector('.hand-result-status-m7v5');if(st)st.textContent=n===14?'14枚確認済み ✓':`${n} / 14枚を確認済み`;const ok=r.querySelector('.hand-result-ok-m7v5');if(ok)ok.disabled=n!==14;}
   function redrawPicker(){const p=document.getElementById('tile-picker-m7v5');if(!p)return;const card=p.querySelector('.tile-picker-card-m7v5'),title=p.querySelector('.tile-picker-title-m7v5');if(!card||!title)return;p.querySelector('.m8v31-selection-strip')?.remove();p.querySelector('.m8v31-help')?.remove();title.textContent='手牌を連続入力';p.dataset.m8v31Current=String(current);const strip=document.createElement('div');strip.className='m8v31-selection-strip';slots().forEach((b,i)=>{const x=document.createElement('button');x.type='button';x.className='m8v31-slot'+(i===current?' current':'');x.textContent=b.dataset.tile?(glyphs[b.dataset.tile]||b.dataset.tile):String(i+1);x.onclick=e=>{e.preventDefault();e.stopPropagation();current=i;redrawPicker();};strip.appendChild(x);});const help=document.createElement('div');help.className='m8v31-help';help.textContent=`${current+1}枚目を選択中　選ぶと自動で次へ`;title.insertAdjacentElement('afterend',strip);strip.insertAdjacentElement('afterend',help);p.dispatchEvent(new CustomEvent('m8v31-current-change',{bubbles:true,detail:{index:current}}));}
-  // 元のpickerは選択後に閉じるため、捕捉フェーズで選択を奪い、同じpickerを開いたまま更新する。
-  document.addEventListener('click',e=>{const tile=e.target.closest?.('#tile-picker-m7v5 .tile-picker-grid-m7v5 button');if(!tile)return;const p=document.getElementById('tile-picker-m7v5');const s=slots();if(!p||!s[current])return;e.preventDefault();e.stopImmediatePropagation();const name=tile.dataset.tileName||tile.getAttribute('aria-label')||tile.textContent.trim();if(!name)return;s[current].dataset.tile=name;s[current].dataset.tileGlyph=glyphs[name]||'';s[current].textContent=name;s[current].setAttribute('aria-label',name);refresh();if(current<13)current++;redrawPicker();},true);
+  const RED_TILE_BY_RAW_M8V32=Object.freeze({'0m':'5萬','0p':'5筒','0s':'5索'});
+  function pickerChoiceM8V32(button){
+    if(!button)return null;
+    const label=button.dataset.tileName||button.getAttribute('aria-label')||button.textContent.trim();
+    if(!label)return null;
+    const raw=String(button.dataset.m7v122RawLabel||'');
+    const tile=raw?(RED_TILE_BY_RAW_M8V32[raw]||label.replace(/^赤/,'')):label;
+    return {label,tile,raw};
+  }
+  function applyContinuousChoiceM8V32(button){
+    const s=slots(),target=s[current],choice=pickerChoiceM8V32(button);
+    if(!target||!choice)return false;
+    const pickerApi=window.M7V126ResultPicker||window.M7V125ResultPicker||window.M7V122ResultPicker;
+    if(typeof pickerApi?.applyChoice==='function')pickerApi.applyChoice(target,choice.label,choice.tile,choice.raw);
+    else{
+      target.dataset.tile=choice.tile;
+      target.textContent=choice.label;
+      target.setAttribute('aria-label',choice.label);
+      if(choice.raw){target.dataset.m7v119RawLabel=choice.raw;target.dataset.m7v122Red='1';target.classList.add('m7v122-red-tile');}
+      else{delete target.dataset.m7v119RawLabel;delete target.dataset.m7v122Red;target.classList.remove('m7v122-red-tile');}
+    }
+    target.dataset.tileGlyph=glyphs[choice.tile]||glyphs[choice.label]||'';
+    refresh();
+    if(current<13)current++;
+    redrawPicker();
+    return true;
+  }
+  // 元のpickerは通常牌・赤5とも選択後に閉じる。連続入力のownerはcurrentなので、
+  // gridだけでなく赤5rowも捕捉フェーズで一元処理し、最初に開いたtileButtonのclosureへ戻さない。
+  document.addEventListener('click',e=>{
+    const tile=e.target.closest?.('#tile-picker-m7v5 .tile-picker-grid-m7v5 button,#tile-picker-m7v5 .m7v122-red-options button');
+    if(!tile)return;
+    const p=document.getElementById('tile-picker-m7v5');
+    if(!p||!slots()[current])return;
+    e.preventDefault();e.stopImmediatePropagation();
+    applyContinuousChoiceM8V32(tile);
+  },true);
   // pickerが開いた瞬間だけ開始位置を取得する。以後titleを書き換えてもcurrentをリセットしない。
   new MutationObserver(()=>{const p=document.getElementById('tile-picker-m7v5');if(!p||p.dataset.m8v31==='1')return;p.dataset.m8v31='1';const t=p.querySelector('.tile-picker-title-m7v5')?.textContent||'';const m=t.match(/(\d+)枚目/);current=m?Math.max(0,Math.min(13,Number(m[1])-1)):0;redrawPicker();}).observe(document.body,{childList:true,subtree:true});
+
+  window.M8V32ContinuousPicker=Object.freeze({pickerChoice:pickerChoiceM8V32,applyChoice:applyContinuousChoiceM8V32,currentIndex:()=>current});
 
   function basicYaku(tiles){const out=[];const honors=new Set(['東','南','西','北','白','發','中']);const terminals=new Set(['1萬','9萬','1筒','9筒','1索','9索']);if(tiles.length!==14)return out;if(tiles.every(t=>!honors.has(t)&&!terminals.has(t)))out.push('タンヤオ候補');const c={};tiles.forEach(t=>c[t]=(c[t]||0)+1);['白','發','中'].forEach(t=>{if((c[t]||0)>=3)out.push(`${t}の役牌候補`);});return out;}
   document.addEventListener('click',e=>{const ok=e.target.closest?.('.hand-result-ok-m7v5');if(!ok)return;const r=root();if(!r)return;const ts=slots().map(b=>b.dataset.tile).filter(Boolean);if(ts.length!==14)return;const y=basicYaku(ts);window.lastBasicYakuHintsM8V31=y;setTimeout(()=>{const result=document.querySelector('#m8-result-v1 .m8-card');if(result&&!result.querySelector('#m8-yaku-hint-v31')){const d=document.createElement('div');d.id='m8-yaku-hint-v31';d.textContent=y.length?`基本役候補：${y.join(' / ')}`:'基本役候補：現時点では検出なし';result.insertBefore(d,result.querySelector('button'));}},0);},true);
