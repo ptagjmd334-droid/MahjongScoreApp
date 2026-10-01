@@ -42,3 +42,26 @@ The target behavior is feasible because recognition does not need the camera to 
 - show 14-tile review result
 
 This keeps the current precision-first policy: auto-freeze is allowed only when capture readiness is sufficiently reliable; otherwise the user can still press the shutter manually.
+
+
+## MAKI v123 Recognition Benchmark（2026-10-01）
+
+14枚認識の次段階は、症状ごとの追加thresholdより先に「同じ実写caseで改善前後を比較できる状態」を作る。
+
+### v123
+- 認識ロジック自体は原則変更しない。
+- シャッター直前の白枠内生フレームを保存。
+- detector raw boxes / Top1・Top2 / class margin / cross-view / 15→14・13→14等の選択理由を保存。
+- 結果画面の14crop、最終自動判定、赤5raw metadataを保存。
+- ユーザー手修正後の14牌をground truthとして同じcaseへ追記。
+- IndexedDBへ最大50case保持し、現在caseまたはログ一覧をJSON共有可能にする。
+
+### v124以降
+1. v123 case群でv122相当のbaselineを固定する。
+2. threshold / sorted-suit guard等を1変更ずつoffline A/B比較する。
+3. capture quality（blur / exposure / tile size / geometry）と失敗率の相関を記録する。
+4. 同一caseでYOLO11n / 11s、MAKI実機fine-tuneを比較する。
+5. 必要なら現行boxを固定したまま専用classifierを追加し、二段階方式を比較する。
+6. 固定画像精度が十分高くなった後で temporal stability を使うAuto-freezeへ進む。
+
+主指標はTop3ではなく、14枚exact Top1、自動確定precision/recall、誤自動確定率、平均手修正枚数、複数撮影の再現性とする。
