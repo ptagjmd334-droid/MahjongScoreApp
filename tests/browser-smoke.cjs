@@ -34,10 +34,10 @@ const server=http.createServer((req,res)=>{
     const errors=[];page.on('pageerror',e=>errors.push(String(e)));
     await page.goto('http://127.0.0.1:'+port+'/',{waitUntil:'domcontentloaded',timeout:30000});
     await page.waitForSelector('#go-confirm-button',{timeout:12000});
-    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'MAKI v124');
-    assert.equal(await page.$eval('#app-build-badge',e=>e.hidden),false,'v124 build badge should be visible during development');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'MAKI v125');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.hidden),false,'v125 build badge should be visible during development');
     assert(await page.evaluate(()=>!!window.M7V36CameraOwner),'v98 camera owner must bootstrap');
-    assert(await page.evaluate(()=>!!window.MAKIV124Benchmark),'v124 recognition benchmark logger must bootstrap');
+    assert(await page.evaluate(()=>!!window.MAKIV125Benchmark),'v125 recognition benchmark logger must bootstrap');
     await page.evaluate(()=>{
       const overlay=document.createElement('div');
       overlay.id='realtime-hand-camera-m7v3';
@@ -683,10 +683,10 @@ const server=http.createServer((req,res)=>{
     assert.equal(manifestBrand.name,'MAKI');
     assert.equal(manifestBrand.short_name,'MAKI');
     assert.equal(manifestBrand.id,'./');
-    assert(manifestBrand.icons.every(x=>String(x.src).includes('v=m7v124')),'v109 manifest icons must use fresh cache keys '+JSON.stringify(manifestBrand.icons));
+    assert(manifestBrand.icons.every(x=>String(x.src).includes('v=m7v125')),'v109 manifest icons must use fresh cache keys '+JSON.stringify(manifestBrand.icons));
     assert.equal(await page.$eval('meta[name="apple-mobile-web-app-title"]',e=>e.content),'MAKI');
     assert.equal(await page.$eval('meta[name="application-name"]',e=>e.content),'MAKI');
-    assert((await page.$eval('link[rel="apple-touch-icon"]',e=>e.getAttribute('href'))).includes('v=m7v124'));
+    assert((await page.$eval('link[rel="apple-touch-icon"]',e=>e.getAttribute('href'))).includes('v=m7v125'));
     for(const size of [180,192,512]){
       const p=path.join(root,'icon-'+size+'.png');
       assert(fs.existsSync(p),'MAKI icon missing '+p);
@@ -1403,6 +1403,37 @@ const server=http.createServer((req,res)=>{
       'v122 red 5-sou correction must preserve aka metadata while scoring as 5索 '+JSON.stringify(v122RedCorrection));
     assert.deepEqual(v122RedCorrection.afterNormal,{tile:'5索',raw:'',red:'',aria:'5索',redClass:false},
       'v122 choosing ordinary 5-sou must clear stale aka metadata '+JSON.stringify(v122RedCorrection));
+    const v125RedInvariant=await page.evaluate(()=>{
+      const make=(tile,raw,red=true)=>{
+        const b=document.createElement('button');
+        b.dataset.tile=tile;
+        if(raw)b.dataset.m7v119RawLabel=raw;
+        if(red)b.dataset.m7v122Red='1';
+        if(red)b.classList.add('m7v122-red-tile');
+        return b;
+      };
+      const staleOne=make('1萬','0m',true);
+      window.M7V125ResultPicker?.sanitizeRedState?.(staleOne);
+      const mismatchFive=make('5萬','0p',true);
+      window.M7V125ResultPicker?.sanitizeRedState?.(mismatchFive);
+      const validFive=make('5萬','0m',false);
+      window.M7V125ResultPicker?.sanitizeRedState?.(validFive);
+      const manual=make('5萬','0m',true);
+      window.M7V125ResultPicker?.applyChoice?.(manual,'1萬','1萬','');
+      const snap=b=>({
+        tile:b.dataset.tile||'',raw:b.dataset.m7v119RawLabel||'',red:b.dataset.m7v122Red||'',
+        redClass:b.classList.contains('m7v122-red-tile'),aria:b.getAttribute('aria-label')||''
+      });
+      return {staleOne:snap(staleOne),mismatchFive:snap(mismatchFive),validFive:snap(validFive),manual:snap(manual)};
+    });
+    assert.deepEqual(v125RedInvariant.staleOne,{tile:'1萬',raw:'',red:'',redClass:false,aria:'1萬'},
+      'v125 must never allow an impossible red 1萬 marker '+JSON.stringify(v125RedInvariant));
+    assert.deepEqual(v125RedInvariant.mismatchFive,{tile:'5萬',raw:'',red:'',redClass:false,aria:'5萬'},
+      'v125 must clear a red raw suit that does not match the displayed five '+JSON.stringify(v125RedInvariant));
+    assert.deepEqual(v125RedInvariant.validFive,{tile:'5萬',raw:'0m',red:'1',redClass:true,aria:'赤5萬'},
+      'v125 must preserve a valid matching red five '+JSON.stringify(v125RedInvariant));
+    assert.deepEqual(v125RedInvariant.manual,{tile:'1萬',raw:'',red:'',redClass:false,aria:'1萬'},
+      'v125 manual correction from red five to 1萬 must clear all red metadata '+JSON.stringify(v125RedInvariant));
     const structural=await page.evaluate(()=>{
       const core=window.M7RecognitionCoreV33,w=24,h=36,n=w*h;
       const make=(horizontal,shift=0)=>{
