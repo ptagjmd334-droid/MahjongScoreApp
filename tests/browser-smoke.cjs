@@ -34,10 +34,10 @@ const server=http.createServer((req,res)=>{
     const errors=[];page.on('pageerror',e=>errors.push(String(e)));
     await page.goto('http://127.0.0.1:'+port+'/',{waitUntil:'domcontentloaded',timeout:30000});
     await page.waitForSelector('#go-confirm-button',{timeout:12000});
-    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'MAKI v123');
-    assert.equal(await page.$eval('#app-build-badge',e=>e.hidden),false,'v123 build badge should be visible during development');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'MAKI v124');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.hidden),false,'v124 build badge should be visible during development');
     assert(await page.evaluate(()=>!!window.M7V36CameraOwner),'v98 camera owner must bootstrap');
-    assert(await page.evaluate(()=>!!window.MAKIV123Benchmark),'v123 recognition benchmark logger must bootstrap');
+    assert(await page.evaluate(()=>!!window.MAKIV124Benchmark),'v124 recognition benchmark logger must bootstrap');
     await page.evaluate(()=>{
       const overlay=document.createElement('div');
       overlay.id='realtime-hand-camera-m7v3';
@@ -619,6 +619,38 @@ const server=http.createServer((req,res)=>{
     });
     assert.deepEqual(v95Ambiguity,[3],'v95 should stop low-margin unconfirmed YOLO but keep legacy-confirmed label '+JSON.stringify(v95Ambiguity));
 
+    const v124Safety=await page.evaluate(()=>{
+      const api=window.M7CameraV36;
+      const base=()=>Array.from({length:14},()=>({label:'東',rawLabel:'1z',score:.9,runnerLabel:'南',runnerRawLabel:'2z',runnerScore:.05,classMargin:.85,crossViewShare:.9,crossViewSupport:8,crossViewCount:9,crossViewRunnerLabel:'南',crossViewMargin:.85}));
+      const correct4=base();correct4[4]={label:'4萬',rawLabel:'4m',score:.91,runnerLabel:'5筒',runnerRawLabel:'0p',runnerScore:.01,classMargin:.90,crossViewShare:.95,crossViewSupport:20,crossViewCount:24,crossViewRunnerLabel:'5筒',crossViewMargin:.90};
+      const wrong8=base();wrong8[4]={label:'4萬',rawLabel:'4m',score:.815,runnerLabel:'8萬',runnerRawLabel:'8m',runnerScore:.5233,classMargin:.2917,crossViewShare:.643,crossViewSupport:26,crossViewCount:37,crossViewRunnerLabel:'8萬',crossViewMargin:.2917};
+      const wrong2=base();wrong2[4]={label:'4萬',rawLabel:'4m',score:.7099,runnerLabel:'2萬',runnerRawLabel:'2m',runnerScore:.6809,classMargin:.029,crossViewShare:.4934,crossViewSupport:14,crossViewCount:29,crossViewRunnerLabel:'2萬',crossViewMargin:.029};
+      const strong4=base();strong4[4]={label:'4萬',rawLabel:'4m',score:.9,runnerLabel:'8萬',runnerRawLabel:'8m',runnerScore:.2,classMargin:.70,crossViewShare:.88,crossViewSupport:20,crossViewCount:22,crossViewRunnerLabel:'8萬',crossViewMargin:.70};
+
+      const redMan=base();
+      redMan[0]={label:'5筒',rawLabel:'0p',rawOriginalLabel:'0p',score:.79,runnerLabel:'5萬',runnerRawLabel:'5m',runnerScore:.01,classMargin:.78,crossViewShare:.92,crossViewSupport:17,crossViewCount:23,crossViewRunnerLabel:'5萬',crossViewMargin:.78};
+      redMan[1]={label:'3萬',rawLabel:'3m',score:.8};redMan[2]={label:'5萬',rawLabel:'5m',score:.8};redMan[3]={label:'6萬',rawLabel:'6m',score:.8};
+      const redPin=base();
+      redPin[0]={label:'5筒',rawLabel:'0p',rawOriginalLabel:'0p',score:.79};redPin[1]={label:'3筒',rawLabel:'3p',score:.8};redPin[2]={label:'5筒',rawLabel:'5p',score:.8};redPin[3]={label:'6筒',rawLabel:'6p',score:.8};
+      const repaired=redMan.map(x=>({...x}));repaired[0]={...repaired[0],label:'5萬',rawLabel:'0m',rawOriginalLabel:'0p',redRepair:'context-suit'};
+      return {
+        correct4:api.yoloV124ManzuFourConflicts(correct4,true),
+        wrong8:api.yoloV124ManzuFourConflicts(wrong8,true),
+        wrong2:api.yoloV124ManzuFourConflicts(wrong2,true),
+        strong4:api.yoloV124ManzuFourConflicts(strong4,true),
+        redMan:api.yoloV124RedFiveSuitConflicts(redMan,true),
+        redPin:api.yoloV124RedFiveSuitConflicts(redPin,true),
+        repaired:api.yoloV124RedFiveSuitConflicts(repaired,true)
+      };
+    });
+    assert.deepEqual(v124Safety.correct4,[],'v124 must keep a clearly separated real 4萬 '+JSON.stringify(v124Safety));
+    assert.deepEqual(v124Safety.wrong8,[4],'v124 should abstain on benchmark-like 4萬→8萬 confusion '+JSON.stringify(v124Safety));
+    assert.deepEqual(v124Safety.wrong2,[4],'v124 should abstain on benchmark-like 4萬→2萬 confusion '+JSON.stringify(v124Safety));
+    assert.deepEqual(v124Safety.strong4,[],'v124 should not block a strongly separated 4萬 merely because 8萬 is runner-up '+JSON.stringify(v124Safety));
+    assert.deepEqual(v124Safety.redMan,[0],'v124 should stop raw 0p when local evidence strongly says manzu '+JSON.stringify(v124Safety));
+    assert.deepEqual(v124Safety.redPin,[],'v124 should keep coherent raw red 5-pin '+JSON.stringify(v124Safety));
+    assert.deepEqual(v124Safety.repaired,[],'v124 should keep an already context-repaired red five '+JSON.stringify(v124Safety));
+
     const v95NearDuplicate=await page.evaluate(()=>{
       const api=window.M7CameraV36;
       const yolo=Array.from({length:14},()=>({label:'1萬',score:.9,classMargin:.5}));
@@ -651,10 +683,10 @@ const server=http.createServer((req,res)=>{
     assert.equal(manifestBrand.name,'MAKI');
     assert.equal(manifestBrand.short_name,'MAKI');
     assert.equal(manifestBrand.id,'./');
-    assert(manifestBrand.icons.every(x=>String(x.src).includes('v=m7v123')),'v109 manifest icons must use fresh cache keys '+JSON.stringify(manifestBrand.icons));
+    assert(manifestBrand.icons.every(x=>String(x.src).includes('v=m7v124')),'v109 manifest icons must use fresh cache keys '+JSON.stringify(manifestBrand.icons));
     assert.equal(await page.$eval('meta[name="apple-mobile-web-app-title"]',e=>e.content),'MAKI');
     assert.equal(await page.$eval('meta[name="application-name"]',e=>e.content),'MAKI');
-    assert((await page.$eval('link[rel="apple-touch-icon"]',e=>e.getAttribute('href'))).includes('v=m7v123'));
+    assert((await page.$eval('link[rel="apple-touch-icon"]',e=>e.getAttribute('href'))).includes('v=m7v124'));
     for(const size of [180,192,512]){
       const p=path.join(root,'icon-'+size+'.png');
       assert(fs.existsSync(p),'MAKI icon missing '+p);
