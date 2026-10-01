@@ -415,7 +415,7 @@
     VERSION,DB_NAME,STORE,MAX_CASES,rawLabelToTile,reconstructSelectedRaw,selectedRawEvidence,classifyCase,benchmarkIndexPayload,
     getCase,listCases,saveCase,exportCase,exportIndex,copyIndexText,clearCases
   };
-  if(typeof window!=='undefined'){const frozen=Object.freeze(api);window.MAKIV124Benchmark=frozen;window.MAKIV123Benchmark=frozen;}
+  if(typeof window!=='undefined'){const frozen=Object.freeze(api);window.MAKIV125Benchmark=frozen;window.MAKIV124Benchmark=frozen;window.MAKIV123Benchmark=frozen;}
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
   if(typeof document==='undefined')return;
 
