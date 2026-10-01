@@ -101,6 +101,7 @@ on:
       - work/maki-v121-redink-runtime-hotfix
       - work/maki-v122-red-five-manual-correction
       - work/maki-v123-recognition-benchmark
+      - work/maki-v124-benchmark-safety
   workflow_dispatch:
 
 jobs:
@@ -119,8 +120,10 @@ jobs:
         run: node --test tests/m7-v33.test.cjs
       - name: Check MAKI v111 score hand-entry integration
         run: node --test tests/maki-v111.test.cjs
-      - name: Check MAKI v123 recognition benchmark logger
+      - name: Check MAKI v124 recognition benchmark logger
         run: node --test tests/m7-v123-benchmark.test.cjs
+      - name: Check MAKI v124 benchmark-driven recognition safety
+        run: node --test tests/m7-v124-safety.test.cjs
       - name: Install headless browser control
         run: npm install --no-save --no-audit --no-fund puppeteer-core@24
       - name: Run real Chromium landscape flow

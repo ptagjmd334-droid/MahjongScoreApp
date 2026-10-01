@@ -1,10 +1,10 @@
-// MAKI v123: on-device recognition benchmark / error logger.
+// MAKI v124: on-device recognition benchmark / error logger (v123 DB preserved).
 // This module does NOT change recognition decisions. It records the exact
 // camera result, detector diagnostics and the human-confirmed correction.
 (()=>{
   'use strict';
 
-  const VERSION='MAKI v123';
+  const VERSION='MAKI v124';
   const DB_NAME='maki-recognition-benchmark-v123';
   const DB_VERSION=1;
   const STORE='cases';
@@ -41,12 +41,14 @@
     })).sort((a,b)=>(Number(a.x)||0)-(Number(b.x)||0));
     const stats=geometry||{};
     const dropped=new Set((stats.dropped||[]).map(x=>Number(x?.rawIndex)).filter(Number.isInteger));
-    if(Number.isInteger(Number(stats.droppedOverlapRawIndex)))dropped.add(Number(stats.droppedOverlapRawIndex));
+    const droppedOverlap=stats.droppedOverlapRawIndex;
+    if(droppedOverlap!==null&&droppedOverlap!==undefined&&droppedOverlap!==''&&Number.isInteger(Number(droppedOverlap)))dropped.add(Number(droppedOverlap));
     let selected=raw.filter(b=>!dropped.has(Number(b.rawIndex)));
     const missing=(Array.isArray(stats.missingIndexes)?stats.missingIndexes:[])
       .map(Number).filter(x=>Number.isInteger(x)&&x>=0&&x<targetCount).sort((a,b)=>a-b);
-    if(!missing.length&&Number.isInteger(Number(stats.missingIndex))){
-      const x=Number(stats.missingIndex);if(x>=0&&x<targetCount)missing.push(x);
+    const singleMissing=stats.missingIndex;
+    if(!missing.length&&singleMissing!==null&&singleMissing!==undefined&&singleMissing!==''&&Number.isInteger(Number(singleMissing))){
+      const x=Number(singleMissing);if(x>=0&&x<targetCount)missing.push(x);
     }
     const slots=[];
     let sourceIndex=0;
@@ -275,9 +277,10 @@
     return record;
   }
 
-  function finalStateFromRoot(root,record){
+  function finalStateFromRoot(root,record,labelsOverride=null){
     const buttons=currentButtons(root);
-    const labels=buttons.map(b=>String(b.dataset.tile||''));
+    const override=Array.isArray(labelsOverride)&&labelsOverride.length===14?labelsOverride.map(x=>String(x||'')):null;
+    const labels=override||buttons.map(b=>String(b.dataset.tile||''));
     const rawLabels=rawLabelsFromButtons(buttons,labels);
     const initialLabels=record?.initial?.labels||Array(14).fill('');
     const initialRaw=record?.initial?.rawLabels||Array(14).fill('');
@@ -298,10 +301,10 @@
     };
   }
 
-  async function finalizeCase(root){
+  async function finalizeCase(root,labelsOverride=null){
     const id=String(root?.dataset?.makiV123CaseId||'');if(!id)return null;
     const record=liveCases.get(id)||await getCase(id);if(!record)return null;
-    record.final=finalStateFromRoot(root,record);
+    record.final=finalStateFromRoot(root,record,labelsOverride);
     record.phase='confirmed';
     record.categories=classifyCase(record);
     await saveCase(record);
@@ -316,20 +319,25 @@
     const wrap=document.createElement('div');wrap.className='maki-v123-benchmark-ui';
     wrap.style.cssText='display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:5px;padding-top:5px;border-top:1px dashed rgba(0,0,0,.18);font:700 10px/1.25 -apple-system,BlinkMacSystemFont,sans-serif;';
     const status=document.createElement('span');status.className='maki-v123-benchmark-status';
-    status.textContent='v123認識ログ：端末内へ保存中…';
+    status.textContent='v124認識ログ：端末内へ保存中…';
     const share=document.createElement('button');share.type='button';share.className='maki-v123-share-case';share.textContent='このログを共有';
     const all=document.createElement('button');all.type='button';all.className='maki-v123-export-index';all.textContent='ログ一覧';
-    [share,all].forEach(b=>b.style.cssText='border:1px solid rgba(0,0,0,.18);border-radius:7px;background:#fff;padding:4px 7px;font:800 10px/1.1 inherit;');
-    wrap.append(status,share,all);body.appendChild(wrap);
+    const copy=document.createElement('button');copy.type='button';copy.className='maki-v124-copy-index';copy.textContent='JSON本文コピー';
+    [share,all,copy].forEach(b=>b.style.cssText='border:1px solid rgba(0,0,0,.18);border-radius:7px;background:#fff;padding:4px 7px;font:800 10px/1.1 inherit;');
+    wrap.append(status,share,all,copy);body.appendChild(wrap);
     share.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();exportCase(record.id).catch(()=>{});});
     all.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();exportIndex().catch(()=>{});});
+    copy.addEventListener('click',e=>{
+      e.preventDefault();e.stopPropagation();
+      copyIndexText().then(()=>{copy.textContent='コピー済み';setTimeout(()=>{copy.textContent='JSON本文コピー';},1300);}).catch(()=>{copy.textContent='コピー失敗';setTimeout(()=>{copy.textContent='JSON本文コピー';},1300);});
+    });
     return wrap;
   }
 
   function updateLoggerUi(root,record){
     const status=root?.querySelector('.maki-v123-benchmark-status');if(!status)return;
     const cats=(record?.categories||[]).filter(x=>x!=='AUTO_14_14');
-    status.textContent='v123認識ログ：保存済み'+(cats.length?' / '+cats.slice(0,3).join('・'):'');
+    status.textContent='v124認識ログ：保存済み'+(cats.length?' / '+cats.slice(0,3).join('・'):'');
   }
 
   async function mountResultLogger(){
@@ -342,7 +350,7 @@
     const record=captureInitialRecord(root);if(!record)return;
     makeLoggerUi(root,record);
     try{await saveCase(record);updateLoggerUi(root,record);}catch(_){
-      const status=root.querySelector('.maki-v123-benchmark-status');if(status)status.textContent='v123認識ログ：保存できませんでした';
+      const status=root.querySelector('.maki-v123-benchmark-status');if(status)status.textContent='v124認識ログ：保存できませんでした';
     }
   }
 
@@ -378,23 +386,36 @@
 
   async function exportCase(id){
     const record=await getCase(id);if(!record)throw new Error('case-not-found');
-    return shareJson('MAKI_v123_case_'+id+'.json',record);
+    return shareJson('MAKI_v124_case_'+id+'.json',record);
+  }
+
+  function benchmarkIndexPayload(rows){
+    return {version:VERSION,exportedAt:Date.now(),count:rows.length,cases:rows.map(sanitizeForIndex)};
   }
 
   async function exportIndex(){
     const rows=await listCases();
-    return shareJson('MAKI_v123_benchmark_index.json',{
-      version:VERSION,exportedAt:Date.now(),count:rows.length,cases:rows.map(sanitizeForIndex)
-    });
+    return shareJson('MAKI_v124_benchmark_index.json',benchmarkIndexPayload(rows));
+  }
+
+  async function copyIndexText(){
+    const rows=await listCases();
+    const payload=benchmarkIndexPayload(rows);
+    const json=JSON.stringify(payload,null,2);
+    if(navigator.clipboard?.writeText){
+      try{await navigator.clipboard.writeText(json);return payload;}catch(_){}
+    }
+    window.prompt('JSON本文をコピーしてください',json);
+    return payload;
   }
 
   async function clearCases(){await withStore('readwrite',store=>store.clear());}
 
   const api={
-    VERSION,DB_NAME,STORE,MAX_CASES,rawLabelToTile,reconstructSelectedRaw,selectedRawEvidence,classifyCase,
-    getCase,listCases,saveCase,exportCase,exportIndex,clearCases
+    VERSION,DB_NAME,STORE,MAX_CASES,rawLabelToTile,reconstructSelectedRaw,selectedRawEvidence,classifyCase,benchmarkIndexPayload,
+    getCase,listCases,saveCase,exportCase,exportIndex,copyIndexText,clearCases
   };
-  if(typeof window!=='undefined')window.MAKIV123Benchmark=Object.freeze(api);
+  if(typeof window!=='undefined'){const frozen=Object.freeze(api);window.MAKIV124Benchmark=frozen;window.MAKIV123Benchmark=frozen;}
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
   if(typeof document==='undefined')return;
 
@@ -411,6 +432,16 @@
     const root=document.getElementById('hand-result-overlay-m7v5');if(!root)return;
     finalizeCase(root).catch(()=>{});
   },true);
+
+  // v124 confirmation backup: ui-fixes publishes the verified 14 tiles before
+  // removing the result overlay. Use that authoritative event as a second path
+  // so a slow IndexedDB/share UI cannot leave a user-confirmed case as captured.
+  window.addEventListener('maki:verified-hand',e=>{
+    const tiles=Array.isArray(e.detail?.tiles)?e.detail.tiles.slice(0,14):[];
+    if(tiles.length!==14)return;
+    const root=document.getElementById('hand-result-overlay-m7v5');
+    if(root)finalizeCase(root,tiles).catch(()=>{});
+  });
 
   const observer=new MutationObserver(()=>scheduleMount());
   const start=()=>{if(document.body)observer.observe(document.body,{childList:true,subtree:true});scheduleMount();};

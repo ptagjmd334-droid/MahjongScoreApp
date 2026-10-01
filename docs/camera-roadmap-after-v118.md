@@ -65,3 +65,17 @@ This keeps the current precision-first policy: auto-freeze is allowed only when 
 6. 固定画像精度が十分高くなった後で temporal stability を使うAuto-freezeへ進む。
 
 主指標はTop3ではなく、14枚exact Top1、自動確定precision/recall、誤自動確定率、平均手修正枚数、複数撮影の再現性とする。
+
+
+## MAKI v124 Benchmark-driven safety（2026-10-01）
+
+v123の実機9ケースを最初の固定ベンチマークとして利用し、認識モデルを交換する前にsilent false positiveを減らす。
+
+- confirmed 5ケースの手修正をground truthとして利用。
+- 4萬→2萬/8萬の再現confusionはrunner/margin/cross-view shareで安全側へabstain。
+- 赤5萬→raw 0pはraw detector classを保存したまま、既存context repairで解決できない局面を要確認へ回す。
+- v123 loggerの先頭slot null化を修正し、confirmed保存をmaki:verified-handでも補強。
+- iPhoneで共有しやすいようbenchmark indexのJSON本文コピーを追加。
+- DB名はv123のまま維持し、既存実機caseをv124以降も継続利用する。
+
+次はv124後の同じ牌姿/条件で、silent誤確定率と要確認増加量を比較する。改善が確認できたらcapture quality診断、モデルfine-tune、二段階classifier比較へ進む。

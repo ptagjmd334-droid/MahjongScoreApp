@@ -1354,3 +1354,19 @@
 **回帰テスト:** \`tests/m7-v123-benchmark.test.cjs\` で15→14選択のraw証拠復元、赤5萬に対するraw \`0p\` の独立分類、安全なabstentionと高confidence誤確定修正の区別、IndexedDB/生フレーム/共有機能、camera→benchmark→ui-fixesの読込順を固定する。既存M7/M8/赤5手修正/Chromium smokeも継続する。
 
 **確度:** 14/14・13/14・12/14の実機結果、および赤5萬位置でraw detectorが \`0p 0.71\` / \`0p 0.91\` を出したことはユーザー実機スクリーンショットで確認。raw誤りが最終誤確定まで到達したかは撮影ごとに後段repairの影響があるため分離して扱う。
+
+
+## M152: 14/14表示を実際の14枚正解と同一視していた
+**時期:** MAKI v123実機ベンチマーク→v124
+
+**実機症状:** v123で9ケースを収集し、手修正後の正解まで保存できたconfirmed 5ケース（70牌）を確認すると、自動で牌名を出した67牌のうち59牌が正解、8牌はsilent false positive、3牌は安全に要確認だった。特に4萬表示→実物8萬が4回、4萬表示→実物2萬が1回、赤5萬のraw YOLOが0p（赤5筒）になる系統誤りが繰り返し出た。14/14自動認識表示でも実際には誤りが残るケースがあった。
+
+**原因:** 「14boxを安定検出できた」「14スロットにラベルが入った」と「14枚Top1が正しい」を分けて測れていなかった。既存の一般ambiguity guardは極小marginを止められるが、4萬→8萬の一部はscore 0.75〜0.85かつmargin 0.13〜0.29でsilent確定し得た。また赤5の後段context repairは中央の並びでは有効だが、端の赤5萬でraw 0pを十分な根拠なく残す経路があった。
+
+**v124修正:** 認識モデルや通常thresholdを一括変更せず、confirmed実機ログで再現した混同だけをprecision-firstで安全化する。Top1=4萬でrunnerが2萬/8萬、かつclass/cross-viewの分離またはcross-view shareが弱い場合はYOLO自動確定を止め、保守的verifierか要確認へ回す。赤5はdetector raw classをrawOriginalLabelとして保持し、既存context-suit repairで解決できなかったraw red fiveについて、近傍が別スートを2枚以上明確に支持する場合は自動確定を止める。ラベルを書き換えるのではなくabstentionを優先する。
+
+**ログ基盤修正:** v123 loggerでdetectorGeometry.missingIndex=nullをNumber(null)=0として扱い、selectedRawEvidence先頭を誤ってnullにするバグを修正。maki:verified-handを確認済みground truthの第二保存経路として追加し、JSONファイル共有とは別に「JSON本文コピー」を追加する。v123 IndexedDBは継続利用し、既存ケースを失わない。
+
+**追加修正:** v123のindex/service workerに編集時のliteral \\nが残る経路を確認し、v124で実改行へ修正。service workerを構文チェック対象に追加する。
+
+**回帰:** tests/m7-v124-safety.test.cjs とChromium smokeで、正しい4萬は保持、benchmark相当4萬→8萬/2萬は要確認化、整合する赤5筒は保持、近傍萬子なのにraw 0pの赤5は要確認化、context修復済み赤5は保持することを固定する。
