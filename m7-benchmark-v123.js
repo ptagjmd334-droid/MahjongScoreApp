@@ -4,7 +4,7 @@
 (()=>{
   'use strict';
 
-  const VERSION='MAKI v124';
+  const VERSION='MAKI v125';
   const DB_NAME='maki-recognition-benchmark-v123';
   const DB_VERSION=1;
   const STORE='cases';
@@ -386,7 +386,7 @@
 
   async function exportCase(id){
     const record=await getCase(id);if(!record)throw new Error('case-not-found');
-    return shareJson('MAKI_v124_case_'+id+'.json',record);
+    return shareJson('MAKI_v125_case_'+id+'.json',record);
   }
 
   function benchmarkIndexPayload(rows){
@@ -395,7 +395,7 @@
 
   async function exportIndex(){
     const rows=await listCases();
-    return shareJson('MAKI_v124_benchmark_index.json',benchmarkIndexPayload(rows));
+    return shareJson('MAKI_v125_benchmark_index.json',benchmarkIndexPayload(rows));
   }
 
   async function copyIndexText(){
