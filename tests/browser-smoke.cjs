@@ -34,10 +34,10 @@ const server=http.createServer((req,res)=>{
     const errors=[];page.on('pageerror',e=>errors.push(String(e)));
     await page.goto('http://127.0.0.1:'+port+'/',{waitUntil:'domcontentloaded',timeout:30000});
     await page.waitForSelector('#go-confirm-button',{timeout:12000});
-    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'MAKI v125');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'MAKI v126');
     assert.equal(await page.$eval('#app-build-badge',e=>e.hidden),false,'v125 build badge should be visible during development');
     assert(await page.evaluate(()=>!!window.M7V36CameraOwner),'v98 camera owner must bootstrap');
-    assert(await page.evaluate(()=>!!window.MAKIV125Benchmark),'v125 recognition benchmark logger must bootstrap');
+    assert(await page.evaluate(()=>!!window.MAKIV126Benchmark),'v126 recognition benchmark logger must bootstrap');
     await page.evaluate(()=>{
       const overlay=document.createElement('div');
       overlay.id='realtime-hand-camera-m7v3';
@@ -683,10 +683,10 @@ const server=http.createServer((req,res)=>{
     assert.equal(manifestBrand.name,'MAKI');
     assert.equal(manifestBrand.short_name,'MAKI');
     assert.equal(manifestBrand.id,'./');
-    assert(manifestBrand.icons.every(x=>String(x.src).includes('v=m7v125')),'v109 manifest icons must use fresh cache keys '+JSON.stringify(manifestBrand.icons));
+    assert(manifestBrand.icons.every(x=>String(x.src).includes('v=m7v126')),'v109 manifest icons must use fresh cache keys '+JSON.stringify(manifestBrand.icons));
     assert.equal(await page.$eval('meta[name="apple-mobile-web-app-title"]',e=>e.content),'MAKI');
     assert.equal(await page.$eval('meta[name="application-name"]',e=>e.content),'MAKI');
-    assert((await page.$eval('link[rel="apple-touch-icon"]',e=>e.getAttribute('href'))).includes('v=m7v125'));
+    assert((await page.$eval('link[rel="apple-touch-icon"]',e=>e.getAttribute('href'))).includes('v=m7v126'));
     for(const size of [180,192,512]){
       const p=path.join(root,'icon-'+size+'.png');
       assert(fs.existsSync(p),'MAKI icon missing '+p);
@@ -1403,6 +1403,40 @@ const server=http.createServer((req,res)=>{
       'v122 red 5-sou correction must preserve aka metadata while scoring as 5索 '+JSON.stringify(v122RedCorrection));
     assert.deepEqual(v122RedCorrection.afterNormal,{tile:'5索',raw:'',red:'',aria:'5索',redClass:false},
       'v122 choosing ordinary 5-sou must clear stale aka metadata '+JSON.stringify(v122RedCorrection));
+    const v126ContinuousRed=await page.evaluate(async()=>{
+      const initial=['3萬','8萬','2萬','9萬','1萬','4萬','6萬','5萬','5萬','4萬','7萬','4萬','7萬','7索'];
+      window.showHandResultM7V5?.(initial);
+      const root=document.getElementById('hand-result-overlay-m7v5');
+      const slots=[...root.querySelectorAll('.hand-result-tile-m7v5')];
+      slots[9]?.click();
+      await new Promise(resolve=>setTimeout(resolve,90));
+      const picker=document.getElementById('tile-picker-m7v5');
+      const grid=()=>[...picker.querySelectorAll('.tile-picker-grid-m7v5 button')];
+      const chooseNormal=name=>grid().find(b=>(b.dataset.tileName||b.textContent.trim())===name)?.click();
+      chooseNormal('5萬');
+      await new Promise(resolve=>setTimeout(resolve,30));
+      chooseNormal('5萬');
+      await new Promise(resolve=>setTimeout(resolve,30));
+      chooseNormal('8萬');
+      await new Promise(resolve=>setTimeout(resolve,30));
+      picker.querySelectorAll('.m8v31-slot')[13]?.click();
+      await new Promise(resolve=>setTimeout(resolve,30));
+      picker.querySelector('.m7v122-red-options button[data-m7v122-raw-label="0m"]')?.click();
+      await new Promise(resolve=>setTimeout(resolve,70));
+      const snap=i=>({
+        tile:slots[i].dataset.tile||'',raw:slots[i].dataset.m7v119RawLabel||'',red:slots[i].dataset.m7v122Red||'',
+        redClass:slots[i].classList.contains('m7v122-red-tile'),aria:slots[i].getAttribute('aria-label')||''
+      });
+      const result={firstEdited:snap(9),lastEdited:snap(13),owner:Number(picker?.dataset.m8v31Current),pickerAlive:!!document.getElementById('tile-picker-m7v5')};
+      root.remove();document.getElementById('tile-picker-m7v5')?.remove();
+      return result;
+    });
+    assert.deepEqual(v126ContinuousRed.firstEdited,{tile:'5萬',raw:'',red:'',redClass:false,aria:'5萬'},
+      'v126 red-five click must not jump back to the first consecutively edited slot '+JSON.stringify(v126ContinuousRed));
+    assert.deepEqual(v126ContinuousRed.lastEdited,{tile:'5萬',raw:'0m',red:'1',redClass:true,aria:'赤5萬'},
+      'v126 final red-five correction must land on the currently selected slot '+JSON.stringify(v126ContinuousRed));
+    assert.equal(v126ContinuousRed.owner,13,'v126 continuous picker must keep the current owner on the final slot '+JSON.stringify(v126ContinuousRed));
+    assert.equal(v126ContinuousRed.pickerAlive,true,'v126 red-five selection should stay inside continuous-input mode '+JSON.stringify(v126ContinuousRed));
     const v125RedInvariant=await page.evaluate(()=>{
       const make=(tile,raw,red=true)=>{
         const b=document.createElement('button');
