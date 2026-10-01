@@ -1338,3 +1338,19 @@
 **原因:** v120で赤インク比率を追加した際、`analyzeTileBox()` には `const redInkShare=...` を入れたが、実運用のYOLO軸平行crop経路 `analyzeYoloTileBox()` では変数宣言を入れ忘れ、returnだけ `redInkShare` を参照した。静的構文テストでは検出できない実行時ReferenceErrorだった。  
 **修正:** v121でYOLO crop経路にも `redInkShareFromCanvas(canonical)` を必ず実行し、legacy/perspective経路も同じ戻り値契約に統一。Chromium smokeで `analyzeYoloTileBox()` を実際に呼び、`redInkShare` が有限値として返ることを固定回帰にした。  
 **再発防止:** 画像解析helperへ新しい戻り値を追加した時は、同名の複数経路すべてを更新し、構文・文字列検査だけでなく少なくとも1回はブラウザ上で対象関数を実行する。  
+
+
+## M151: 固定実写ベンチマークなしで実機認識の改善を積み上げていた
+**時期:** MAKI v122実機確認→v123
+
+**実機症状:** 同じ認識基盤でも、撮影ごとに14/14成功、13/14で安全に要確認、13→14補完後12/14など結果が変動した。実牌の赤5萬に対してraw YOLOが \`0p\`（赤5筒）を0.71/0.91の高confidenceで出す撮影も確認した。ただし後段の赤5context補正で最終表示が5萬へ戻る場合もあり、「rawモデル誤り」「安全な棄却」「後段repair成功」「最終誤確定」をスクリーンショットだけで定量比較しづらかった。
+
+**根本原因:** 既存CIは認識helper・synthetic canvas・ブラウザフローの回帰には強いが、実際のiPhone撮影フレーム、raw detector box、Top1/Top2、cross-view、14枚選択理由、最終自動判定、ユーザー手修正後の正解を同じcaseとして永続保存する固定実写ベンチマーク基盤がなかった。そのため実機で見つかった症状ごとに閾値・guardを改善しても、別条件を含む全体精度が上がったかを同じデータで比較できなかった。
+
+**修正:** v123で認識判定ロジック自体は変更せず、\`m7-benchmark-v123.js\` を追加する。シャッター処理より前に白枠内の生フレームを保存し、結果画面生成後に detector raw boxes、15→14/13→14等のgeometry情報、yoloPrimary、Top2/cross-viewを含むdiagnostics、14crop、赤5raw metadata、最終自動判定を1caseへまとめる。「この手牌で進む」直前にユーザーが修正した最終14牌をground truthとして追記し、\`SUCCESS_14_14\`、\`SAFE_ABSTENTION\`、\`AUTO_WRONG_CORRECTED\`、\`HIGH_CONFIDENCE_WRONG\`、\`RED5_SUIT_CONFUSION_RAW\` 等へ分類する。データはIndexedDBへ最大50case保持し、容量不足時はmetadata-onlyへ安全fallbackする。認識詳細から現在caseのJSON共有とログ一覧JSONを書き出せるようにする。
+
+**再発防止:** v124以降の認識閾値・モデル・補正ロジック変更は、まずv123で収集した同一case群へ適用し、1変更ずつA/B比較する。単発14/14を根拠に閾値を固定しない。rawモデル誤りと後段repair成功を分けて記録し、最終Top1、自動確定precision/recall、平均手修正枚数、scenario別再現性で判断する。
+
+**回帰テスト:** \`tests/m7-v123-benchmark.test.cjs\` で15→14選択のraw証拠復元、赤5萬に対するraw \`0p\` の独立分類、安全なabstentionと高confidence誤確定修正の区別、IndexedDB/生フレーム/共有機能、camera→benchmark→ui-fixesの読込順を固定する。既存M7/M8/赤5手修正/Chromium smokeも継続する。
+
+**確度:** 14/14・13/14・12/14の実機結果、および赤5萬位置でraw detectorが \`0p 0.71\` / \`0p 0.91\` を出したことはユーザー実機スクリーンショットで確認。raw誤りが最終誤確定まで到達したかは撮影ごとに後段repairの影響があるため分離して扱う。
