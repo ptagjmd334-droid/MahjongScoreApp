@@ -1459,7 +1459,7 @@ const server=http.createServer((req,res)=>{
       const geometry=api.captureQualityDiagnosticsM7V127(makeGood(),{detectorAdopted:false,features:Array(9).fill({}),brokenCropCount:4,row:null,detectorGeometry:null});
       const root=document.createElement('div');root.innerHTML='<div class="hand-result-head-m7v5"></div>';document.body.appendChild(root);
       api.renderCaptureQualityM7V127(root,darkQ);
-      const rendered={text:root.querySelector('.m7v128-capture-quality')?.textContent||'',recommendation:root.querySelector('.m7v128-capture-quality')?.dataset.recommendation||''};
+      const rendered={text:root.querySelector('.m7v127-capture-quality')?.textContent||'',recommendation:root.querySelector('.m7v127-capture-quality')?.dataset.recommendation||''};
       root.remove();
       return {good,dark:darkQ,small,geometry,rendered};
     });
