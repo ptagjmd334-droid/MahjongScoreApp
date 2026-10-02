@@ -34,10 +34,10 @@ const server=http.createServer((req,res)=>{
     const errors=[];page.on('pageerror',e=>errors.push(String(e)));
     await page.goto('http://127.0.0.1:'+port+'/',{waitUntil:'domcontentloaded',timeout:30000});
     await page.waitForSelector('#go-confirm-button',{timeout:12000});
-    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'MAKI v126');
-    assert.equal(await page.$eval('#app-build-badge',e=>e.hidden),false,'v125 build badge should be visible during development');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'MAKI v127');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.hidden),false,'v127 build badge should be visible during development');
     assert(await page.evaluate(()=>!!window.M7V36CameraOwner),'v98 camera owner must bootstrap');
-    assert(await page.evaluate(()=>!!window.MAKIV126Benchmark),'v126 recognition benchmark logger must bootstrap');
+    assert(await page.evaluate(()=>!!window.MAKIV127Benchmark),'v127 recognition benchmark logger must bootstrap');
     await page.evaluate(()=>{
       const overlay=document.createElement('div');
       overlay.id='realtime-hand-camera-m7v3';
@@ -683,10 +683,10 @@ const server=http.createServer((req,res)=>{
     assert.equal(manifestBrand.name,'MAKI');
     assert.equal(manifestBrand.short_name,'MAKI');
     assert.equal(manifestBrand.id,'./');
-    assert(manifestBrand.icons.every(x=>String(x.src).includes('v=m7v126')),'v109 manifest icons must use fresh cache keys '+JSON.stringify(manifestBrand.icons));
+    assert(manifestBrand.icons.every(x=>String(x.src).includes('v=m7v127')),'v109 manifest icons must use fresh cache keys '+JSON.stringify(manifestBrand.icons));
     assert.equal(await page.$eval('meta[name="apple-mobile-web-app-title"]',e=>e.content),'MAKI');
     assert.equal(await page.$eval('meta[name="application-name"]',e=>e.content),'MAKI');
-    assert((await page.$eval('link[rel="apple-touch-icon"]',e=>e.getAttribute('href'))).includes('v=m7v126'));
+    assert((await page.$eval('link[rel="apple-touch-icon"]',e=>e.getAttribute('href'))).includes('v=m7v127'));
     for(const size of [180,192,512]){
       const p=path.join(root,'icon-'+size+'.png');
       assert(fs.existsSync(p),'MAKI icon missing '+p);
@@ -1403,6 +1403,39 @@ const server=http.createServer((req,res)=>{
       'v122 red 5-sou correction must preserve aka metadata while scoring as 5索 '+JSON.stringify(v122RedCorrection));
     assert.deepEqual(v122RedCorrection.afterNormal,{tile:'5索',raw:'',red:'',aria:'5索',redClass:false},
       'v122 choosing ordinary 5-sou must clear stale aka metadata '+JSON.stringify(v122RedCorrection));
+    const v127CaptureQuality=await page.evaluate(()=>{
+      const api=window.M7CameraV36;
+      const makeGood=()=>{
+        const c=document.createElement('canvas');c.width=600;c.height=200;
+        const x=c.getContext('2d');x.fillStyle='#7b5638';x.fillRect(0,0,600,200);
+        const start=30,w=38,gap=3,top=30,h=125;
+        for(let i=0;i<14;i++){
+          x.fillStyle='#e7e4da';x.fillRect(start+i*(w+gap),top,w,h);
+          x.fillStyle='#171717';x.fillRect(start+i*(w+gap)+15,65,6,55);
+          x.fillStyle='#a32222';x.fillRect(start+i*(w+gap)+12,125,12,5);
+        }
+        return c;
+      };
+      const analysis={detectorAdopted:true,features:Array(14).fill({}),brokenCropCount:0,row:{x:30,y:30,w:570,h:125},detectorGeometry:{stats:{medH:125}}};
+      const good=api.captureQualityDiagnosticsM7V127(makeGood(),analysis);
+      const dark=document.createElement('canvas');dark.width=600;dark.height=200;dark.getContext('2d').fillRect(0,0,600,200);
+      const darkQ=api.captureQualityDiagnosticsM7V127(dark,analysis);
+      const small=api.captureQualityDiagnosticsM7V127(makeGood(),{...analysis,detectorGeometry:{stats:{medH:18}}});
+      const geometry=api.captureQualityDiagnosticsM7V127(makeGood(),{detectorAdopted:false,features:Array(9).fill({}),brokenCropCount:4,row:null,detectorGeometry:null});
+      const root=document.createElement('div');root.innerHTML='<div class="hand-result-head-m7v5"></div>';document.body.appendChild(root);
+      api.renderCaptureQualityM7V127(root,darkQ);
+      const rendered={text:root.querySelector('.m7v127-capture-quality')?.textContent||'',recommendation:root.querySelector('.m7v127-capture-quality')?.dataset.recommendation||''};
+      root.remove();
+      return {good,dark:darkQ,small,geometry,rendered};
+    });
+    assert.equal(v127CaptureQuality.good.recommendation,'ok','v127 should keep a clear synthetic capture usable '+JSON.stringify(v127CaptureQuality));
+    assert(v127CaptureQuality.dark.issues.includes('blur')&&v127CaptureQuality.dark.issues.includes('too-dark'),
+      'v127 should diagnose a dark featureless frame '+JSON.stringify(v127CaptureQuality));
+    assert(v127CaptureQuality.small.issues.includes('tile-small'),'v127 should diagnose tiles that are too small '+JSON.stringify(v127CaptureQuality));
+    assert(v127CaptureQuality.geometry.issues.includes('geometry'),'v127 should diagnose unstable tile-row geometry '+JSON.stringify(v127CaptureQuality));
+    assert.equal(v127CaptureQuality.rendered.recommendation,'retake','v127 result quality UI should expose retake recommendation '+JSON.stringify(v127CaptureQuality));
+    assert(v127CaptureQuality.rendered.text.includes('撮り直し推奨'),'v127 retake copy missing '+JSON.stringify(v127CaptureQuality));
+
     const v126ContinuousRed=await page.evaluate(async()=>{
       const initial=['3萬','8萬','2萬','9萬','1萬','4萬','6萬','5萬','5萬','4萬','7萬','4萬','7萬','7索'];
       window.showHandResultM7V5?.(initial);
