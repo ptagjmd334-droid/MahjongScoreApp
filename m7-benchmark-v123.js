@@ -4,7 +4,7 @@
 (()=>{
   'use strict';
 
-  const VERSION='MAKI v126';
+  const VERSION='MAKI v127';
   const DB_NAME='maki-recognition-benchmark-v123';
   const DB_VERSION=1;
   const STORE='cases';
@@ -89,6 +89,8 @@
     if(reason.startsWith('recover-'))categories.add('DETECTION_RECOVERY');
     if(unresolved>0)categories.add('SAFE_ABSTENTION');
     if(unresolved===0)categories.add('AUTO_14_14');
+    const quality=initial.captureQuality||initial?.diagnostics?.captureQuality||null;
+    if(quality?.recommendation==='retake')categories.add('QUALITY_RETAKE_RECOMMENDED');
 
     const evidence=selectedRawEvidence(record);
     let rawRedSuitConflict=false;
@@ -257,6 +259,7 @@
         detailLabel:String(root.querySelector('.m7v78-detector-label')?.textContent||''),
         detailMeta:String(root.querySelector('.m7v85-detector-meta')?.textContent||''),
         classDiagnosticText:String(root.querySelector('.m7v95-class-diagnostic')?.textContent||''),
+        captureQuality:safeClone(diag.captureQuality||null),
         diagnostics:diag
       },
       images:{
@@ -367,6 +370,7 @@
         labels:record.initial?.labels||[],rawLabels:record.initial?.rawLabels||[],unresolved:record.initial?.unresolved||0,
         autoRecognized:record.initial?.autoRecognized||0,statusText:record.initial?.statusText||'',detailLabel:record.initial?.detailLabel||'',
         detailMeta:record.initial?.detailMeta||'',classDiagnosticText:record.initial?.classDiagnosticText||'',
+        captureQuality:record.initial?.captureQuality||record.initial?.diagnostics?.captureQuality||null,
         selectedRawEvidence:record.initial?.selectedRawEvidence||[],diagnostics:record.initial?.diagnostics||{}
       },
       final:record.final||null
@@ -415,7 +419,7 @@
     VERSION,DB_NAME,STORE,MAX_CASES,rawLabelToTile,reconstructSelectedRaw,selectedRawEvidence,classifyCase,benchmarkIndexPayload,
     getCase,listCases,saveCase,exportCase,exportIndex,copyIndexText,clearCases
   };
-  if(typeof window!=='undefined'){const frozen=Object.freeze(api);window.MAKIV126Benchmark=frozen;window.MAKIV125Benchmark=frozen;window.MAKIV124Benchmark=frozen;window.MAKIV123Benchmark=frozen;}
+  if(typeof window!=='undefined'){const frozen=Object.freeze(api);window.MAKIV127Benchmark=frozen;window.MAKIV126Benchmark=frozen;window.MAKIV125Benchmark=frozen;window.MAKIV124Benchmark=frozen;window.MAKIV123Benchmark=frozen;}
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
   if(typeof document==='undefined')return;
 
