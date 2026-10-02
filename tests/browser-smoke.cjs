@@ -34,10 +34,10 @@ const server=http.createServer((req,res)=>{
     const errors=[];page.on('pageerror',e=>errors.push(String(e)));
     await page.goto('http://127.0.0.1:'+port+'/',{waitUntil:'domcontentloaded',timeout:30000});
     await page.waitForSelector('#go-confirm-button',{timeout:12000});
-    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'MAKI v127');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'MAKI v128');
     assert.equal(await page.$eval('#app-build-badge',e=>e.hidden),false,'v127 build badge should be visible during development');
     assert(await page.evaluate(()=>!!window.M7V36CameraOwner),'v98 camera owner must bootstrap');
-    assert(await page.evaluate(()=>!!window.MAKIV127Benchmark),'v127 recognition benchmark logger must bootstrap');
+    assert(await page.evaluate(()=>!!window.MAKIV128Benchmark),'v128 recognition benchmark logger must bootstrap');
     await page.evaluate(()=>{
       const overlay=document.createElement('div');
       overlay.id='realtime-hand-camera-m7v3';
@@ -683,10 +683,10 @@ const server=http.createServer((req,res)=>{
     assert.equal(manifestBrand.name,'MAKI');
     assert.equal(manifestBrand.short_name,'MAKI');
     assert.equal(manifestBrand.id,'./');
-    assert(manifestBrand.icons.every(x=>String(x.src).includes('v=m7v127')),'v109 manifest icons must use fresh cache keys '+JSON.stringify(manifestBrand.icons));
+    assert(manifestBrand.icons.every(x=>String(x.src).includes('v=m7v128')),'v109 manifest icons must use fresh cache keys '+JSON.stringify(manifestBrand.icons));
     assert.equal(await page.$eval('meta[name="apple-mobile-web-app-title"]',e=>e.content),'MAKI');
     assert.equal(await page.$eval('meta[name="application-name"]',e=>e.content),'MAKI');
-    assert((await page.$eval('link[rel="apple-touch-icon"]',e=>e.getAttribute('href'))).includes('v=m7v127'));
+    assert((await page.$eval('link[rel="apple-touch-icon"]',e=>e.getAttribute('href'))).includes('v=m7v128'));
     for(const size of [180,192,512]){
       const p=path.join(root,'icon-'+size+'.png');
       assert(fs.existsSync(p),'MAKI icon missing '+p);
@@ -1403,6 +1403,41 @@ const server=http.createServer((req,res)=>{
       'v122 red 5-sou correction must preserve aka metadata while scoring as 5索 '+JSON.stringify(v122RedCorrection));
     assert.deepEqual(v122RedCorrection.afterNormal,{tile:'5索',raw:'',red:'',aria:'5索',redClass:false},
       'v122 choosing ordinary 5-sou must clear stale aka metadata '+JSON.stringify(v122RedCorrection));
+    const v128Verifier=await page.evaluate(()=>{
+      const api=window.M7CameraV36;
+      const mk=labels=>labels.map(label=>({label,rawLabel:({'1萬':'1m','2萬':'2m','3萬':'3m','4萬':'4m','5萬':'5m','6萬':'6m','7萬':'7m','8萬':'8m','9萬':'9m'})[label]||'',score:.82,classMargin:.82,crossViewShare:1,crossViewSupport:1,crossViewCount:1}));
+      const bad=mk(['1萬','2萬','3萬','4萬','5萬','5萬','5萬','5萬','6萬','7萬','4萬','4萬','8萬','9萬']);
+      const clean=mk(['1萬','2萬','3萬','4萬','5萬','5萬','5萬','5萬','6萬','7萬','8萬','8萬','8萬','9萬']);
+      const reverse=mk(['1萬','2萬','3萬','8萬','5萬','5萬','6萬','7萬','8萬','8萬','8萬','9萬','9萬','9萬']);
+      const legacy=Array(14).fill('');legacy[10]='8萬';
+      const debug=Array.from({length:14},()=>[]);
+      debug[10]=[{label:'8萬',sampleCount:3,distance:.05,templateConsensusDistance:.08,viewTopVotes:4,viewCount:5}];
+      const unrelated=legacy.slice();unrelated[10]='7萬';
+      const redMan=mk(['5萬','3萬','4萬','5萬','6萬','7萬','8萬','9萬','9萬','9萬','9萬','9萬','9萬','9萬']);
+      redMan[0]={label:'5筒',rawLabel:'0p',score:.72,classMargin:.72,crossViewShare:1,crossViewSupport:1,crossViewCount:1};
+      const redPin=mk(['5筒','3筒','4筒','5筒','6筒','7筒','8筒','9筒','9筒','9筒','9筒','9筒','9筒','9筒']);
+      redPin[0]={label:'5筒',rawLabel:'0p',score:.72,classMargin:.72,crossViewShare:1,crossViewSupport:1,crossViewCount:1};
+      const repairedMan=api.repairRedFiveRecognition(redMan,Array(14).fill(0),true);
+      const repairedPin=api.repairRedFiveRecognition(redPin,Array(14).fill(0),true);
+      return {
+        sequenceBad:api.yoloV128Manzu48SequenceConflicts(bad,true),
+        sequenceClean:api.yoloV128Manzu48SequenceConflicts(clean,true),
+        sequenceReverse:api.yoloV128Manzu48SequenceConflicts(reverse,true),
+        template:api.yoloV128Manzu48TemplateConflicts(bad,legacy,debug,true),
+        unrelated:api.yoloV128Manzu48TemplateConflicts(bad,unrelated,debug,true),
+        redMan:{label:repairedMan[0].label,raw:repairedMan[0].rawLabel,original:repairedMan[0].rawOriginalLabel,repair:repairedMan[0].redRepair},
+        redPin:{label:repairedPin[0].label,raw:repairedPin[0].rawLabel,repair:repairedPin[0].redRepair||''}
+      };
+    });
+    assert.deepEqual(v128Verifier.sequenceBad,[10,11],'v128 must stop the repeated high-confidence 8萬→4萬 block seen on iPhone '+JSON.stringify(v128Verifier));
+    assert.deepEqual(v128Verifier.sequenceClean,[],'v128 must keep a correctly sorted manzu run '+JSON.stringify(v128Verifier));
+    assert(v128Verifier.sequenceReverse.includes(3),'v128 should symmetrically challenge a suspicious 8萬 in the 4萬 zone '+JSON.stringify(v128Verifier));
+    assert.deepEqual(v128Verifier.template,[10],'v128 learned-template verifier should override a strong 4萬 YOLO when corrected 8萬 samples strongly agree '+JSON.stringify(v128Verifier));
+    assert.deepEqual(v128Verifier.unrelated,[],'v128 template verifier must stay scoped to 4萬↔8萬 '+JSON.stringify(v128Verifier));
+    assert.deepEqual(v128Verifier.redMan,{label:'5萬',raw:'0m',original:'0p',repair:'local-majority-suit'},
+      'v128 should repair raw red5-pin to red5-man from strong local manzu evidence '+JSON.stringify(v128Verifier));
+    assert.equal(v128Verifier.redPin.raw,'0p','v128 must keep a coherent red5-pin '+JSON.stringify(v128Verifier));
+
     const v127CaptureQuality=await page.evaluate(()=>{
       const api=window.M7CameraV36;
       const makeGood=()=>{
@@ -1424,7 +1459,7 @@ const server=http.createServer((req,res)=>{
       const geometry=api.captureQualityDiagnosticsM7V127(makeGood(),{detectorAdopted:false,features:Array(9).fill({}),brokenCropCount:4,row:null,detectorGeometry:null});
       const root=document.createElement('div');root.innerHTML='<div class="hand-result-head-m7v5"></div>';document.body.appendChild(root);
       api.renderCaptureQualityM7V127(root,darkQ);
-      const rendered={text:root.querySelector('.m7v127-capture-quality')?.textContent||'',recommendation:root.querySelector('.m7v127-capture-quality')?.dataset.recommendation||''};
+      const rendered={text:root.querySelector('.m7v128-capture-quality')?.textContent||'',recommendation:root.querySelector('.m7v128-capture-quality')?.dataset.recommendation||''};
       root.remove();
       return {good,dark:darkQ,small,geometry,rendered};
     });
