@@ -4,7 +4,7 @@
 (()=>{
   'use strict';
 
-  const VERSION='MAKI v127';
+  const VERSION='MAKI v128';
   const DB_NAME='maki-recognition-benchmark-v123';
   const DB_VERSION=1;
   const STORE='cases';
@@ -322,17 +322,25 @@
     const wrap=document.createElement('div');wrap.className='maki-v123-benchmark-ui';
     wrap.style.cssText='display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:5px;padding-top:5px;border-top:1px dashed rgba(0,0,0,.18);font:700 10px/1.25 -apple-system,BlinkMacSystemFont,sans-serif;';
     const status=document.createElement('span');status.className='maki-v123-benchmark-status';
-    status.textContent='v124認識ログ：端末内へ保存中…';
+    status.textContent='v128認識ログ：端末内へ保存中…';
     const share=document.createElement('button');share.type='button';share.className='maki-v123-share-case';share.textContent='このログを共有';
     const all=document.createElement('button');all.type='button';all.className='maki-v123-export-index';all.textContent='ログ一覧';
     const copy=document.createElement('button');copy.type='button';copy.className='maki-v124-copy-index';copy.textContent='JSON本文コピー';
-    [share,all,copy].forEach(b=>b.style.cssText='border:1px solid rgba(0,0,0,.18);border-radius:7px;background:#fff;padding:4px 7px;font:800 10px/1.1 inherit;');
-    wrap.append(status,share,all,copy);body.appendChild(wrap);
+    const training=document.createElement('button');training.type='button';training.className='maki-v128-export-corrections';training.textContent='修正crop出力';
+    [share,all,copy,training].forEach(b=>b.style.cssText='border:1px solid rgba(0,0,0,.18);border-radius:7px;background:#fff;padding:4px 7px;font:800 10px/1.1 inherit;');
+    wrap.append(status,share,all,copy,training);body.appendChild(wrap);
     share.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();exportCase(record.id).catch(()=>{});});
     all.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();exportIndex().catch(()=>{});});
     copy.addEventListener('click',e=>{
       e.preventDefault();e.stopPropagation();
       copyIndexText().then(()=>{copy.textContent='コピー済み';setTimeout(()=>{copy.textContent='JSON本文コピー';},1300);}).catch(()=>{copy.textContent='コピー失敗';setTimeout(()=>{copy.textContent='JSON本文コピー';},1300);});
+    });
+    training.addEventListener('click',e=>{
+      e.preventDefault();e.stopPropagation();
+      exportCorrectedCrops().then(payload=>{
+        training.textContent=payload.count?('修正crop '+payload.count+'件'):'修正cropなし';
+        setTimeout(()=>{training.textContent='修正crop出力';},1600);
+      }).catch(()=>{training.textContent='出力失敗';setTimeout(()=>{training.textContent='修正crop出力';},1300);});
     });
     return wrap;
   }
@@ -340,7 +348,7 @@
   function updateLoggerUi(root,record){
     const status=root?.querySelector('.maki-v123-benchmark-status');if(!status)return;
     const cats=(record?.categories||[]).filter(x=>x!=='AUTO_14_14');
-    status.textContent='v124認識ログ：保存済み'+(cats.length?' / '+cats.slice(0,3).join('・'):'');
+    status.textContent='v128認識ログ：保存済み'+(cats.length?' / '+cats.slice(0,3).join('・'):'');
   }
 
   async function mountResultLogger(){
@@ -353,7 +361,7 @@
     const record=captureInitialRecord(root);if(!record)return;
     makeLoggerUi(root,record);
     try{await saveCase(record);updateLoggerUi(root,record);}catch(_){
-      const status=root.querySelector('.maki-v123-benchmark-status');if(status)status.textContent='v124認識ログ：保存できませんでした';
+      const status=root.querySelector('.maki-v123-benchmark-status');if(status)status.textContent='v128認識ログ：保存できませんでした';
     }
   }
 
@@ -377,6 +385,46 @@
     };
   }
 
+  function correctedCropExportPayload(rows){
+    const samples=[];
+    let skippedWithoutImage=0;
+    for(const record of Array.isArray(rows)?rows:[]){
+      const final=record?.final;
+      if(!final||record?.phase!=='confirmed')continue;
+      const corrected=new Set(Array.isArray(final.correctedIndexes)?final.correctedIndexes:[]);
+      if(!corrected.size)continue;
+      const cropMap=new Map((record?.images?.crops||[]).map(x=>[Number(x?.index),String(x?.dataUrl||'')]));
+      const evidence=record?.initial?.selectedRawEvidence||selectedRawEvidence(record);
+      for(const index of [...corrected].sort((a,b)=>a-b)){
+        if(!Number.isInteger(index)||index<0||index>=14)continue;
+        const imageDataUrl=cropMap.get(index)||'';
+        if(!imageDataUrl){skippedWithoutImage++;continue;}
+        const predictedLabel=String(record?.initial?.labels?.[index]||'');
+        const correctLabel=String(final?.labels?.[index]||'');
+        const predictedRawLabel=String(evidence?.[index]?.rawLabel||record?.initial?.rawLabels?.[index]||'');
+        const correctRawLabel=String(final?.rawLabels?.[index]||'');
+        const kind=!predictedLabel?'filled-unresolved':
+          (predictedLabel!==correctLabel?'label-correction':
+            (predictedRawLabel!==correctRawLabel?'red-metadata-correction':'manual-confirmation'));
+        samples.push({
+          source:'user-confirmed-correction',
+          caseId:String(record.id||''),createdAt:Number(record.createdAt)||0,index,
+          kind,predictedLabel,predictedRawLabel,correctLabel,correctRawLabel,
+          score:Number(evidence?.[index]?.score)||0,
+          runnerLabel:String(evidence?.[index]?.runnerTile||''),
+          runnerRawLabel:String(evidence?.[index]?.runnerRawLabel||''),
+          runnerScore:Number(evidence?.[index]?.runnerScore)||0,
+          classMargin:Number(evidence?.[index]?.classMargin)||0,
+          crossViewShare:Number.isFinite(Number(evidence?.[index]?.crossViewShare))?Number(evidence[index].crossViewShare):null,
+          captureQuality:safeClone(record?.initial?.captureQuality||record?.initial?.diagnostics?.captureQuality||null),
+          categories:Array.isArray(record?.categories)?record.categories.slice():[],
+          imageDataUrl
+        });
+      }
+    }
+    return {version:VERSION,exportedAt:Date.now(),count:samples.length,skippedWithoutImage,samples};
+  }
+
   async function shareJson(name,payload){
     const json=JSON.stringify(payload,null,2);
     const blob=new Blob([json],{type:'application/json'});
@@ -390,7 +438,7 @@
 
   async function exportCase(id){
     const record=await getCase(id);if(!record)throw new Error('case-not-found');
-    return shareJson('MAKI_v125_case_'+id+'.json',record);
+    return shareJson('MAKI_v128_case_'+id+'.json',record);
   }
 
   function benchmarkIndexPayload(rows){
@@ -399,7 +447,14 @@
 
   async function exportIndex(){
     const rows=await listCases();
-    return shareJson('MAKI_v125_benchmark_index.json',benchmarkIndexPayload(rows));
+    return shareJson('MAKI_v128_benchmark_index.json',benchmarkIndexPayload(rows));
+  }
+
+  async function exportCorrectedCrops(){
+    const rows=await listCases();
+    const payload=correctedCropExportPayload(rows);
+    await shareJson('MAKI_v128_corrected_crops.json',payload);
+    return payload;
   }
 
   async function copyIndexText(){
@@ -416,10 +471,10 @@
   async function clearCases(){await withStore('readwrite',store=>store.clear());}
 
   const api={
-    VERSION,DB_NAME,STORE,MAX_CASES,rawLabelToTile,reconstructSelectedRaw,selectedRawEvidence,classifyCase,benchmarkIndexPayload,
-    getCase,listCases,saveCase,exportCase,exportIndex,copyIndexText,clearCases
+    VERSION,DB_NAME,STORE,MAX_CASES,rawLabelToTile,reconstructSelectedRaw,selectedRawEvidence,classifyCase,benchmarkIndexPayload,correctedCropExportPayload,
+    getCase,listCases,saveCase,exportCase,exportIndex,exportCorrectedCrops,copyIndexText,clearCases
   };
-  if(typeof window!=='undefined'){const frozen=Object.freeze(api);window.MAKIV127Benchmark=frozen;window.MAKIV126Benchmark=frozen;window.MAKIV125Benchmark=frozen;window.MAKIV124Benchmark=frozen;window.MAKIV123Benchmark=frozen;}
+  if(typeof window!=='undefined'){const frozen=Object.freeze(api);window.MAKIV128Benchmark=frozen;window.MAKIV127Benchmark=frozen;window.MAKIV126Benchmark=frozen;window.MAKIV125Benchmark=frozen;window.MAKIV124Benchmark=frozen;window.MAKIV123Benchmark=frozen;}
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
   if(typeof document==='undefined')return;
 
