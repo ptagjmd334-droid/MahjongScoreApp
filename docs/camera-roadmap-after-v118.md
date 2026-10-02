@@ -91,3 +91,14 @@ v123 benchmark基盤とv124〜v126の安全化を維持したまま、撮影条�
 - benchmark JSONへcaptureQualityを保存し、QUALITY_RETAKE_RECOMMENDED categoryを追加。
 - v127では強制gateしない。誤認識との相関を先に収集する。
 - 次段階は実機ログでthresholdを校正し、品質と失敗率の相関が十分なら撮影前/直後gateとtemporal auto-freezeを検討する。
+
+
+## MAKI v128 Manzu verifier / corrected crop export（2026-10-02）
+
+v127実機で「撮影品質OKでも8萬→4萬」が継続したため、撮影条件ではなく分類側の系統誤差として二段目verificationへ進む。
+
+- 長い萬子runのほぼ昇順backboneから外れる4萬/8萬blockをrunnerなしでもabstain。
+- 修正済み実牌templateが4萬↔8萬で保守的confidenceを満たす場合、YOLO高confidenceよりsecond-stage verifierを優先。
+- 赤5のdirect contextが作れない場合、±3牌のlocal suit majorityで赤5スートを補強。
+- benchmark confirmed caseの修正cropだけを、正解label/raw・誤予測・confidence・quality付きJSONとして一括出力。
+- 次のmodel fine-tune用データを端末側で安全に持ち出せる状態を作る。

@@ -1394,3 +1394,17 @@
 **理由:** 初期thresholdは実機データで校正する必要がある。v127では品質の悪い撮影を強制拒否せず、誤認識率・要確認率・手修正枚数との相関を集める。十分なcase数が溜まった後にだけcapture gate / auto-freezeへ進む。
 
 **回帰:** Chromiumで明瞭な14牌synthetic frameはOK、暗く無特徴なframeはblur/too-dark、牌が小さいcaseはtile-small、geometry不安定caseはgeometryとして診断し、結果UIに撮り直し推奨が出ることを固定する。
+
+
+## M155: 高confidenceの4萬→8萬誤認識をrunner依存guardだけでは止め切れなかった
+**時期:** MAKI v127実機→v128
+
+**症状:** 撮影品質がOK（鮮明度50〜62、明るさ約135、牌サイズ53〜54%）でも、実物8萬をYOLOが4萬として0.81〜0.82程度で自動確定するcaseが継続した。連続する2枚の8萬が4萬・4萬になるcaseでは既存sorted guardが先頭1枚だけを要確認へ回し、後続1枚はsilent false positiveとして残った。raw赤5萬→0pも引き続き発生したが、中央ではcontext repairが救済できた。
+
+**根本原因:** v124の4萬guardはrunner-up=2萬/8萬や小さいmarginを前提にしていたが、実機caseではrunner情報が弱い/欠落したまま4萬が高confidenceで出ることがある。また既存sorted guardは単一inversionの片側1枚だけを止めるため、4萬誤認識が連続blockになると全件を止められなかった。legacy/template verifierも4萬↔8萬の高confidence YOLOを専用に上書きする責務がなかった。
+
+**v128修正:** ①8枚以上の長い萬子runで、ほぼ昇順のbackboneに反する4萬block（例: ...6,7,4,4,8,9）をrunnerなしでも全件abstainする。逆方向の8萬→4萬域も対称に検査する。②ユーザー修正から蓄積したtemplate classifierが4萬↔8萬で保守的confidenceを満たした場合、YOLOが高confidenceでもsecond-stage verifierとしてYOLOをblockし、legacy/template側を採用できるようにする。③赤5は直接contextが作れない端でも、±3牌のlocal suit majorityが3票以上かつ2票差ならraw red suitを補正する。元rawはrawOriginalLabelに保持する。
+
+**学習データ運用:** benchmark confirmed caseのcorrectedIndexesだけから、crop画像・誤予測・正解label/raw・confidence・captureQualityをまとめた `MAKI_v128_corrected_crops.json` を出力できるようにする。未修正牌やfull frameは含めない。
+
+**回帰:** Chromiumで `1,2,3,4,5,5,5,5,6,7,4,4,8,9萬` の2枚の4萬を両方challengeし、正しい昇順runは保持。learned 8萬 templateが強く一致する4萬YOLOをblockし、無関係label差では作動しない。端のraw 0pを周辺萬子多数決で0mへ補正し、整合する赤5筒は保持する。

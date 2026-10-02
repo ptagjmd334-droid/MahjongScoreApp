@@ -8,10 +8,10 @@ const read=p=>fs.readFileSync(path.join(root,p),'utf8');
 
 test('v111 loads the score-table hand entry module after M8',()=>{
   const index=read('index.html');
-  assert(index.includes('MAKI v127'));
+  assert(index.includes('MAKI v128'));
   assert(index.includes('window.MAKIDebugV123'));
-  assert(index.includes('maki-v111-hand-entry.js?v=m7v127'));
-  assert(index.indexOf('m8-v30.js?v=m7v127')<index.indexOf('maki-v111-hand-entry.js?v=m7v127'));
+  assert(index.includes('maki-v111-hand-entry.js?v=m7v128'));
+  assert(index.indexOf('m8-v30.js?v=m7v128')<index.indexOf('maki-v111-hand-entry.js?v=m7v128'));
 });
 
 test('v111 exposes camera and manual hand registration on the score screen',()=>{
@@ -49,11 +49,11 @@ test('winner and ron/tsumo already entered in agariFlow are reused instead of as
 test('v111 service worker cache contains the new module',()=>{
   const sw=read('sw.js');
   const manifest=read('manifest.webmanifest');
-  assert(sw.includes('mahjong-score-app-m7-v127'));
+  assert(sw.includes('mahjong-score-app-m7-v128'));
   assert(sw.includes('./maki-v111-hand-entry.js'));
   assert(sw.includes('./m7-benchmark-v123.js'));
-  assert(sw.includes('manifest.webmanifest?v=m7v127'));
-  assert(manifest.includes('v=m7v127'));
+  assert(sw.includes('manifest.webmanifest?v=m7v128'));
+  assert(manifest.includes('v=m7v128'));
 });
 
 
@@ -75,7 +75,7 @@ test('v118 adds manual dora, aka-dora and ura-dora foundation for future camera 
 test('v119 wires camera red-dora metadata and dora-indicator camera into v118 dora state',()=>{
   const hand=read('maki-v111-hand-entry.js');
   const camera=read('m7-camera-v36.js');
-  assert(hand.includes('MAKI v127'));
+  assert(hand.includes('MAKI v128'));
   assert(hand.includes('maki-v119-dora-camera'));
   assert(hand.includes('window.MAKIV119DoraCamera'));
   assert(hand.includes('doraTileFromIndicatorRaw'));
@@ -93,7 +93,7 @@ test('v120 repairs red-five suit confusion and visual aka metadata',()=>{
   assert(camera.includes('repairRedFiveRecognition'));
   assert(camera.includes('redFiveContextSuit'));
   assert(camera.includes('redInkShareFromCanvas'));
-  assert(camera.includes("r.redRepair='context-suit'"));
+  assert(camera.includes("r.redRepair=directSuit?'context-suit':'local-majority-suit'"));
   assert(camera.includes("r.redRepair='visual-red'"));
   assert(camera.includes("const groupKey=/^0[mps]$/.test(raw)?(r.label+'|'+raw):r.label"));
 });
