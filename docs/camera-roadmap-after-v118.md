@@ -79,3 +79,15 @@ v123の実機9ケースを最初の固定ベンチマークとして利用し、
 - DB名はv123のまま維持し、既存実機caseをv124以降も継続利用する。
 
 次はv124後の同じ牌姿/条件で、silent誤確定率と要確認増加量を比較する。改善が確認できたらcapture quality診断、モデルfine-tune、二段階classifier比較へ進む。
+
+
+## MAKI v127 Capture quality diagnostics（2026-10-02）
+
+v123 benchmark基盤とv124〜v126の安全化を維持したまま、撮影条件を独立した説明変数として記録する。
+
+- 白枠freeze frameの鮮明度（Laplacian系）、平均輝度、暗部率、白飛び率、コントラストを保存。
+- detector/row情報から牌サイズ比とgeometry安定性を保存。
+- 結果画面に「撮影品質 OK / 撮り直し推奨」と理由を表示。
+- benchmark JSONへcaptureQualityを保存し、QUALITY_RETAKE_RECOMMENDED categoryを追加。
+- v127では強制gateしない。誤認識との相関を先に収集する。
+- 次段階は実機ログでthresholdを校正し、品質と失敗率の相関が十分なら撮影前/直後gateとtemporal auto-freezeを検討する。
