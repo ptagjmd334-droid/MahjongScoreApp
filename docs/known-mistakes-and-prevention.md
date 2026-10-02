@@ -1382,3 +1382,15 @@
 **v125修正:** `sanitizeRedTileStateM7V125` を追加し、赤metadataを許可するのは `5萬↔0m`、`5筒↔0p`、`5索↔0s` の完全一致だけにする。1〜4/6〜9/字牌、または5牌でもrawスート不一致ならraw metadata・red flag・CSS classを即時削除する。手動修正、結果status更新、カメラ結果反映、確認ボタン直前、UI装飾の各境界で同じsanitizerを通す。
 
 **回帰:** Chromiumで「赤5萬状態→1萬へ手修正」「1萬に0mが残った不正状態」「5萬に0pが残った不正状態」を作り、すべて赤metadata/classが消えることを固定する。一方、5萬+0mの正しい赤5萬は保持する。
+
+
+## M154: 認識失敗と撮影品質を分離して記録していなかった
+**時期:** MAKI v126実機→v127
+
+**症状:** v123〜v126でraw分類・silent false positive・安全なabstentionは記録できるようになったが、同じ誤認識が「モデル/分類の弱さ」なのか「ブレ・露出・牌が小さい・牌列geometry不安定」なのかを同じcase内で比較できなかった。
+
+**修正:** v127でシャッター後の白枠画像から、Laplacian系の鮮明度、平均輝度、暗部/白飛び率、コントラスト、牌高/画面高、牌列geometry安定性を算出する。結果画面に「撮影品質 OK / 撮り直し推奨」と理由を表示し、benchmark caseのdiagnosticsとindex JSONへ同じ数値を保存する。品質警告は現段階では認識をブロックせず、ユーザーは結果確認と手修正を継続できる。
+
+**理由:** 初期thresholdは実機データで校正する必要がある。v127では品質の悪い撮影を強制拒否せず、誤認識率・要確認率・手修正枚数との相関を集める。十分なcase数が溜まった後にだけcapture gate / auto-freezeへ進む。
+
+**回帰:** Chromiumで明瞭な14牌synthetic frameはOK、暗く無特徴なframeはblur/too-dark、牌が小さいcaseはtile-small、geometry不安定caseはgeometryとして診断し、結果UIに撮り直し推奨が出ることを固定する。
