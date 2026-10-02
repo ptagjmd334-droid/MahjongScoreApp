@@ -34,10 +34,10 @@ const server=http.createServer((req,res)=>{
     const errors=[];page.on('pageerror',e=>errors.push(String(e)));
     await page.goto('http://127.0.0.1:'+port+'/',{waitUntil:'domcontentloaded',timeout:30000});
     await page.waitForSelector('#go-confirm-button',{timeout:12000});
-    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'MAKI v128');
-    assert.equal(await page.$eval('#app-build-badge',e=>e.hidden),false,'v127 build badge should be visible during development');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'MAKI v129');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.hidden),false,'v129 build badge should be visible during development');
     assert(await page.evaluate(()=>!!window.M7V36CameraOwner),'v98 camera owner must bootstrap');
-    assert(await page.evaluate(()=>!!window.MAKIV128Benchmark),'v128 recognition benchmark logger must bootstrap');
+    assert(await page.evaluate(()=>!!window.MAKIV129Benchmark),'v129 recognition benchmark logger must bootstrap');
     await page.evaluate(()=>{
       const overlay=document.createElement('div');
       overlay.id='realtime-hand-camera-m7v3';
@@ -162,6 +162,32 @@ const server=http.createServer((req,res)=>{
       return api.yoloDuplicateVisualConflicts(yolo,features,true,.15,.145,.22);
     });
     assert.deepEqual(v99NorthTriplet,[],'v99 must preserve a confident 北北北 triplet with one medium-score member '+JSON.stringify(v99NorthTriplet));
+
+    const v129ManzuMemory=await page.evaluate(()=>{
+      const api=window.M7CameraV36;
+      const previous=api.loadLibrary();
+      api.saveLibrary({
+        '2萬':[[.50,.50,.50,.50],[.52,.52,.52,.52]],
+        '4萬':[[1,1,1,1],[.98,.98,.98,.98]],
+        '8萬':[[0,0,0,0],[.02,.02,.02,.02],[.01,.01,.01,.01]]
+      });
+      const yolo=Array.from({length:14},()=>({label:'東',score:.9}));
+      const features=Array.from({length:14},()=>[.3,.3,.3,.3]);
+      yolo[3]={label:'4萬',score:.88};features[3]=[.01,.01,.01,.01];
+      yolo[4]={label:'4萬',score:.88};features[4]=[.99,.99,.99,.99];
+      const conflicts=api.yoloV129Manzu248MemoryConflicts(yolo,features,true);
+      const evidence={bad:yolo[3].v129MemoryVerifier,good:yolo[4].v129MemoryVerifier};
+      if(previous&&Object.keys(previous).length)api.saveLibrary(previous);
+      else{
+        localStorage.removeItem('MahjongScoreApp_tile_templates_stable1');
+        localStorage.removeItem('MahjongScoreApp_tile_templates_stable1_backup');
+      }
+      return {conflicts,evidence};
+    });
+    assert.deepEqual(v129ManzuMemory.conflicts,[3],
+      'v129 learned verifier should abstain only when learned 8萬 evidence clearly beats YOLO 4萬 '+JSON.stringify(v129ManzuMemory));
+    assert.equal(v129ManzuMemory.evidence.bad.alternateLabel,'8萬','v129 alternate evidence should identify 8萬 '+JSON.stringify(v129ManzuMemory));
+    assert.equal(v129ManzuMemory.evidence.good.conflict,false,'v129 must keep a crop that matches learned 4萬 '+JSON.stringify(v129ManzuMemory));
 
     const v100SortedSuit=await page.evaluate(()=>{
       const api=window.M7CameraV36;
@@ -683,10 +709,10 @@ const server=http.createServer((req,res)=>{
     assert.equal(manifestBrand.name,'MAKI');
     assert.equal(manifestBrand.short_name,'MAKI');
     assert.equal(manifestBrand.id,'./');
-    assert(manifestBrand.icons.every(x=>String(x.src).includes('v=m7v128')),'v109 manifest icons must use fresh cache keys '+JSON.stringify(manifestBrand.icons));
+    assert(manifestBrand.icons.every(x=>String(x.src).includes('v=m7v129')),'v109 manifest icons must use fresh cache keys '+JSON.stringify(manifestBrand.icons));
     assert.equal(await page.$eval('meta[name="apple-mobile-web-app-title"]',e=>e.content),'MAKI');
     assert.equal(await page.$eval('meta[name="application-name"]',e=>e.content),'MAKI');
-    assert((await page.$eval('link[rel="apple-touch-icon"]',e=>e.getAttribute('href'))).includes('v=m7v128'));
+    assert((await page.$eval('link[rel="apple-touch-icon"]',e=>e.getAttribute('href'))).includes('v=m7v129'));
     for(const size of [180,192,512]){
       const p=path.join(root,'icon-'+size+'.png');
       assert(fs.existsSync(p),'MAKI icon missing '+p);

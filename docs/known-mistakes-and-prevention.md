@@ -1408,3 +1408,17 @@
 **学習データ運用:** benchmark confirmed caseのcorrectedIndexesだけから、crop画像・誤予測・正解label/raw・confidence・captureQualityをまとめた `MAKI_v128_corrected_crops.json` を出力できるようにする。未修正牌やfull frameは含めない。
 
 **回帰:** Chromiumで `1,2,3,4,5,5,5,5,6,7,4,4,8,9萬` の2枚の4萬を両方challengeし、正しい昇順runは保持。learned 8萬 templateが強く一致する4萬YOLOをblockし、無関係label差では作動しない。端のraw 0pを周辺萬子多数決で0mへ補正し、整合する赤5筒は保持する。
+
+
+## M156: 4萬/8萬対策をsorted runだけに依存するとランダム順で効かない
+**時期:** MAKI v128実機→v129
+
+**症状:** v128では長い萬子runの4萬/8萬誤認識を安全に要確認へ回せる一方、牌をランダム順に置いた撮影では順序文脈を使えず、同系統の誤認識は手修正が必要だった。撮影品質はOKで、14牌geometryも安定していた。
+
+**原因:** sorted-run guardは「物理牌がスート内でほぼ昇順」という条件に依存する。実戦の牌順は任意であり、ランダム順では正当な安全根拠にならない。また一般legacy classifierは34牌全体のconfidence gateを通すため、2萬/4萬/8萬だけを直接比較すれば得られる弱い証拠を捨てることがある。
+
+**v129修正:** 「この手牌で進む」で確定した既存template libraryを2萬/4萬/8萬専用の第二段verifierとして直接比較する。別牌templateが複数例で十分近く、YOLO側templateより明確に近い時だけYOLO自動確定を止める。牌名は自動書き換えせず、要確認へ回す。
+
+**追加:** confirmed benchmark全体から自動確定precision、coverage、14枚exact率、平均手修正枚数、safe abstention、confusion pair、撮影品質別case数を自動集計する「精度集計」JSONを追加。
+
+**再発防止:** 並び順の文脈は補助に留め、ランダム順でも働く画像/template evidenceを独立して持つ。モデル誤り対策は可能な限り自動補正ではなくabstentionで安全化し、集計指標で改善量を確認する。

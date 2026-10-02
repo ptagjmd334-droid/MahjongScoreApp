@@ -106,6 +106,7 @@ on:
       - work/maki-v126-continuous-red-picker
       - work/maki-v127-capture-quality
       - work/maki-v128-manzu-verifier-training-export
+      - work/maki-v129-pair-verifier-benchmark-summary
   workflow_dispatch:
 
 jobs:
@@ -136,6 +137,8 @@ jobs:
         run: node --test tests/m7-v127-quality.test.cjs
       - name: Check MAKI v128 manzu verifier and corrected-crop export
         run: node --test tests/m7-v128-verifier.test.cjs
+      - name: Check MAKI v129 learned verifier and benchmark summary
+        run: node --test tests/m7-v129-memory-summary.test.cjs
       - name: Install headless browser control
         run: npm install --no-save --no-audit --no-fund puppeteer-core@24
       - name: Run real Chromium landscape flow

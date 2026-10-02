@@ -102,3 +102,15 @@ v127実機で「撮影品質OKでも8萬→4萬」が継続したため、撮影
 - 赤5のdirect contextが作れない場合、±3牌のlocal suit majorityで赤5スートを補強。
 - benchmark confirmed caseの修正cropだけを、正解label/raw・誤予測・confidence・quality付きJSONとして一括出力。
 - 次のmodel fine-tune用データを端末側で安全に持ち出せる状態を作る。
+
+
+## MAKI v129 Learned confusion verifier + benchmark summary（2026-10-02）
+
+v128でconfirmed cropを蓄積・出力できるようになったため、端末内のverified templateを2萬/4萬/8萬専用の第二段verifierへ利用する。
+
+- 2萬/4萬/8萬は一般34牌classifierとは別に、verified template同士の距離を直接比較。
+- 別牌側が複数templateで十分近く、YOLO側より明確に近い時だけ自動確定を止める。
+- ラベル自動書き換えはしない。安全に要確認へ回す。
+- sorted-run guardは残すが、ランダム順でも専用verifierが働く。
+- benchmarkに「精度集計」を追加し、自動確定precision / coverage / exact hand / manual corrections / confusion pair / quality別case数をJSON出力。
+- v123以降のIndexedDB・training image・templateは継続利用する。

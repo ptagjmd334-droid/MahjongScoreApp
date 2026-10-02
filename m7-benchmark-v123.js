@@ -4,7 +4,7 @@
 (()=>{
   'use strict';
 
-  const VERSION='MAKI v128';
+  const VERSION='MAKI v129';
   const DB_NAME='maki-recognition-benchmark-v123';
   const DB_VERSION=1;
   const STORE='cases';
@@ -322,13 +322,14 @@
     const wrap=document.createElement('div');wrap.className='maki-v123-benchmark-ui';
     wrap.style.cssText='display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:5px;padding-top:5px;border-top:1px dashed rgba(0,0,0,.18);font:700 10px/1.25 -apple-system,BlinkMacSystemFont,sans-serif;';
     const status=document.createElement('span');status.className='maki-v123-benchmark-status';
-    status.textContent='v128認識ログ：端末内へ保存中…';
+    status.textContent='v129認識ログ：端末内へ保存中…';
     const share=document.createElement('button');share.type='button';share.className='maki-v123-share-case';share.textContent='このログを共有';
     const all=document.createElement('button');all.type='button';all.className='maki-v123-export-index';all.textContent='ログ一覧';
     const copy=document.createElement('button');copy.type='button';copy.className='maki-v124-copy-index';copy.textContent='JSON本文コピー';
     const training=document.createElement('button');training.type='button';training.className='maki-v128-export-corrections';training.textContent='修正crop出力';
-    [share,all,copy,training].forEach(b=>b.style.cssText='border:1px solid rgba(0,0,0,.18);border-radius:7px;background:#fff;padding:4px 7px;font:800 10px/1.1 inherit;');
-    wrap.append(status,share,all,copy,training);body.appendChild(wrap);
+    const summary=document.createElement('button');summary.type='button';summary.className='maki-v129-export-summary';summary.textContent='精度集計';
+    [share,all,copy,training,summary].forEach(b=>b.style.cssText='border:1px solid rgba(0,0,0,.18);border-radius:7px;background:#fff;padding:4px 7px;font:800 10px/1.1 inherit;');
+    wrap.append(status,share,all,copy,training,summary);body.appendChild(wrap);
     share.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();exportCase(record.id).catch(()=>{});});
     all.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();exportIndex().catch(()=>{});});
     copy.addEventListener('click',e=>{
@@ -342,13 +343,21 @@
         setTimeout(()=>{training.textContent='修正crop出力';},1600);
       }).catch(()=>{training.textContent='出力失敗';setTimeout(()=>{training.textContent='修正crop出力';},1300);});
     });
+    summary.addEventListener('click',e=>{
+      e.preventDefault();e.stopPropagation();
+      exportBenchmarkSummary().then(payload=>{
+        const p=payload.autoConfirmPrecision;
+        summary.textContent=p==null?'集計なし':('自動確定精度 '+Math.round(p*1000)/10+'%');
+        setTimeout(()=>{summary.textContent='精度集計';},1800);
+      }).catch(()=>{summary.textContent='集計失敗';setTimeout(()=>{summary.textContent='精度集計';},1300);});
+    });
     return wrap;
   }
 
   function updateLoggerUi(root,record){
     const status=root?.querySelector('.maki-v123-benchmark-status');if(!status)return;
     const cats=(record?.categories||[]).filter(x=>x!=='AUTO_14_14');
-    status.textContent='v128認識ログ：保存済み'+(cats.length?' / '+cats.slice(0,3).join('・'):'');
+    status.textContent='v129認識ログ：保存済み'+(cats.length?' / '+cats.slice(0,3).join('・'):'');
   }
 
   async function mountResultLogger(){
@@ -361,7 +370,7 @@
     const record=captureInitialRecord(root);if(!record)return;
     makeLoggerUi(root,record);
     try{await saveCase(record);updateLoggerUi(root,record);}catch(_){
-      const status=root.querySelector('.maki-v123-benchmark-status');if(status)status.textContent='v128認識ログ：保存できませんでした';
+      const status=root.querySelector('.maki-v123-benchmark-status');if(status)status.textContent='v129認識ログ：保存できませんでした';
     }
   }
 
@@ -382,6 +391,57 @@
         selectedRawEvidence:record.initial?.selectedRawEvidence||[],diagnostics:record.initial?.diagnostics||{}
       },
       final:record.final||null
+    };
+  }
+
+  function benchmarkSummaryPayload(rows){
+    const confirmed=(Array.isArray(rows)?rows:[]).filter(r=>r?.phase==='confirmed'&&r?.final);
+    let totalTiles=0,autoResolved=0,correctAuto=0,wrongAuto=0,safeAbstentions=0,filledAbstentions=0;
+    let rawMetadataWrong=0,exactHands=0,totalCorrections=0,qualityOkCases=0,qualityRetakeCases=0;
+    const confusion={},perTruth={},perPredicted={};
+    const add=(obj,key)=>{obj[key]=(obj[key]||0)+1;};
+    for(const record of confirmed){
+      const initial=record.initial||{},final=record.final||{};
+      const il=Array.isArray(initial.labels)?initial.labels:[],fl=Array.isArray(final.labels)?final.labels:[];
+      const ir=Array.isArray(initial.rawLabels)?initial.rawLabels:[],fr=Array.isArray(final.rawLabels)?final.rawLabels:[];
+      let exact=true;
+      const q=initial.captureQuality||initial?.diagnostics?.captureQuality||null;
+      if(q?.recommendation==='retake')qualityRetakeCases++;else if(q)qualityOkCases++;
+      totalCorrections+=Number(final.manualCorrectionCount)||0;
+      for(let i=0;i<14;i++){
+        const predicted=String(il[i]||''),truth=String(fl[i]||'');
+        if(!truth)continue;
+        totalTiles++;add(perTruth,truth);
+        if(predicted){
+          autoResolved++;add(perPredicted,predicted);
+          if(predicted===truth)correctAuto++;
+          else{
+            wrongAuto++;exact=false;
+            add(confusion,predicted+'→'+truth);
+          }
+        }else{
+          safeAbstentions++;exact=false;
+          if(truth)filledAbstentions++;
+        }
+        if(String(ir[i]||'')!==String(fr[i]||'')){
+          rawMetadataWrong++;
+          if(predicted===truth&&predicted)exact=false;
+        }
+      }
+      if(exact)exactHands++;
+    }
+    const precision=(correctAuto+wrongAuto)>0?correctAuto/(correctAuto+wrongAuto):null;
+    const coverage=totalTiles>0?autoResolved/totalTiles:null;
+    const exactRate=confirmed.length?exactHands/confirmed.length:null;
+    const meanCorrections=confirmed.length?totalCorrections/confirmed.length:null;
+    const topConfusions=Object.entries(confusion).sort((a,b)=>b[1]-a[1]).map(([pair,count])=>({pair,count}));
+    return {
+      version:VERSION,exportedAt:Date.now(),
+      confirmedCases:confirmed.length,totalTiles,autoResolved,correctAuto,wrongAuto,
+      safeAbstentions,filledAbstentions,rawMetadataWrong,exactHands,totalCorrections,
+      autoConfirmPrecision:precision,autoConfirmCoverage:coverage,exactHandRate:exactRate,
+      meanManualCorrections:meanCorrections,qualityOkCases,qualityRetakeCases,
+      topConfusions,perTruth,perPredicted
     };
   }
 
@@ -438,7 +498,7 @@
 
   async function exportCase(id){
     const record=await getCase(id);if(!record)throw new Error('case-not-found');
-    return shareJson('MAKI_v128_case_'+id+'.json',record);
+    return shareJson('MAKI_v129_case_'+id+'.json',record);
   }
 
   function benchmarkIndexPayload(rows){
@@ -447,13 +507,20 @@
 
   async function exportIndex(){
     const rows=await listCases();
-    return shareJson('MAKI_v128_benchmark_index.json',benchmarkIndexPayload(rows));
+    return shareJson('MAKI_v129_benchmark_index.json',benchmarkIndexPayload(rows));
   }
 
   async function exportCorrectedCrops(){
     const rows=await listCases();
     const payload=correctedCropExportPayload(rows);
-    await shareJson('MAKI_v128_corrected_crops.json',payload);
+    await shareJson('MAKI_v129_corrected_crops.json',payload);
+    return payload;
+  }
+
+  async function exportBenchmarkSummary(){
+    const rows=await listCases();
+    const payload=benchmarkSummaryPayload(rows);
+    await shareJson('MAKI_v129_benchmark_summary.json',payload);
     return payload;
   }
 
@@ -471,10 +538,10 @@
   async function clearCases(){await withStore('readwrite',store=>store.clear());}
 
   const api={
-    VERSION,DB_NAME,STORE,MAX_CASES,rawLabelToTile,reconstructSelectedRaw,selectedRawEvidence,classifyCase,benchmarkIndexPayload,correctedCropExportPayload,
-    getCase,listCases,saveCase,exportCase,exportIndex,exportCorrectedCrops,copyIndexText,clearCases
+    VERSION,DB_NAME,STORE,MAX_CASES,rawLabelToTile,reconstructSelectedRaw,selectedRawEvidence,classifyCase,benchmarkIndexPayload,benchmarkSummaryPayload,correctedCropExportPayload,
+    getCase,listCases,saveCase,exportCase,exportIndex,exportCorrectedCrops,exportBenchmarkSummary,copyIndexText,clearCases
   };
-  if(typeof window!=='undefined'){const frozen=Object.freeze(api);window.MAKIV128Benchmark=frozen;window.MAKIV127Benchmark=frozen;window.MAKIV126Benchmark=frozen;window.MAKIV125Benchmark=frozen;window.MAKIV124Benchmark=frozen;window.MAKIV123Benchmark=frozen;}
+  if(typeof window!=='undefined'){const frozen=Object.freeze(api);window.MAKIV129Benchmark=frozen;window.MAKIV128Benchmark=frozen;window.MAKIV127Benchmark=frozen;window.MAKIV126Benchmark=frozen;window.MAKIV125Benchmark=frozen;window.MAKIV124Benchmark=frozen;window.MAKIV123Benchmark=frozen;}
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
   if(typeof document==='undefined')return;
 
