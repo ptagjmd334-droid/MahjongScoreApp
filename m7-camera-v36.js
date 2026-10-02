@@ -2347,6 +2347,105 @@
     return list.length%2?list[mid]:(list[mid-1]+list[mid])/2;
   }
 
+  const CAPTURE_QUALITY_THRESHOLDS_M7V127=Object.freeze({
+    sharpnessMin:6,
+    brightnessMin:55,
+    brightnessMax:225,
+    darkShareMax:.60,
+    brightShareMax:.65,
+    contrastMin:14,
+    tileHeightShareMin:.20
+  });
+
+  function captureQualityDiagnosticsM7V127(canvas,analysis={}){
+    if(!canvas||!(canvas.width>0&&canvas.height>0)){
+      return {ok:false,recommendation:'retake',issues:['frame-missing'],issueLabels:['撮影画像なし']};
+    }
+    const sourceW=canvas.width,sourceH=canvas.height;
+    const probe=document.createElement('canvas');
+    probe.width=Math.max(80,Math.min(360,sourceW));
+    probe.height=Math.max(40,Math.round(sourceH*(probe.width/sourceW)));
+    const pctx=probe.getContext('2d',{willReadFrequently:true});
+    pctx.drawImage(canvas,0,0,probe.width,probe.height);
+    const data=pctx.getImageData(0,0,probe.width,probe.height).data;
+    const n=probe.width*probe.height,gray=new Float32Array(n);
+    let sum=0,sum2=0,dark=0,bright=0;
+    for(let i=0,p=0;i<data.length;i+=4,p++){
+      const y=data[i]*.299+data[i+1]*.587+data[i+2]*.114;
+      gray[p]=y;sum+=y;sum2+=y*y;
+      if(y<45)dark++;
+      if(y>238)bright++;
+    }
+    const mean=sum/Math.max(1,n);
+    const variance=Math.max(0,sum2/Math.max(1,n)-mean*mean);
+    const contrast=Math.sqrt(variance);
+    let lapSum=0,lapSum2=0,lapN=0;
+    for(let y=1;y<probe.height-1;y+=1){
+      const row=y*probe.width;
+      for(let x=1;x<probe.width-1;x+=1){
+        const i=row+x;
+        const lap=gray[i-1]+gray[i+1]+gray[i-probe.width]+gray[i+probe.width]-4*gray[i];
+        lapSum+=lap;lapSum2+=lap*lap;lapN++;
+      }
+    }
+    const lapMean=lapSum/Math.max(1,lapN);
+    const sharpness=Math.sqrt(Math.max(0,lapSum2/Math.max(1,lapN)-lapMean*lapMean));
+    const darkShare=dark/Math.max(1,n),brightShare=bright/Math.max(1,n);
+
+    const geom=analysis?.detectorGeometry?.stats||analysis?.detectorGeometry||{};
+    const medH=Number(geom.medH)||0;
+    const tileHeightShare=medH>0?medH/sourceH:(analysis?.row?.h?Number(analysis.row.h)/sourceH:0);
+    const rowWidthShare=analysis?.row?.w?Number(analysis.row.w)/sourceW:0;
+    const featureCount=Array.isArray(analysis?.features)?analysis.features.length:0;
+    const brokenCropCount=Number(analysis?.brokenCropCount)||0;
+    const geometryOk=(analysis?.detectorAdopted===true)||(featureCount===14&&brokenCropCount<=2);
+
+    const issues=[],issueLabels=[];
+    const add=(code,label)=>{issues.push(code);issueLabels.push(label);};
+    if(sharpness<CAPTURE_QUALITY_THRESHOLDS_M7V127.sharpnessMin)add('blur','ブレ・ピンぼけ');
+    if(mean<CAPTURE_QUALITY_THRESHOLDS_M7V127.brightnessMin||darkShare>CAPTURE_QUALITY_THRESHOLDS_M7V127.darkShareMax)add('too-dark','暗すぎ');
+    if(mean>CAPTURE_QUALITY_THRESHOLDS_M7V127.brightnessMax||brightShare>CAPTURE_QUALITY_THRESHOLDS_M7V127.brightShareMax)add('too-bright','明るすぎ');
+    if(contrast<CAPTURE_QUALITY_THRESHOLDS_M7V127.contrastMin)add('low-contrast','コントラスト不足');
+    if(tileHeightShare>0&&tileHeightShare<CAPTURE_QUALITY_THRESHOLDS_M7V127.tileHeightShareMin)add('tile-small','牌が小さすぎ');
+    if(!geometryOk)add('geometry','牌列の検出が不安定');
+
+    return {
+      ok:issues.length===0,
+      recommendation:issues.length?'retake':'ok',
+      issues,issueLabels,
+      sharpness:Number(sharpness.toFixed(2)),
+      brightness:Number(mean.toFixed(1)),
+      contrast:Number(contrast.toFixed(1)),
+      darkShare:Number(darkShare.toFixed(4)),
+      brightShare:Number(brightShare.toFixed(4)),
+      tileHeightShare:Number(tileHeightShare.toFixed(4)),
+      rowWidthShare:Number(rowWidthShare.toFixed(4)),
+      featureCount,brokenCropCount,geometryOk,
+      sourceWidth:sourceW,sourceHeight:sourceH,
+      thresholds:{...CAPTURE_QUALITY_THRESHOLDS_M7V127}
+    };
+  }
+
+  function renderCaptureQualityM7V127(root,quality){
+    if(!root||!quality)return null;
+    root.querySelector('.m7v127-capture-quality')?.remove();
+    const box=document.createElement('div');
+    box.className='m7v127-capture-quality';
+    const retry=quality.recommendation==='retake';
+    box.dataset.recommendation=retry?'retake':'ok';
+    box.style.cssText='margin:6px 0 0;padding:6px 9px;border-radius:9px;border:1px solid '+(retry?'#e2b09f':'#b8d7c0')+';background:'+(retry?'#fff4ef':'#f2fbf4')+';font:800 11px/1.35 -apple-system,BlinkMacSystemFont,sans-serif;color:#172019;';
+    const title=document.createElement('b');
+    title.textContent=retry?'撮り直し推奨':'撮影品質 OK';
+    const detail=document.createElement('span');
+    detail.style.cssText='margin-left:8px;font-weight:650;';
+    const issue=retry?('：'+(quality.issueLabels||[]).join('・')):'';
+    detail.textContent=issue+'　鮮明度 '+quality.sharpness+' / 明るさ '+quality.brightness+' / 牌サイズ '+Math.round((quality.tileHeightShare||0)*100)+'%';
+    box.append(title,detail);
+    const anchor=root.querySelector('.m7v78-detector-diagnostic')||root.querySelector('.hand-result-head-m7v5');
+    anchor?.insertAdjacentElement('afterend',box);
+    return box;
+  }
+
   // v82 production guard: object detection may occasionally emit one or two
   // extra boxes. Select the most coherent 14-box row instead of rejecting the
   // whole capture, but only when the resulting geometry is unambiguous.
@@ -4058,6 +4157,7 @@
       }else if(detectorSource){
         startDetectorDiagnostic(detectorSource,analysis,root);
       }
+      renderCaptureQualityM7V127(root,analysis.captureQuality||window.M7V36LastDiagnostics?.captureQuality||null);
       const status=root.querySelector('.hand-result-status-m7v5');
       if(status)status.textContent=features.length===14
         ?(firstCalibration
@@ -4109,8 +4209,10 @@
         detectorResult={ok:false,error:code,count:0,highCount:0,elapsedMs:0,viewCount:0,boxes:[]};
         analysis={...baseAnalysis,yoloDetectorResult:detectorResult,detectorAdopted:false,detectorAdoptionReason:code,detectorGeometry:null};
       }
+      analysis.captureQuality=captureQualityDiagnosticsM7V127(capture.canvas,analysis);
       state.diagnostics={
         sourceWidth:Math.round(capture.source.w),sourceHeight:Math.round(capture.source.h),
+        captureQuality:analysis.captureQuality,
         rowFound:!!analysis.row,row:analysis.row?{...analysis.row}:null,
         gridUsed:analysis.gridUsed===true,gridCandidate:analysis.gridCandidate===true,gridFit:analysis.gridFit||null,
         outerFitUsed:analysis.outerFitUsed===true,outerFit:analysis.outerFit||null,rowQuality:analysis.rowQuality||null,
@@ -4291,6 +4393,6 @@
   },true);
 
   window.M7CameraV36=Object.freeze({
-    armCameraTapShield,sourceRectForCover,locateTileRow,splitRow,boxCropQuality,canvasCropQuality,rowCropQuality,selectRowByCropQuality,rescueBrokenBox,tripletCropQuality,applyLocalBoundaryDelta,rescueLocalBoundaries,detectorWindows,detectorIoU,detectorConsensusCluster,detectorNms,decodeYoloOutput,runYoloTileDetectorDiagnostic,detectorGeometryEvaluation,detectorSubsetCandidates,detectorMissingSlotsFit,detectorMissingSlotFit,detectorRecoverThirteenCandidates,detectorRecoverTwelveCandidates,detectorRecoverThirteenLowExtraCandidates,detectorRecoverFourteenDuplicateMissingCandidates,selectDetectorProductionBoxes,yoloLabelToAppTile,redInkShareFromCanvas,analyzeYoloTileBox,repairRedFiveRecognition,redFiveContextSuit,yoloV124ManzuFourConflicts,yoloV124RedFiveSuitConflicts,shouldRunLegacyClassifier,mountDetectorDiagnostic,yoloRecognitionFromBoxes,yoloDuplicateVisualConflicts,yoloNearDuplicateLabelConflicts,yoloSortedSuitOrderConflicts,yoloClassAmbiguityConflicts,yoloLegacyLabelConflicts,yoloLegacySuitConflicts,shouldRunLegacyVerifier,chooseYoloPrimaryRecognition,recoverWhiteDragonGaps,axisAlignedYoloFaceCanvas,analyzeYoloTileBox,applyDetectorProductionCrops,renderDetectorResult,detectorFailureUserText,boundaryLikelihoodDiagnostics,refineRowOuterEdges,fitGlobalRowGrid,splitRowBySeams,analyzeGuideCanvas,featureFromBox,tileFaceRect,descriptorFromCanvas,detectFaceGeometry,detectFaceQuad,canonicalizeCanvas,orientedFaceCanvas,perspectiveFaceCanvas,warpQuadToCanvas,trainingImageDataUrl,estimateBleedSafeShift,safeInsetWindow,chooseRecognitionWindow,innerRecognitionCanvas,innerRecognitionWindowCanvas,innerFeatureFromCanonical,inferenceFeatureViews,analyzeTileBox,loadTrainingSamples,rebuildLibraryFromTrainingImages,loadLibrary,activeLibrary,saveLibrary,saveLibraryDetailed,persistVerifiedHand,persistFailureText,persistFailureUserText,loadLegacyLibrary,legacyLibraryKeys,convertLegacyDirectFeature,cropResampleFeatureMap,confidenceAssessment,confidentCandidate,confidenceReasonSummary,renderPickerPhoto,renderPickerSuggestions,pickerCurrentIndex,schedulePickerSuggestionSync,attachPickerSuggestionObserver
+    armCameraTapShield,sourceRectForCover,locateTileRow,splitRow,boxCropQuality,canvasCropQuality,rowCropQuality,selectRowByCropQuality,rescueBrokenBox,tripletCropQuality,applyLocalBoundaryDelta,rescueLocalBoundaries,captureQualityDiagnosticsM7V127,renderCaptureQualityM7V127,detectorWindows,detectorIoU,detectorConsensusCluster,detectorNms,decodeYoloOutput,runYoloTileDetectorDiagnostic,detectorGeometryEvaluation,detectorSubsetCandidates,detectorMissingSlotsFit,detectorMissingSlotFit,detectorRecoverThirteenCandidates,detectorRecoverTwelveCandidates,detectorRecoverThirteenLowExtraCandidates,detectorRecoverFourteenDuplicateMissingCandidates,selectDetectorProductionBoxes,yoloLabelToAppTile,redInkShareFromCanvas,analyzeYoloTileBox,repairRedFiveRecognition,redFiveContextSuit,yoloV124ManzuFourConflicts,yoloV124RedFiveSuitConflicts,shouldRunLegacyClassifier,mountDetectorDiagnostic,yoloRecognitionFromBoxes,yoloDuplicateVisualConflicts,yoloNearDuplicateLabelConflicts,yoloSortedSuitOrderConflicts,yoloClassAmbiguityConflicts,yoloLegacyLabelConflicts,yoloLegacySuitConflicts,shouldRunLegacyVerifier,chooseYoloPrimaryRecognition,recoverWhiteDragonGaps,axisAlignedYoloFaceCanvas,analyzeYoloTileBox,applyDetectorProductionCrops,renderDetectorResult,detectorFailureUserText,boundaryLikelihoodDiagnostics,refineRowOuterEdges,fitGlobalRowGrid,splitRowBySeams,analyzeGuideCanvas,featureFromBox,tileFaceRect,descriptorFromCanvas,detectFaceGeometry,detectFaceQuad,canonicalizeCanvas,orientedFaceCanvas,perspectiveFaceCanvas,warpQuadToCanvas,trainingImageDataUrl,estimateBleedSafeShift,safeInsetWindow,chooseRecognitionWindow,innerRecognitionCanvas,innerRecognitionWindowCanvas,innerFeatureFromCanonical,inferenceFeatureViews,analyzeTileBox,loadTrainingSamples,rebuildLibraryFromTrainingImages,loadLibrary,activeLibrary,saveLibrary,saveLibraryDetailed,persistVerifiedHand,persistFailureText,persistFailureUserText,loadLegacyLibrary,legacyLibraryKeys,convertLegacyDirectFeature,cropResampleFeatureMap,confidenceAssessment,confidentCandidate,confidenceReasonSummary,renderPickerPhoto,renderPickerSuggestions,pickerCurrentIndex,schedulePickerSuggestionSync,attachPickerSuggestionObserver
   });
 })();
