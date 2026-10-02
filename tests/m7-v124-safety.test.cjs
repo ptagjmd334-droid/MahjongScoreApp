@@ -22,7 +22,7 @@ test('v124 adds benchmark-driven 4m confusion abstention without relabeling',()=
 test('v124 preserves raw red-five class and adds local suit-conflict abstention',()=>{
   assert(camera.includes('r.rawOriginalLabel=String(r.rawOriginalLabel||raw)'));
   assert(camera.includes('function yoloV124RedFiveSuitConflicts'));
-  assert(camera.includes("if(r.redRepair==='context-suit')continue"));
+  assert(camera.includes("if(r.redRepair==='context-suit'||r.redRepair==='local-majority-suit')continue"));
   assert(camera.includes('YOLO_V124_RED_LOCAL_MIN_SUPPORT=2'));
   assert(camera.includes('...v124RedFiveSuitConflictIndexes'));
 });
@@ -41,7 +41,7 @@ test('v124 benchmark fixes null slot reconstruction and improves confirmed captu
   assert(benchmark.includes("window.addEventListener('maki:verified-hand'"));
   assert(benchmark.includes("copy.className='maki-v124-copy-index'"));
   assert(benchmark.includes("copy.textContent='JSON本文コピー'"));
-  assert(benchmark.includes("'MAKI_v125_benchmark_index.json'"));
+  assert(benchmark.includes("'MAKI_v128_benchmark_index.json'"));
   assert(benchmark.includes('window.MAKIV124Benchmark=frozen'));
 });
 
