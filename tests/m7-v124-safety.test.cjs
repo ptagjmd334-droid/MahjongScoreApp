@@ -35,22 +35,22 @@ test('v124 diagnostics expose both new safety guards',()=>{
 });
 
 test('v124 benchmark fixes null slot reconstruction and improves confirmed capture/share UX',()=>{
-  assert(benchmark.includes("const VERSION='MAKI v129'"));
+  assert(benchmark.includes("const VERSION='MAKI v130'"));
   assert(benchmark.includes("singleMissing!==null&&singleMissing!==undefined&&singleMissing!==''"));
   assert(benchmark.includes("droppedOverlap!==null&&droppedOverlap!==undefined&&droppedOverlap!==''"));
   assert(benchmark.includes("window.addEventListener('maki:verified-hand'"));
   assert(benchmark.includes("copy.className='maki-v124-copy-index'"));
   assert(benchmark.includes("copy.textContent='JSON本文コピー'"));
-  assert(benchmark.includes("'MAKI_v129_benchmark_index.json'"));
+  assert(benchmark.includes("'MAKI_v130_benchmark_index.json'"));
   assert(benchmark.includes('window.MAKIV124Benchmark=frozen'));
 });
 
 test('v124 build/cache version is visible and benchmark remains loaded before ui owner',()=>{
-  assert(index.includes('MAKI v129'));
-  assert(index.includes('v=m7v129'));
+  assert(index.includes('MAKI v130'));
+  assert(index.includes('v=m7v130'));
   assert.equal(index.includes('\\n  <script'),false,'index must not ship a literal backslash-n between script tags');
   assert.doesNotThrow(()=>new Function(sw));
-  assert(sw.includes('mahjong-score-app-m7-v129'));
+  assert(sw.includes('mahjong-score-app-m7-v130'));
   assert.equal(sw.includes('\\n  "./maki-v111-hand-entry.js"'),false,'service worker must not contain a literal backslash-n token');
   assert(index.indexOf('m7-camera-v36.js')<index.indexOf('m7-benchmark-v123.js'));
   assert(index.indexOf('m7-benchmark-v123.js')<index.indexOf('ui-fixes.js'));
