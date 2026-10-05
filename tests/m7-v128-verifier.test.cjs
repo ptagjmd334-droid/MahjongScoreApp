@@ -56,9 +56,10 @@ test('v128 corrected crop export contains only user-corrected confirmed crop sam
   assert(payload.samples.every(x=>x.imageDataUrl.startsWith('data:image/jpeg')));
 });
 
-test('v128 logger exposes corrected-crop export UI and current filenames',()=>{
+test('v128 corrected-crop export API remains available under v130 copy UI',()=>{
   const logger=fs.readFileSync(path.join(root,'m7-benchmark-v123.js'),'utf8');
-  assert(logger.includes("training.textContent='修正crop出力'"));
+  assert(logger.includes("training.textContent='修正crop準備中'"));
+  assert(logger.includes("training.textContent=copyCache.cropsJson?'修正cropコピー'"));
   assert(logger.includes("'MAKI_v130_corrected_crops.json'"));
   assert(logger.includes("'MAKI_v130_benchmark_index.json'"));
   assert(logger.includes('window.MAKIV128Benchmark=frozen'));
