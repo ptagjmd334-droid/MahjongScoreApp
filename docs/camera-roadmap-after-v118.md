@@ -114,3 +114,17 @@ v128でconfirmed cropを蓄積・出力できるようになったため、端�
 - sorted-run guardは残すが、ランダム順でも専用verifierが働く。
 - benchmarkに「精度集計」を追加し、自動確定precision / coverage / exact hand / manual corrections / confusion pair / quality別case数をJSON出力。
 - v123以降のIndexedDB・training image・templateは継続利用する。
+
+
+## MAKI v130 Direct-copy benchmark + version comparison（2026-10-06）
+
+実機反復の操作コストを下げ、同じbenchmarkを世代別に比較できる形へ更新する。
+
+- 「修正crop出力」を「修正cropコピー」へ変更し、ファイル保存なしでJSON本文をクリップボードへ送る。
+- 「精度集計」を「精度集計コピー」へ変更。
+- iPhone Safariのuser activationを失わないよう、IndexedDB読込とJSON生成は結果画面表示中に事前実行し、タップ時はprepared textのclipboard writeだけ行う。
+- 既存のexport APIはfallbackとして維持。
+- benchmark summaryにperVersionを追加し、v128 / v129 / v130等を同じ指標で比較可能にする。
+- v123以降のDB、confirmed truth、修正cropは継続利用する。
+
+これ以降は累積値だけでなく、各versionのsilent false positiveとmanual correctionの推移で改善を判断する。

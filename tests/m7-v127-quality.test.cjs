@@ -42,8 +42,8 @@ test('v127 benchmark classifies retake-recommended captures for later correlatio
 });
 
 test('v127 build/cache markers are current',()=>{
-  assert(index.includes('MAKI v129'));
-  assert(index.includes('v=m7v129'));
-  assert(sw.includes('mahjong-score-app-m7-v129'));
+  assert(index.includes('MAKI v130'));
+  assert(index.includes('v=m7v130'));
+  assert(sw.includes('mahjong-score-app-m7-v130'));
   assert.doesNotThrow(()=>new Function(sw));
 });

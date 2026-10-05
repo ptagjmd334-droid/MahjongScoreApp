@@ -1422,3 +1422,17 @@
 **追加:** confirmed benchmark全体から自動確定precision、coverage、14枚exact率、平均手修正枚数、safe abstention、confusion pair、撮影品質別case数を自動集計する「精度集計」JSONを追加。
 
 **再発防止:** 並び順の文脈は補助に留め、ランダム順でも働く画像/template evidenceを独立して持つ。モデル誤り対策は可能な限り自動補正ではなくabstentionで安全化し、集計指標で改善量を確認する。
+
+
+## M157: 実機ログ出力をファイル共有だけにすると検証往復が遅い
+**時期:** MAKI v129実機→v130
+
+**症状:** 「修正crop出力」「精度集計」は必要なJSONを作れていたが、iPhoneでは毎回ファイル保存→ChatGPTでアップロードが必要で、6回程度の実機反復でも手作業が増えた。
+
+**原因:** ログ取得を「ファイルとして残す」用途だけで設計し、チャットへ即貼り付ける開発ループを別経路にしていなかった。またSafariではIndexedDB読み込みをawaitした後にclipboard APIを呼ぶと、タップ由来のuser activationを失う可能性がある。
+
+**v130修正:** 結果画面を開いている間に精度集計JSONと修正crop JSONをバックグラウンド準備し、ボタンを「精度集計コピー」「修正cropコピー」へ変更。タップ時はIndexedDBを読まず、準備済み文字列へclipboard writeを即開始する。従来のファイルexport APIはfallbackとして残す。
+
+**追加:** 累積集計だけではv128→v129等の改善量が分からないため、confirmed caseをrecord.versionで分けたperVersion指標を同じ精度集計JSONへ追加。precision / coverage / exact hand / corrections / confusionを世代ごとに比較できるようにする。
+
+**再発防止:** 実機デバッグ用の主要出力は「保存」と「即コピー」を分離し、日常の往復は1タップコピーを標準にする。累積benchmarkには必ずversion-scoped指標を持たせる。
