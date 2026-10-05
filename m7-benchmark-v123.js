@@ -4,7 +4,7 @@
 (()=>{
   'use strict';
 
-  const VERSION='MAKI v129';
+  const VERSION='MAKI v130';
   const DB_NAME='maki-recognition-benchmark-v123';
   const DB_VERSION=1;
   const STORE='cases';
@@ -13,6 +13,7 @@
   let pendingCapture=null;
   let pendingMountTimer=0;
   const liveCases=new Map();
+  let copyCache={summaryJson:'',summaryPayload:null,cropsJson:'',cropsPayload:null,building:null,readyAt:0};
 
   function safeClone(value){
     try{return value==null?value:JSON.parse(JSON.stringify(value));}catch(_){return null;}
@@ -312,6 +313,8 @@
     record.categories=classifyCase(record);
     await saveCase(record);
     liveCases.set(id,record);
+    invalidateCopyCache();
+    warmCopyCache().catch(()=>{});
     updateLoggerUi(root,record);
     return record;
   }
@@ -322,12 +325,12 @@
     const wrap=document.createElement('div');wrap.className='maki-v123-benchmark-ui';
     wrap.style.cssText='display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:5px;padding-top:5px;border-top:1px dashed rgba(0,0,0,.18);font:700 10px/1.25 -apple-system,BlinkMacSystemFont,sans-serif;';
     const status=document.createElement('span');status.className='maki-v123-benchmark-status';
-    status.textContent='v129認識ログ：端末内へ保存中…';
+    status.textContent='v130認識ログ：端末内へ保存中…';
     const share=document.createElement('button');share.type='button';share.className='maki-v123-share-case';share.textContent='このログを共有';
     const all=document.createElement('button');all.type='button';all.className='maki-v123-export-index';all.textContent='ログ一覧';
     const copy=document.createElement('button');copy.type='button';copy.className='maki-v124-copy-index';copy.textContent='JSON本文コピー';
-    const training=document.createElement('button');training.type='button';training.className='maki-v128-export-corrections';training.textContent='修正crop出力';
-    const summary=document.createElement('button');summary.type='button';summary.className='maki-v129-export-summary';summary.textContent='精度集計';
+    const training=document.createElement('button');training.type='button';training.className='maki-v130-copy-corrections';training.textContent='修正crop準備中';training.disabled=true;
+    const summary=document.createElement('button');summary.type='button';summary.className='maki-v130-copy-summary';summary.textContent='精度集計準備中';summary.disabled=true;
     [share,all,copy,training,summary].forEach(b=>b.style.cssText='border:1px solid rgba(0,0,0,.18);border-radius:7px;background:#fff;padding:4px 7px;font:800 10px/1.1 inherit;');
     wrap.append(status,share,all,copy,training,summary);body.appendChild(wrap);
     share.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();exportCase(record.id).catch(()=>{});});
@@ -336,28 +339,34 @@
       e.preventDefault();e.stopPropagation();
       copyIndexText().then(()=>{copy.textContent='コピー済み';setTimeout(()=>{copy.textContent='JSON本文コピー';},1300);}).catch(()=>{copy.textContent='コピー失敗';setTimeout(()=>{copy.textContent='JSON本文コピー';},1300);});
     });
+    const setReady=()=>{
+      training.disabled=!copyCache.cropsJson;summary.disabled=!copyCache.summaryJson;
+      training.textContent=copyCache.cropsJson?'修正cropコピー':'修正crop準備中';
+      summary.textContent=copyCache.summaryJson?'精度集計コピー':'精度集計準備中';
+    };
     training.addEventListener('click',e=>{
       e.preventDefault();e.stopPropagation();
-      exportCorrectedCrops().then(payload=>{
-        training.textContent=payload.count?('修正crop '+payload.count+'件'):'修正cropなし';
-        setTimeout(()=>{training.textContent='修正crop出力';},1600);
-      }).catch(()=>{training.textContent='出力失敗';setTimeout(()=>{training.textContent='修正crop出力';},1300);});
+      copyPreparedJson('crops').then(payload=>{
+        training.textContent=payload.count?('コピー済み '+payload.count+'件'):'修正cropなし';
+        setTimeout(()=>{training.textContent='修正cropコピー';},1600);
+      }).catch(()=>{training.textContent='コピー失敗';setTimeout(()=>{training.textContent='修正cropコピー';},1300);});
     });
     summary.addEventListener('click',e=>{
       e.preventDefault();e.stopPropagation();
-      exportBenchmarkSummary().then(payload=>{
+      copyPreparedJson('summary').then(payload=>{
         const p=payload.autoConfirmPrecision;
-        summary.textContent=p==null?'集計なし':('自動確定精度 '+Math.round(p*1000)/10+'%');
-        setTimeout(()=>{summary.textContent='精度集計';},1800);
-      }).catch(()=>{summary.textContent='集計失敗';setTimeout(()=>{summary.textContent='精度集計';},1300);});
+        summary.textContent=p==null?'集計なし':('コピー済み '+Math.round(p*1000)/10+'%');
+        setTimeout(()=>{summary.textContent='精度集計コピー';},1800);
+      }).catch(()=>{summary.textContent='コピー失敗';setTimeout(()=>{summary.textContent='精度集計コピー';},1300);});
     });
+    warmCopyCache().then(setReady).catch(()=>{training.textContent='修正crop準備失敗';summary.textContent='精度集計準備失敗';});
     return wrap;
   }
 
   function updateLoggerUi(root,record){
     const status=root?.querySelector('.maki-v123-benchmark-status');if(!status)return;
     const cats=(record?.categories||[]).filter(x=>x!=='AUTO_14_14');
-    status.textContent='v129認識ログ：保存済み'+(cats.length?' / '+cats.slice(0,3).join('・'):'');
+    status.textContent='v130認識ログ：保存済み'+(cats.length?' / '+cats.slice(0,3).join('・'):'');
   }
 
   async function mountResultLogger(){
@@ -370,7 +379,7 @@
     const record=captureInitialRecord(root);if(!record)return;
     makeLoggerUi(root,record);
     try{await saveCase(record);updateLoggerUi(root,record);}catch(_){
-      const status=root.querySelector('.maki-v123-benchmark-status');if(status)status.textContent='v129認識ログ：保存できませんでした';
+      const status=root.querySelector('.maki-v123-benchmark-status');if(status)status.textContent='v130認識ログ：保存できませんでした';
     }
   }
 
@@ -394,7 +403,7 @@
     };
   }
 
-  function benchmarkSummaryPayload(rows){
+  function benchmarkMetricsForRows(rows){
     const confirmed=(Array.isArray(rows)?rows:[]).filter(r=>r?.phase==='confirmed'&&r?.final);
     let totalTiles=0,autoResolved=0,correctAuto=0,wrongAuto=0,safeAbstentions=0,filledAbstentions=0;
     let rawMetadataWrong=0,exactHands=0,totalCorrections=0,qualityOkCases=0,qualityRetakeCases=0;
@@ -415,10 +424,7 @@
         if(predicted){
           autoResolved++;add(perPredicted,predicted);
           if(predicted===truth)correctAuto++;
-          else{
-            wrongAuto++;exact=false;
-            add(confusion,predicted+'→'+truth);
-          }
+          else{wrongAuto++;exact=false;add(confusion,predicted+'→'+truth);}
         }else{
           safeAbstentions++;exact=false;
           if(truth)filledAbstentions++;
@@ -436,13 +442,32 @@
     const meanCorrections=confirmed.length?totalCorrections/confirmed.length:null;
     const topConfusions=Object.entries(confusion).sort((a,b)=>b[1]-a[1]).map(([pair,count])=>({pair,count}));
     return {
-      version:VERSION,exportedAt:Date.now(),
       confirmedCases:confirmed.length,totalTiles,autoResolved,correctAuto,wrongAuto,
       safeAbstentions,filledAbstentions,rawMetadataWrong,exactHands,totalCorrections,
       autoConfirmPrecision:precision,autoConfirmCoverage:coverage,exactHandRate:exactRate,
       meanManualCorrections:meanCorrections,qualityOkCases,qualityRetakeCases,
       topConfusions,perTruth,perPredicted
     };
+  }
+
+  function versionNumber(value){
+    const m=String(value||'').match(/v(\d+)/i);
+    return m?Number(m[1]):0;
+  }
+
+  function benchmarkSummaryPayload(rows){
+    const all=Array.isArray(rows)?rows:[];
+    const overall=benchmarkMetricsForRows(all);
+    const groups={};
+    for(const row of all){
+      if(row?.phase!=='confirmed'||!row?.final)continue;
+      const key=String(row.version||'unknown');
+      (groups[key]||(groups[key]=[])).push(row);
+    }
+    const perVersion=Object.entries(groups)
+      .map(([version,items])=>({version,...benchmarkMetricsForRows(items)}))
+      .sort((a,b)=>versionNumber(a.version)-versionNumber(b.version)||a.version.localeCompare(b.version));
+    return {version:VERSION,exportedAt:Date.now(),...overall,perVersion};
   }
 
   function correctedCropExportPayload(rows){
@@ -498,7 +523,7 @@
 
   async function exportCase(id){
     const record=await getCase(id);if(!record)throw new Error('case-not-found');
-    return shareJson('MAKI_v129_case_'+id+'.json',record);
+    return shareJson('MAKI_v130_case_'+id+'.json',record);
   }
 
   function benchmarkIndexPayload(rows){
@@ -507,21 +532,81 @@
 
   async function exportIndex(){
     const rows=await listCases();
-    return shareJson('MAKI_v129_benchmark_index.json',benchmarkIndexPayload(rows));
+    return shareJson('MAKI_v130_benchmark_index.json',benchmarkIndexPayload(rows));
   }
 
   async function exportCorrectedCrops(){
     const rows=await listCases();
     const payload=correctedCropExportPayload(rows);
-    await shareJson('MAKI_v129_corrected_crops.json',payload);
+    await shareJson('MAKI_v130_corrected_crops.json',payload);
     return payload;
   }
 
   async function exportBenchmarkSummary(){
     const rows=await listCases();
     const payload=benchmarkSummaryPayload(rows);
-    await shareJson('MAKI_v129_benchmark_summary.json',payload);
+    await shareJson('MAKI_v130_benchmark_summary.json',payload);
     return payload;
+  }
+
+  function invalidateCopyCache(){
+    copyCache.summaryJson='';copyCache.summaryPayload=null;
+    copyCache.cropsJson='';copyCache.cropsPayload=null;
+    copyCache.readyAt=0;
+  }
+
+  async function refreshCopyCache(){
+    if(copyCache.building)return copyCache.building;
+    copyCache.building=(async()=>{
+      const rows=await listCases();
+      const summaryPayload=benchmarkSummaryPayload(rows);
+      const cropsPayload=correctedCropExportPayload(rows);
+      copyCache.summaryPayload=summaryPayload;
+      copyCache.summaryJson=JSON.stringify(summaryPayload,null,2);
+      copyCache.cropsPayload=cropsPayload;
+      copyCache.cropsJson=JSON.stringify(cropsPayload);
+      copyCache.readyAt=Date.now();
+      return copyCache;
+    })();
+    try{return await copyCache.building;}finally{copyCache.building=null;}
+  }
+
+  function warmCopyCache(){
+    if(copyCache.summaryJson&&copyCache.cropsJson)return Promise.resolve(copyCache);
+    return refreshCopyCache();
+  }
+
+  function writeClipboardText(text){
+    if(!text)throw new Error('clipboard-empty');
+    if(navigator.clipboard?.writeText)return navigator.clipboard.writeText(text);
+    const area=document.createElement('textarea');
+    area.value=text;area.setAttribute('readonly','');
+    area.style.cssText='position:fixed;left:-9999px;top:0;opacity:0;';
+    document.body.appendChild(area);area.select();area.setSelectionRange(0,area.value.length);
+    const ok=document.execCommand?.('copy')===true;area.remove();
+    if(!ok)throw new Error('clipboard-unavailable');
+    return Promise.resolve();
+  }
+
+  function copyPreparedJson(kind){
+    const isSummary=kind==='summary';
+    const json=isSummary?copyCache.summaryJson:copyCache.cropsJson;
+    const payload=isSummary?copyCache.summaryPayload:copyCache.cropsPayload;
+    if(!json||!payload)throw new Error('copy-not-ready');
+    // Clipboard write starts directly in the tap handler. This is important on
+    // iPhone Safari, where awaiting IndexedDB before clipboard access can lose
+    // the user-activation permission.
+    return Promise.resolve(writeClipboardText(json)).then(()=>payload);
+  }
+
+  async function copyBenchmarkSummaryText(){
+    if(!copyCache.summaryJson)await refreshCopyCache();
+    return copyPreparedJson('summary');
+  }
+
+  async function copyCorrectedCropsText(){
+    if(!copyCache.cropsJson)await refreshCopyCache();
+    return copyPreparedJson('crops');
   }
 
   async function copyIndexText(){
@@ -538,10 +623,10 @@
   async function clearCases(){await withStore('readwrite',store=>store.clear());}
 
   const api={
-    VERSION,DB_NAME,STORE,MAX_CASES,rawLabelToTile,reconstructSelectedRaw,selectedRawEvidence,classifyCase,benchmarkIndexPayload,benchmarkSummaryPayload,correctedCropExportPayload,
-    getCase,listCases,saveCase,exportCase,exportIndex,exportCorrectedCrops,exportBenchmarkSummary,copyIndexText,clearCases
+    VERSION,DB_NAME,STORE,MAX_CASES,rawLabelToTile,reconstructSelectedRaw,selectedRawEvidence,classifyCase,benchmarkIndexPayload,benchmarkMetricsForRows,benchmarkSummaryPayload,correctedCropExportPayload,
+    getCase,listCases,saveCase,exportCase,exportIndex,exportCorrectedCrops,exportBenchmarkSummary,refreshCopyCache,warmCopyCache,copyPreparedJson,copyBenchmarkSummaryText,copyCorrectedCropsText,copyIndexText,clearCases
   };
-  if(typeof window!=='undefined'){const frozen=Object.freeze(api);window.MAKIV129Benchmark=frozen;window.MAKIV128Benchmark=frozen;window.MAKIV127Benchmark=frozen;window.MAKIV126Benchmark=frozen;window.MAKIV125Benchmark=frozen;window.MAKIV124Benchmark=frozen;window.MAKIV123Benchmark=frozen;}
+  if(typeof window!=='undefined'){const frozen=Object.freeze(api);window.MAKIV130Benchmark=frozen;window.MAKIV129Benchmark=frozen;window.MAKIV128Benchmark=frozen;window.MAKIV127Benchmark=frozen;window.MAKIV126Benchmark=frozen;window.MAKIV125Benchmark=frozen;window.MAKIV124Benchmark=frozen;window.MAKIV123Benchmark=frozen;}
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
   if(typeof document==='undefined')return;
 
