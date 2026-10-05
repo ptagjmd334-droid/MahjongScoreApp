@@ -55,8 +55,9 @@ test('v129 benchmark summary computes precision, coverage, exact hands and confu
   assert.equal(x.qualityRetakeCases,1);
 });
 
-test('v129 logger exposes benchmark summary export UI',()=>{
-  assert(logger.includes("summary.textContent='精度集計'"));
+test('v129 benchmark summary export remains available under v130 copy UI',()=>{
+  assert(logger.includes("summary.textContent='精度集計準備中'"));
+  assert(logger.includes("summary.textContent=copyCache.summaryJson?'精度集計コピー'"));
   assert(logger.includes('function benchmarkSummaryPayload'));
   assert(logger.includes('async function exportBenchmarkSummary'));
   assert(logger.includes("'MAKI_v130_benchmark_summary.json'"));
