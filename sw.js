@@ -6,6 +6,8 @@ const ASSETS = [
   "./script.js",
   "./ui-fixes.js",
   "./maki-v111-hand-entry.js",
+  "./maki-v134-push.js",
+  "./OneSignalSDKWorker.js",
   "./m7-recognition-core.js",
   "./m7-camera-v36.js",
   "./m7-benchmark-v123.js",
