@@ -60,6 +60,6 @@ test('v129 benchmark summary export remains available under v130 copy UI',()=>{
   assert(logger.includes("summary.textContent=copyCache.summaryJson?'精度集計コピー'"));
   assert(logger.includes('function benchmarkSummaryPayload'));
   assert(logger.includes('async function exportBenchmarkSummary'));
-  assert(logger.includes("'MAKI_v130_benchmark_summary.json'"));
+  assert(logger.includes("'MAKI_v131_benchmark_summary.json'"));
   assert(logger.includes('window.MAKIV129Benchmark=frozen'));
 });
