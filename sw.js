@@ -1,4 +1,4 @@
-const CACHE_NAME = "mahjong-score-app-m7-v130";
+const CACHE_NAME = "mahjong-score-app-m7-v131";
 const ASSETS = [
   "./",
   "./index.html",
@@ -9,7 +9,7 @@ const ASSETS = [
   "./m7-recognition-core.js",
   "./m7-camera-v36.js",
   "./m7-benchmark-v123.js",
-  "./manifest.webmanifest?v=m7v130",
+  "./manifest.webmanifest?v=m7v131",
   "./icon-180.png",
   "./icon-192.png",
   "./icon-512.png"
