@@ -112,6 +112,7 @@ on:
       - work/maki-v132-chat-copy
       - work/maki-v133-diagnostic-file-update-notice
       - work/maki-v134-file-download-push-foundation
+      - work/maki-v135-man4-precision
   workflow_dispatch:
 
 jobs:
@@ -154,6 +155,8 @@ jobs:
         run: node --test tests/maki-v133-diagnostic-update.test.cjs
       - name: Check MAKI v134 file and push integration
         run: node --test tests/maki-v134-file-push.test.cjs
+      - name: Check MAKI v135 4-man precision guard
+        run: node --test tests/m7-v135-man4-precision.test.cjs
       - name: Install headless browser control
         run: npm install --no-save --no-audit --no-fund puppeteer-core@24
       - name: Run real Chromium landscape flow
