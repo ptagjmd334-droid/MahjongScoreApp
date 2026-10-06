@@ -33,6 +33,6 @@ test('v125 camera and UI boundaries defensively sanitize stale red state',()=>{
 });
 
 test('v125 build marker and cache key are current',()=>{
-  assert(index.includes('MAKI v132'));
-  assert(index.includes('v=m7v132'));
+  assert(index.includes('MAKI v133'));
+  assert(index.includes('v=m7v133'));
 });

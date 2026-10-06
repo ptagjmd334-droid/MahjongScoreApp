@@ -110,6 +110,7 @@ on:
       - work/maki-v130-copy-version-benchmark
       - work/maki-v131-replay-benchmark
       - work/maki-v132-chat-copy
+      - work/maki-v133-diagnostic-file-update-notice
   workflow_dispatch:
 
 jobs:
@@ -148,6 +149,8 @@ jobs:
         run: node --test tests/maki-v131-replay.test.cjs
       - name: Check MAKI v132 current-chat clipboard handoff
         run: node --test tests/maki-v132-chat-copy.test.cjs
+      - name: Check MAKI v133 diagnostic file and update notice
+        run: node --test tests/maki-v133-diagnostic-update.test.cjs
       - name: Install headless browser control
         run: npm install --no-save --no-audit --no-fund puppeteer-core@24
       - name: Run real Chromium landscape flow
