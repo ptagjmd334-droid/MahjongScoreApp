@@ -17,7 +17,7 @@ function loadSdk(){
 function mount(OneSignal){
  if(document.getElementById('maki-v134-push'))return;
  const b=document.createElement('button');b.id='maki-v134-push';b.type='button';
- b.style.cssText='position:fixed;right:max(8px,env(safe-area-inset-right));bottom:max(7px,env(safe-area-inset-bottom));z-index:2147483000;border:1px solid rgba(255,255,255,.4);border-radius:999px;background:#123c2b;color:#fff;padding:7px 11px;font:800 11px/1.1 -apple-system,BlinkMacSystemFont,sans-serif;box-shadow:0 3px 12px rgba(0,0,0,.25)';
+ b.style.cssText='position:fixed;right:max(8px,env(safe-area-inset-right));bottom:max(58px,calc(env(safe-area-inset-bottom) + 58px));z-index:2147483000;border:1px solid rgba(255,255,255,.4);border-radius:999px;background:#123c2b;color:#fff;padding:7px 11px;font:800 11px/1.1 -apple-system,BlinkMacSystemFont,sans-serif;box-shadow:0 3px 12px rgba(0,0,0,.25)';
  async function refresh(){try{const p=OneSignal.Notifications.permission;b.textContent=p?'更新通知 ON':'更新通知をON';}catch(_){b.textContent='更新通知をON';}}
  b.addEventListener('click',async()=>{if(!standalone()){alert('iPhoneではホーム画面のMAKIから開いて「更新通知をON」を押してください。');return;}b.disabled=true;try{await OneSignal.Notifications.requestPermission();await OneSignal.User.PushSubscription.optIn();await refresh();}catch(_){b.textContent='通知設定を確認';}finally{b.disabled=false;}});
  document.body.appendChild(b);refresh();
