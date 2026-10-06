@@ -4,7 +4,7 @@
 (()=>{
   'use strict';
 
-  const VERSION='MAKI v132';
+  const VERSION='MAKI v133';
   const DB_NAME='maki-recognition-benchmark-v123';
   const DB_VERSION=1;
   const STORE='cases';
@@ -523,7 +523,7 @@
 
   async function exportCase(id){
     const record=await getCase(id);if(!record)throw new Error('case-not-found');
-    return shareJson('MAKI_v132_case_'+id+'.json',record);
+    return shareJson('MAKI_v133_case_'+id+'.json',record);
   }
 
   function benchmarkIndexPayload(rows){
@@ -532,20 +532,20 @@
 
   async function exportIndex(){
     const rows=await listCases();
-    return shareJson('MAKI_v132_benchmark_index.json',benchmarkIndexPayload(rows));
+    return shareJson('MAKI_v133_benchmark_index.json',benchmarkIndexPayload(rows));
   }
 
   async function exportCorrectedCrops(){
     const rows=await listCases();
     const payload=correctedCropExportPayload(rows);
-    await shareJson('MAKI_v132_corrected_crops.json',payload);
+    await shareJson('MAKI_v133_corrected_crops.json',payload);
     return payload;
   }
 
   async function exportBenchmarkSummary(){
     const rows=await listCases();
     const payload=benchmarkSummaryPayload(rows);
-    await shareJson('MAKI_v132_benchmark_summary.json',payload);
+    await shareJson('MAKI_v133_benchmark_summary.json',payload);
     return payload;
   }
 
@@ -626,7 +626,7 @@
     VERSION,DB_NAME,STORE,MAX_CASES,rawLabelToTile,reconstructSelectedRaw,selectedRawEvidence,classifyCase,benchmarkIndexPayload,benchmarkMetricsForRows,benchmarkSummaryPayload,correctedCropExportPayload,
     getCase,listCases,saveCase,exportCase,exportIndex,exportCorrectedCrops,exportBenchmarkSummary,refreshCopyCache,warmCopyCache,copyPreparedJson,copyBenchmarkSummaryText,copyCorrectedCropsText,copyIndexText,clearCases
   };
-  if(typeof window!=='undefined'){const frozen=Object.freeze(api);window.MAKIV132Benchmark=frozen;window.MAKIV131Benchmark=frozen;window.MAKIV130Benchmark=frozen;window.MAKIV129Benchmark=frozen;window.MAKIV128Benchmark=frozen;window.MAKIV127Benchmark=frozen;window.MAKIV126Benchmark=frozen;window.MAKIV125Benchmark=frozen;window.MAKIV124Benchmark=frozen;window.MAKIV123Benchmark=frozen;}
+  if(typeof window!=='undefined'){const frozen=Object.freeze(api);window.MAKIV133Benchmark=frozen;window.MAKIV132Benchmark=frozen;window.MAKIV131Benchmark=frozen;window.MAKIV130Benchmark=frozen;window.MAKIV129Benchmark=frozen;window.MAKIV128Benchmark=frozen;window.MAKIV127Benchmark=frozen;window.MAKIV126Benchmark=frozen;window.MAKIV125Benchmark=frozen;window.MAKIV124Benchmark=frozen;window.MAKIV123Benchmark=frozen;}
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
   if(typeof document==='undefined')return;
 
