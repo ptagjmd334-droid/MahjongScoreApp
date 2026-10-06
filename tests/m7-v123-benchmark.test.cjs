@@ -10,7 +10,7 @@ const read=p=>fs.readFileSync(path.join(root,p),'utf8');
 
 test('v124 benchmark module parses and exposes pure helpers',()=>{
   assert.doesNotThrow(()=>new Function(code));
-  assert.equal(api.VERSION,'MAKI v134');
+  assert.equal(api.VERSION,'MAKI v135');
   assert.equal(api.MAX_CASES,50);
   assert.equal(api.rawLabelToTile('0m'),'5萬');
   assert.equal(api.rawLabelToTile('0p'),'5筒');
