@@ -49,7 +49,7 @@ test('winner and ron/tsumo already entered in agariFlow are reused instead of as
 test('v111 service worker cache contains the new module',()=>{
   const sw=read('sw.js');
   const manifest=read('manifest.webmanifest');
-  assert(sw.includes('mahjong-score-app-m7-v133'));
+  assert(sw.includes('mahjong-score-app-m7-v134'));
   assert(sw.includes('./maki-v111-hand-entry.js'));
   assert(sw.includes('./m7-benchmark-v123.js'));
   assert(sw.includes('manifest.webmanifest?v=m7v134'));
