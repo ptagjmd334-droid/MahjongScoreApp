@@ -67,6 +67,12 @@
   const YOLO_V129_MEMORY_MIN_ADVANTAGE=.015;
   const YOLO_V129_MEMORY_NO_OWN_MAX_DISTANCE=.060;
   const YOLO_V129_MEMORY_NO_OWN_MIN_SAMPLES=3;
+  // v135: the v134 real-device benchmark shows 4萬 is still the dominant silent false-positive
+  // (19x 4萬→8萬, plus 4萬→1萬/2萬). Challenge medium-confidence 4萬 unless
+  // verified on-device templates positively support 4萬. Precision is preferred over coverage.
+  const YOLO_V135_MAN4_MAX_UNVERIFIED_SCORE=.88;
+  const YOLO_V135_MAN4_OWN_MAX_DISTANCE=.095;
+  const YOLO_V135_MAN4_OWN_MIN_SAMPLES=2;
   const YOLO_V128_RED_LOCAL_RADIUS=3;
   const YOLO_V128_RED_LOCAL_MIN_SUPPORT=3;
   const YOLO_NEAR_DUPLICATE_DISTANCE=.105;
@@ -3252,6 +3258,22 @@
     return conflicts;
   }
 
+  function yoloV135ManzuFourPrecisionConflicts(yoloRecognition,features,detectorAdopted=false){
+    const yolo=Array.isArray(yoloRecognition)?yoloRecognition:[];
+    const feats=Array.isArray(features)?features:[];
+    if(!detectorAdopted||yolo.length!==14||feats.length!==14)return [];
+    const lib=activeLibrary(),conflicts=[];
+    for(let i=0;i<14;i++){
+      const r=yolo[i]||{},score=Number(r.score)||0,feature=feats[i];
+      if(String(r.label||'')!=='4萬'||!feature||score<YOLO_CLASS_USE_THRESHOLD||score>YOLO_V135_MAN4_MAX_UNVERIFIED_SCORE)continue;
+      const own=v129TemplateDistanceSummary(feature,'4萬',lib);
+      const ownVerified=own.samples>=YOLO_V135_MAN4_OWN_MIN_SAMPLES&&Number.isFinite(own.score)&&own.score<=YOLO_V135_MAN4_OWN_MAX_DISTANCE;
+      r.v135Man4Precision={score,ownSamples:own.samples,ownDistance:Number.isFinite(own.score)?Number(own.score.toFixed(4)):null,verified:ownVerified,conflict:!ownVerified};
+      if(!ownVerified)conflicts.push(i);
+    }
+    return conflicts;
+  }
+
   function yoloV128Manzu48TemplateConflicts(yoloRecognition,legacyPredicted=[],verifierDebug=[],detectorAdopted=false){
     const yolo=Array.isArray(yoloRecognition)?yoloRecognition:[];
     const legacy=Array.isArray(legacyPredicted)?legacyPredicted:[];
@@ -4194,8 +4216,9 @@
     const v124ManzuFourConflictIndexes=yoloV124ManzuFourConflicts(analysis.yoloRecognition||[],analysis.detectorAdopted===true);
     const v128Manzu48SequenceConflictIndexes=yoloV128Manzu48SequenceConflicts(analysis.yoloRecognition||[],analysis.detectorAdopted===true);
     const v129Manzu248MemoryConflictIndexes=yoloV129Manzu248MemoryConflicts(analysis.yoloRecognition||[],features,analysis.detectorAdopted===true);
+    const v135ManzuFourPrecisionConflictIndexes=yoloV135ManzuFourPrecisionConflicts(analysis.yoloRecognition||[],features,analysis.detectorAdopted===true);
     const v124RedFiveSuitConflictIndexes=yoloV124RedFiveSuitConflicts(analysis.yoloRecognition||[],analysis.detectorAdopted===true);
-    const initialBlocked=[...new Set([...duplicateGuardIndexes,...nearDuplicateConflictIndexes,...sortedSuitConflictIndexes,...v124ManzuFourConflictIndexes,...v128Manzu48SequenceConflictIndexes,...v129Manzu248MemoryConflictIndexes,...v124RedFiveSuitConflictIndexes])].sort((a,b)=>a-b);
+    const initialBlocked=[...new Set([...duplicateGuardIndexes,...nearDuplicateConflictIndexes,...sortedSuitConflictIndexes,...v124ManzuFourConflictIndexes,...v128Manzu48SequenceConflictIndexes,...v129Manzu248MemoryConflictIndexes,...v135ManzuFourPrecisionConflictIndexes,...v124RedFiveSuitConflictIndexes])].sort((a,b)=>a-b);
     const yoloFirst=chooseYoloPrimaryRecognition(analysis.yoloRecognition||[],[],analysis.detectorAdopted===true,YOLO_CLASS_USE_THRESHOLD,initialBlocked);
     let legacyPredicted=Array(14).fill('');
     let legacyClassifierRan=false;
@@ -4236,6 +4259,7 @@
     analysis.yoloV124ManzuFourConflictIndexes=v124ManzuFourConflictIndexes.slice();
     analysis.yoloV128Manzu48SequenceConflictIndexes=v128Manzu48SequenceConflictIndexes.slice();
     analysis.yoloV129Manzu248MemoryConflictIndexes=v129Manzu248MemoryConflictIndexes.slice();
+    analysis.yoloV135ManzuFourPrecisionConflictIndexes=v135ManzuFourPrecisionConflictIndexes.slice();
     analysis.yoloV128Manzu48TemplateConflictIndexes=v128Manzu48TemplateConflictIndexes.slice();
     analysis.yoloV124RedFiveSuitConflictIndexes=v124RedFiveSuitConflictIndexes.slice();
     analysis.yoloLegacySuitConflictIndexes=suitConflictIndexes.slice();
@@ -4251,6 +4275,7 @@
       window.M7V36LastDiagnostics.yoloV124ManzuFourConflictIndexes=v124ManzuFourConflictIndexes.slice();
       window.M7V36LastDiagnostics.yoloV128Manzu48SequenceConflictIndexes=v128Manzu48SequenceConflictIndexes.slice();
       window.M7V36LastDiagnostics.yoloV129Manzu248MemoryConflictIndexes=v129Manzu248MemoryConflictIndexes.slice();
+      window.M7V36LastDiagnostics.yoloV135ManzuFourPrecisionConflictIndexes=v135ManzuFourPrecisionConflictIndexes.slice();
       window.M7V36LastDiagnostics.yoloV128Manzu48TemplateConflictIndexes=v128Manzu48TemplateConflictIndexes.slice();
       window.M7V36LastDiagnostics.yoloV124RedFiveSuitConflictIndexes=v124RedFiveSuitConflictIndexes.slice();
       window.M7V36LastDiagnostics.yoloLegacySuitConflictIndexes=suitConflictIndexes.slice();
