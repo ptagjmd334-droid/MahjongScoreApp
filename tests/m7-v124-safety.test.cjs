@@ -41,7 +41,7 @@ test('v124 benchmark fixes null slot reconstruction and improves confirmed captu
   assert(benchmark.includes("window.addEventListener('maki:verified-hand'"));
   assert(benchmark.includes("copy.className='maki-v124-copy-index'"));
   assert(benchmark.includes("copy.textContent='JSON本文コピー'"));
-  assert(benchmark.includes("'MAKI_v130_benchmark_index.json'"));
+  assert(benchmark.includes("'MAKI_v131_benchmark_index.json'"));
   assert(benchmark.includes('window.MAKIV124Benchmark=frozen'));
 });
 
