@@ -40,7 +40,7 @@ test('v129 benchmark summary computes precision, coverage, exact hands and confu
     }
   ];
   const x=benchmark.benchmarkSummaryPayload(rows);
-  assert.equal(x.version,'MAKI v133');
+  assert.equal(x.version,'MAKI v134');
   assert.equal(x.confirmedCases,2);
   assert.equal(x.totalTiles,6);
   assert.equal(x.autoResolved,5);
@@ -60,6 +60,6 @@ test('v129 benchmark summary export remains available under v130 copy UI',()=>{
   assert(logger.includes("summary.textContent=copyCache.summaryJson?'精度集計コピー'"));
   assert(logger.includes('function benchmarkSummaryPayload'));
   assert(logger.includes('async function exportBenchmarkSummary'));
-  assert(logger.includes("'MAKI_v133_benchmark_summary.json'"));
+  assert(logger.includes("'MAKI_v134_benchmark_summary.json'"));
   assert(logger.includes('window.MAKIV129Benchmark=frozen'));
 });
