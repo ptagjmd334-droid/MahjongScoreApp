@@ -34,7 +34,7 @@ const server=http.createServer((req,res)=>{
     const errors=[];page.on('pageerror',e=>errors.push(String(e)));
     await page.goto('http://127.0.0.1:'+port+'/',{waitUntil:'domcontentloaded',timeout:30000});
     await page.waitForSelector('#go-confirm-button',{timeout:12000});
-    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'MAKI v130');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'MAKI v131');
     assert.equal(await page.$eval('#app-build-badge',e=>e.hidden),false,'v130 build badge should be visible during development');
     assert(await page.evaluate(()=>!!window.M7V36CameraOwner),'v98 camera owner must bootstrap');
     assert(await page.evaluate(()=>!!window.MAKIV130Benchmark),'v130 recognition benchmark logger must bootstrap');
