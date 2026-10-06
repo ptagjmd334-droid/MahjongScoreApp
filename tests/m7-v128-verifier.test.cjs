@@ -46,7 +46,7 @@ test('v128 corrected crop export contains only user-corrected confirmed crop sam
     id:'case-2',phase:'captured',initial:{labels:['4萬']},images:{crops:[{index:0,dataUrl:'data:image/jpeg;base64,CCC'}]}
   }];
   const payload=benchmark.correctedCropExportPayload(rows);
-  assert.equal(payload.version,'MAKI v133');
+  assert.equal(payload.version,'MAKI v134');
   assert.equal(payload.count,2);
   assert.equal(payload.samples[0].predictedLabel,'4萬');
   assert.equal(payload.samples[0].correctLabel,'8萬');
@@ -66,8 +66,8 @@ test('v128 corrected-crop export API remains available under v130 copy UI',()=>{
 });
 
 test('v128 build/cache markers are current',()=>{
-  assert(index.includes('MAKI v133'));
-  assert(index.includes('v=m7v133'));
-  assert(sw.includes('mahjong-score-app-m7-v133'));
+  assert(index.includes('MAKI v134'));
+  assert(index.includes('v=m7v134'));
+  assert(sw.includes('mahjong-score-app-m7-v134'));
   assert.doesNotThrow(()=>new Function(sw));
 });
