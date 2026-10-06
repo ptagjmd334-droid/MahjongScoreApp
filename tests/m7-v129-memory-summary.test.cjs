@@ -40,7 +40,7 @@ test('v129 benchmark summary computes precision, coverage, exact hands and confu
     }
   ];
   const x=benchmark.benchmarkSummaryPayload(rows);
-  assert.equal(x.version,'MAKI v130');
+  assert.equal(x.version,'MAKI v131');
   assert.equal(x.confirmedCases,2);
   assert.equal(x.totalTiles,6);
   assert.equal(x.autoResolved,5);
