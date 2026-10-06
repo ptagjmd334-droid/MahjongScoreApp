@@ -109,6 +109,7 @@ on:
       - work/maki-v129-pair-verifier-benchmark-summary
       - work/maki-v130-copy-version-benchmark
       - work/maki-v131-replay-benchmark
+      - work/maki-v132-chat-copy
   workflow_dispatch:
 
 jobs:
@@ -145,6 +146,8 @@ jobs:
         run: node --test tests/m7-v130-copy-version.test.cjs
       - name: Check MAKI v131 replay dataset and one-tap share
         run: node --test tests/maki-v131-replay.test.cjs
+      - name: Check MAKI v132 current-chat clipboard handoff
+        run: node --test tests/maki-v132-chat-copy.test.cjs
       - name: Install headless browser control
         run: npm install --no-save --no-audit --no-fund puppeteer-core@24
       - name: Run real Chromium landscape flow
