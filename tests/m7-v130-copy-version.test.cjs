@@ -26,7 +26,7 @@ test('v130 benchmark summary includes per-version offline comparison',()=>{
     row('MAKI v129',['8萬','8萬'],['8萬','8萬'],0,0)
   ];
   const x=benchmark.benchmarkSummaryPayload(rows);
-  assert.equal(x.version,'MAKI v130');
+  assert.equal(x.version,'MAKI v131');
   assert.equal(x.perVersion.length,2);
   const v128=x.perVersion.find(v=>v.version==='MAKI v128');
   const v129=x.perVersion.find(v=>v.version==='MAKI v129');
