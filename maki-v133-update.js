@@ -14,8 +14,7 @@ async function check(){
  try{const r=await fetch(CHECK_URL+'?t='+Date.now(),{cache:'no-store'});if(!r.ok)return false;const x=await r.json(),latest=String(x.version||'');if(numberOf(latest)>numberOf(VERSION)){location.reload();return true;}
  const last=localStorage.getItem(KEY)||'';if(latest===VERSION&&last!==VERSION){show(VERSION);return true;}return false;}catch(_){return false;}
 }
-if(typeof window!=='undefined')window.MAKIV134Update=Object.freeze({VERSION,numberOf,check});
+if(typeof window!=='undefined'){window.MAKIV134Update=Object.freeze({VERSION,numberOf,check});window.MAKIV133Update=window.MAKIV134Update;}
 if(typeof document!=='undefined'){if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',check,{once:true});else check();document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')check();});window.addEventListener('pageshow',check);}
-window.MAKIV133Update=window.MAKIV134Update;
 if(typeof module!=='undefined'&&module.exports)module.exports={VERSION,numberOf};
 })();
