@@ -107,7 +107,7 @@ on:
       - work/maki-v127-capture-quality
       - work/maki-v128-manzu-verifier-training-export
       - work/maki-v129-pair-verifier-benchmark-summary
-      - work/maki-v130-copy-version-benchmark
+      - work/maki-v130-copy-version-benchmark\n      - work/maki-v131-replay-benchmark
   workflow_dispatch:
 
 jobs:
@@ -142,7 +142,7 @@ jobs:
         run: node --test tests/m7-v129-memory-summary.test.cjs
       - name: Check MAKI v130 direct copy and version comparison
         run: node --test tests/m7-v130-copy-version.test.cjs
-      - name: Install headless browser control
+      - name: Check MAKI v131 replay dataset and one-tap share\n        run: node --test tests/maki-v131-replay.test.cjs\n      - name: Install headless browser control
         run: npm install --no-save --no-audit --no-fund puppeteer-core@24
       - name: Run real Chromium landscape flow
         env:
