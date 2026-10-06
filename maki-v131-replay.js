@@ -1,7 +1,7 @@
-// MAKI v133: one-file diagnostic export, replay benchmark and dataset audit.
+// MAKI v134: one-file diagnostic export, replay benchmark and dataset audit.
 (()=>{
 'use strict';
-const VERSION='MAKI v133';
+const VERSION='MAKI v134';
 function api(){return window.MAKIV132Benchmark||window.MAKIV131Benchmark||window.MAKIV130Benchmark||window.MAKIV129Benchmark||window.MAKIV123Benchmark;}
 function tileKey(x){return String(x||'').trim();}
 function hash(s){let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}return (h>>>0).toString(16).padStart(8,'0');}
@@ -25,18 +25,17 @@ function replayRows(rows){
 }
 function replayManifest(rows){return (rows||[]).filter(r=>r?.phase==='confirmed'&&r.final).map(r=>({id:r.id,version:r.version,createdAt:r.createdAt,groundTruth:r.final.labels||[],rawGuideFrame:r.images?.rawGuideFrame||'',crops:r.images?.crops||[],captureQuality:r.initial?.captureQuality||r.initial?.diagnostics?.captureQuality||null,diagnostics:r.initial?.diagnostics||{}}));}
 async function buildPackage(){const b=api();if(!b?.listCases)throw new Error('benchmark-api-unavailable');const rows=await b.listCases();return {version:VERSION,exportedAt:Date.now(),summary:b.benchmarkSummaryPayload?.(rows)||null,replay:replayRows(rows),dataset:datasetAudit(rows),manifest:replayManifest(rows)};}
-function diagnosticFileName(){return 'MAKI_v133_diagnostic.json';}
+function diagnosticFileName(){return 'MAKI_v134_diagnostic.json';}
 async function exportDiagnosticFile(){
- const payload=await buildPackage(),json=JSON.stringify(payload),name=diagnosticFileName(),blob=new Blob([json],{type:'application/json'}),file=new File([blob],name,{type:'application/json'});
- if(navigator.share&&(!navigator.canShare||navigator.canShare({files:[file]}))){await navigator.share({files:[file],title:'MAKI v133 診断ファイル'});return {payload,name,method:'share'};}
- const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);return {payload,name,method:'download'};
+ const payload=await buildPackage(),json=JSON.stringify(payload),name=diagnosticFileName(),blob=new Blob([json],{type:'application/json'});
+ const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;a.rel='noopener';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),5000);return {payload,name,method:'download'};
 }
 async function sharePackage(){return exportDiagnosticFile();}
-function mount(){const root=document.getElementById('hand-result-overlay-m7v5');const bar=root?.querySelector('.maki-v123-benchmark-ui');if(!bar||bar.querySelector('.maki-v133-diagnostic-file'))return;
- const btn=document.createElement('button');btn.type='button';btn.className='maki-v133-diagnostic-file';btn.textContent='診断ファイル作成';btn.style.cssText='border:1px solid rgba(0,0,0,.18);border-radius:7px;background:#e9fff3;padding:5px 9px;font:900 10px/1.1 inherit;';
+function mount(){const root=document.getElementById('hand-result-overlay-m7v5');const bar=root?.querySelector('.maki-v123-benchmark-ui');if(!bar||bar.querySelector('.maki-v134-diagnostic-file'))return;
+ const btn=document.createElement('button');btn.type='button';btn.className='maki-v134-diagnostic-file';btn.textContent='診断ファイル作成';btn.style.cssText='border:1px solid rgba(0,0,0,.18);border-radius:7px;background:#e9fff3;padding:5px 9px;font:900 10px/1.1 inherit;';
  btn.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();const old=btn.textContent;btn.textContent='作成中…';exportDiagnosticFile().then(()=>btn.textContent='診断ファイル作成済み').catch(()=>btn.textContent='作成できませんでした').finally(()=>setTimeout(()=>btn.textContent=old,2200));});bar.appendChild(btn);
 }
-if(typeof window!=='undefined'){window.MAKIV133Replay=Object.freeze({VERSION,datasetAudit,replayRows,replayManifest,buildPackage,diagnosticFileName,exportDiagnosticFile,sharePackage});window.MAKIV132Replay=window.MAKIV133Replay;window.MAKIV131Replay=window.MAKIV133Replay;}
+if(typeof window!=='undefined'){window.MAKIV134Replay=Object.freeze({VERSION,datasetAudit,replayRows,replayManifest,buildPackage,diagnosticFileName,exportDiagnosticFile,sharePackage});window.MAKIV133Replay=window.MAKIV134Replay;window.MAKIV132Replay=window.MAKIV134Replay;window.MAKIV131Replay=window.MAKIV134Replay;}
 if(typeof module!=='undefined'&&module.exports)module.exports={VERSION,datasetAudit,replayRows,replayManifest,diagnosticFileName};
 if(typeof document!=='undefined'){new MutationObserver(mount).observe(document.documentElement,{childList:true,subtree:true});if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',mount,{once:true});else mount();}
 })();
