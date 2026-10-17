@@ -49,6 +49,10 @@ jobs:
           req=urllib.request.Request('https://api.onesignal.com/notifications',
                 data=json.dumps(body).encode(),method='POST',
                 headers={'Content-Type':'application/json','Authorization':'Key '+os.environ['ONESIGNAL_REST_API_KEY']})
-          with urllib.request.urlopen(req,timeout=30) as response:
-            print('OneSignal response:',response.status,response.read().decode()[:1000])
+          try:
+            with urllib.request.urlopen(req,timeout=30) as response:
+              print('OneSignal response:',response.status,response.read().decode()[:1000])
+          except urllib.error.HTTPError as error:
+            print('OneSignal HTTP error:',error.code,error.read().decode()[:1000])
+            raise
           PY
