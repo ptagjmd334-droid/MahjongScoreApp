@@ -1,0 +1,54 @@
+name: Notify MAKI release after public Pages update
+on:
+  workflow_run:
+    workflows:
+      - Mahjong app stability, scoring and camera checks
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  notify:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check published build and send OneSignal notification
+        env:
+          ONESIGNAL_REST_API_KEY: ${{ secrets.ONESIGNAL_REST_API_KEY }}
+          ONESIGNAL_APP_ID: e83fdccd-24a1-485b-8140-81fbe61f9dda
+          MAKI_URL: https://ptagjmd334-droid.github.io/MahjongScoreApp/
+        run: |
+          if [ -z "$ONESIGNAL_REST_API_KEY" ]; then
+            echo "::notice::ONESIGNAL_REST_API_KEY is not configured; skipping push."
+            exit 0
+          fi
+          EXPECTED_VERSION=$(curl -fsSL "https://raw.githubusercontent.com/${{ github.repository }}/main/version.json" | python3 -c 'import sys,json; print(json.load(sys.stdin)["version"])')
+          echo "Waiting for public Pages version: $EXPECTED_VERSION"
+          ready=0
+          for i in $(seq 1 30); do
+            ACTUAL_VERSION=$(curl -fsSL "$MAKI_URL/version.json?check=${{ github.run_id }}-$i" -H 'Cache-Control: no-cache' | python3 -c 'import sys,json; print(json.load(sys.stdin)["version"])' || true)
+            if [ "$ACTUAL_VERSION" = "$EXPECTED_VERSION" ]; then ready=1; break; fi
+            sleep 20
+          done
+          if [ "$ready" -ne 1 ]; then
+            echo "::error::Pages has not published $EXPECTED_VERSION. No notification sent."
+            exit 1
+          fi
+          python3 - <<'PY'
+          import json, os, urllib.request, uuid
+          version=json.load(urllib.request.urlopen('https://raw.githubusercontent.com/'+os.environ['GITHUB_REPOSITORY']+'/main/version.json'))['version']
+          url=os.environ['MAKI_URL']
+          body={'app_id':os.environ['ONESIGNAL_APP_ID'],
+                'included_segments':['Subscribed Users'],
+                'headings':{'ja':'MAKIを更新しました'},
+                'contents':{'ja':version+' が公開されました。タップして開く'},
+                'url':url,
+                'web_url':url,
+                'idempotency_key':str(uuid.uuid5(uuid.NAMESPACE_URL,os.environ['GITHUB_REPOSITORY']+':'+version))}
+          req=urllib.request.Request('https://api.onesignal.com/notifications',
+                data=json.dumps(body).encode(),method='POST',
+                headers={'Content-Type':'application/json','Authorization':'Key '+os.environ['ONESIGNAL_REST_API_KEY']})
+          with urllib.request.urlopen(req,timeout=30) as response:
+            print('OneSignal response:',response.status,response.read().decode()[:1000])
+          PY

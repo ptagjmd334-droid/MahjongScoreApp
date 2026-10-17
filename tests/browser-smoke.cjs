@@ -34,7 +34,7 @@ const server=http.createServer((req,res)=>{
     const errors=[];page.on('pageerror',e=>errors.push(String(e)));
     await page.goto('http://127.0.0.1:'+port+'/',{waitUntil:'domcontentloaded',timeout:30000});
     await page.waitForSelector('#go-confirm-button',{timeout:12000});
-    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'MAKI v135');
+    assert.equal(await page.$eval('#app-build-badge',e=>e.textContent.trim()),'MAKI v136');
     assert.equal(await page.$eval('#app-build-badge',e=>e.hidden),false,'v130 build badge should be visible during development');
     assert(await page.evaluate(()=>!!window.M7V36CameraOwner),'v98 camera owner must bootstrap');
     assert(await page.evaluate(()=>!!window.MAKIV130Benchmark),'v130 recognition benchmark logger must bootstrap');
@@ -724,10 +724,10 @@ const server=http.createServer((req,res)=>{
     assert.equal(manifestBrand.name,'MAKI');
     assert.equal(manifestBrand.short_name,'MAKI');
     assert.equal(manifestBrand.id,'./');
-    assert(manifestBrand.icons.every(x=>String(x.src).includes('v=m7v135')),'v109 manifest icons must use fresh cache keys '+JSON.stringify(manifestBrand.icons));
+    assert(manifestBrand.icons.every(x=>String(x.src).includes('v=m7v136')),'v109 manifest icons must use fresh cache keys '+JSON.stringify(manifestBrand.icons));
     assert.equal(await page.$eval('meta[name="apple-mobile-web-app-title"]',e=>e.content),'MAKI');
     assert.equal(await page.$eval('meta[name="application-name"]',e=>e.content),'MAKI');
-    assert((await page.$eval('link[rel="apple-touch-icon"]',e=>e.getAttribute('href'))).includes('v=m7v135'));
+    assert((await page.$eval('link[rel="apple-touch-icon"]',e=>e.getAttribute('href'))).includes('v=m7v136'));
     for(const size of [180,192,512]){
       const p=path.join(root,'icon-'+size+'.png');
       assert(fs.existsSync(p),'MAKI icon missing '+p);
@@ -1916,9 +1916,9 @@ const server=http.createServer((req,res)=>{
     assert.equal(v120RedRepair[2].raw,'0p','v120 must repair screenshot-like red 5-pin misread as 0s '+JSON.stringify(v120RedRepair));
     assert.equal(v120RedRepair[2].label,'5筒','v120 repaired red 5-pin must remain app tile 5筒 '+JSON.stringify(v120RedRepair));
     assert.equal(v120RedRepair[2].repair,'context-suit','v120 red 5-pin context repair marker missing '+JSON.stringify(v120RedRepair));
-    assert.equal(v120RedRepair[8].raw,'0s','v120 visually-red 5-sou must become aka raw label '+JSON.stringify(v120RedRepair));
-    assert.equal(v120RedRepair[8].label,'5索','v120 visually-red 5-sou must keep app tile 5索 '+JSON.stringify(v120RedRepair));
-    assert.equal(v120RedRepair[8].repair,'visual-red','v120 visual red marker missing '+JSON.stringify(v120RedRepair));
+    // v136 precision-first: red pixel ratio alone must not turn normal 5 into aka.
+    assert.equal(v120RedRepair[8].raw,'5s','v136 must not infer aka solely from red ink '+JSON.stringify(v120RedRepair));
+    assert.equal(v120RedRepair[8].repair,'','v136 should preserve detector evidence '+JSON.stringify(v120RedRepair));
     assert.equal(v120RedRepair[10].raw,'5p','v120 ordinary 5-pin must not be promoted to aka '+JSON.stringify(v120RedRepair));
 
     const v121RedInkRuntime=await page.evaluate(()=>{

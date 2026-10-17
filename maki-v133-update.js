@@ -1,7 +1,7 @@
-// MAKI v135: detect a newly deployed build when the app is opened/resumed.
+// MAKI v136: detect a newly deployed build when the app is opened/resumed.
 (()=>{
 'use strict';
-const VERSION='MAKI v135',CHECK_URL='./version.json',KEY='maki-last-notified-version';
+const VERSION='MAKI v136',CHECK_URL='./version.json',KEY='maki-last-notified-version';
 function numberOf(v){const m=String(v||'').match(/v(\d+)/i);return m?Number(m[1]):0;}
 function show(version){
  if(document.getElementById('maki-update-notice-v133'))return;
@@ -12,7 +12,7 @@ function show(version){
 }
 async function check(){
  try{const r=await fetch(CHECK_URL+'?t='+Date.now(),{cache:'no-store'});if(!r.ok)return false;const x=await r.json(),latest=String(x.version||'');if(numberOf(latest)>numberOf(VERSION)){location.reload();return true;}
- const last=localStorage.getItem(KEY)||'';if(latest===VERSION&&last!==VERSION){show(VERSION);return true;}return false;}catch(_){return false;}
+ return false;}catch(_){return false;}
 }
 if(typeof window!=='undefined'){window.MAKIV134Update=Object.freeze({VERSION,numberOf,check});window.MAKIV133Update=window.MAKIV134Update;}
 if(typeof document!=='undefined'){if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',check,{once:true});else check();document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')check();});window.addEventListener('pageshow',check);}
