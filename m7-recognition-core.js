@@ -587,10 +587,22 @@
       const familyDistance=integerShiftDirectImageDistance(feature,representative,familyMaps[family]||[]);
       const labelDistance=integerShiftDirectImageDistance(feature,representative,labelMaps[label]||familyMaps[family]||[]);
       const base=labelDistance*.72+familyDistance*.28;
-      const nearest=templates
-        .map(t=>({t,d:alignedDirectImageDistance(feature,t)}))
-        .filter(x=>Number.isFinite(x.d)).sort((a,b)=>a.d-b.d).slice(0,2);
-      const refined=nearest.map(x=>integerShiftDirectImageDistance(feature,x.t)).filter(Number.isFinite).sort((a,b)=>a-b);
+      // Keep the two closest templates without sorting/allocating the entire
+      // sample list. Strict comparisons preserve the original stable tie order.
+      let nearestFirst=null,nearestSecond=null,firstDistance=Infinity,secondDistance=Infinity;
+      for(const t of templates){
+        const d=alignedDirectImageDistance(feature,t);
+        if(!Number.isFinite(d))continue;
+        if(d<firstDistance){
+          nearestSecond=nearestFirst;secondDistance=firstDistance;
+          nearestFirst=t;firstDistance=d;
+        }else if(d<secondDistance){
+          nearestSecond=t;secondDistance=d;
+        }
+      }
+      const refined=[nearestFirst,nearestSecond]
+        .filter(Boolean).map(t=>integerShiftDirectImageDistance(feature,t))
+        .filter(Number.isFinite).sort((a,b)=>a-b);
       const support=refined.length===0?Infinity:(refined.length===1?refined[0]+.010:refined[0]*.65+refined[1]*.35);
       const structuralRepresentativeDistance=structuralDistance(feature,representative);
       const distance=Number.isFinite(support)

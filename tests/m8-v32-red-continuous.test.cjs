@@ -22,6 +22,6 @@ test('v126 continuous owner applies red metadata to current slot via the canonic
 });
 
 test('v126 build marker and cache key are current',()=>{
-  assert(index.includes('MAKI v140'));
-  assert(index.includes('v=m7v140'));
+  assert(index.includes('MAKI v141'));
+  assert(index.includes('v=m7v141'));
 });
