@@ -50,7 +50,7 @@ function loadSdk(){
   script.src='https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js';
   script.async=true;
   script.dataset.makiOnesignal='1';
-  script.onerror=()=>onFailure(new Error('OneSignal SDK network load failed'));
+  script.onerror=()=>{script.remove();onFailure(new Error('OneSignal SDK network load failed'));};
   document.head.appendChild(script);
  }
 }
