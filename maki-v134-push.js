@@ -1,10 +1,10 @@
-// MAKI v139: reliable OneSignal Web Push opt-in for the installed PWA.
+// MAKI v140: reliable OneSignal Web Push opt-in for the installed PWA.
 (()=>{
 'use strict';
-const VERSION='MAKI v139';
+const VERSION='MAKI v140';
 const APP_ID='e83fdccd-24a1-485b-8140-81fbe61f9dda';
 const HOME_URL='https://ptagjmd334-droid.github.io/MahjongScoreApp/';
-const WORKER_PATH='onesignal/OneSignalSDKWorker.js';
+const WORKER_PATH='/MahjongScoreApp/onesignal/OneSignalSDKWorker.js';
 const WORKER_SCOPE='/MahjongScoreApp/onesignal/';
 let sdkReady=null;
 let initError=null;
@@ -12,7 +12,7 @@ let loading=false;
 let initTimer=null;
 let lastStage='起動';
 function detail(error){return String(error?.message||error||'不明なエラー').slice(0,350);}
-function showDiagnostic(){const message='MAKI通知診断 v139\\n段階: '+lastStage+'\\nエラー: '+detail(initError)+'\\n通知許可: '+(typeof Notification!=='undefined'?Notification.permission:'APIなし')+'\\nService Worker: '+(!!navigator.serviceWorker)+'\\nホーム画面: '+standalone();alert(message);}
+function showDiagnostic(){const message='MAKI通知診断 v140\\n段階: '+lastStage+'\\nエラー: '+detail(initError)+'\\n通知許可: '+(typeof Notification!=='undefined'?Notification.permission:'APIなし')+'\\nService Worker: '+(!!navigator.serviceWorker)+'\\nホーム画面: '+standalone();alert(message);}
 
 function standalone(){return !!(window.matchMedia?.('(display-mode: standalone)').matches||navigator.standalone);}
 function button(){return document.getElementById('maki-v134-push');}
