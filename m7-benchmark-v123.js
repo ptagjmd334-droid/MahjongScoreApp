@@ -4,7 +4,7 @@
 (()=>{
   'use strict';
 
-  const VERSION='MAKI v135';
+  const VERSION='MAKI v136';
   const DB_NAME='maki-recognition-benchmark-v123';
   const DB_VERSION=1;
   const STORE='cases';
