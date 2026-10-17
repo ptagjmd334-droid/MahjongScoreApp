@@ -27,9 +27,9 @@ test('v136 keeps strong/high-confidence 4-man outside the new guard and requires
 });
 
 test('v136 public version wiring is consistent',()=>{
-  assert.equal(version.version,'MAKI v139');
-  assert.equal(version.build,139);
-  assert(index.includes('MAKI v139'));
-  assert(index.includes('?v=m7v139'));
-  assert(index.includes('maki-v139-final-badge'));
+  assert.equal(version.version,'MAKI v140');
+  assert.equal(version.build,140);
+  assert(index.includes('MAKI v140'));
+  assert(index.includes('?v=m7v140'));
+  assert(index.includes('maki-v140-final-badge'));
 });
