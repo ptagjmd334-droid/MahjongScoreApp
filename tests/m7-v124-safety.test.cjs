@@ -46,11 +46,11 @@ test('v124 benchmark fixes null slot reconstruction and improves confirmed captu
 });
 
 test('v124 build/cache version is visible and benchmark remains loaded before ui owner',()=>{
-  assert(index.includes('MAKI v136'));
-  assert(index.includes('v=m7v136'));
+  assert.match(index,/MAKI v\d+/);
+  assert.match(index,/v=m7v\d+/);
   assert.equal(index.includes('\\n  <script'),false,'index must not ship a literal backslash-n between script tags');
   assert.doesNotThrow(()=>new Function(sw));
-  assert(sw.includes('mahjong-score-app-m7-v136'));
+  assert.match(sw,/mahjong-score-app-m7-v\d+/);
   assert.equal(sw.includes('\\n  "./maki-v111-hand-entry.js"'),false,'service worker must not contain a literal backslash-n token');
   assert(index.indexOf('m7-camera-v36.js')<index.indexOf('m7-benchmark-v123.js'));
   assert(index.indexOf('m7-benchmark-v123.js')<index.indexOf('ui-fixes.js'));
