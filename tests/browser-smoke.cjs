@@ -1916,9 +1916,9 @@ const server=http.createServer((req,res)=>{
     assert.equal(v120RedRepair[2].raw,'0p','v120 must repair screenshot-like red 5-pin misread as 0s '+JSON.stringify(v120RedRepair));
     assert.equal(v120RedRepair[2].label,'5筒','v120 repaired red 5-pin must remain app tile 5筒 '+JSON.stringify(v120RedRepair));
     assert.equal(v120RedRepair[2].repair,'context-suit','v120 red 5-pin context repair marker missing '+JSON.stringify(v120RedRepair));
-    assert.equal(v120RedRepair[8].raw,'0s','v120 visually-red 5-sou must become aka raw label '+JSON.stringify(v120RedRepair));
-    assert.equal(v120RedRepair[8].label,'5索','v120 visually-red 5-sou must keep app tile 5索 '+JSON.stringify(v120RedRepair));
-    assert.equal(v120RedRepair[8].repair,'visual-red','v120 visual red marker missing '+JSON.stringify(v120RedRepair));
+    // v136 precision-first: red pixel ratio alone must not turn normal 5 into aka.
+    assert.equal(v120RedRepair[8].raw,'5s','v136 must not infer aka solely from red ink '+JSON.stringify(v120RedRepair));
+    assert.equal(v120RedRepair[8].repair,'','v136 should preserve detector evidence '+JSON.stringify(v120RedRepair));
     assert.equal(v120RedRepair[10].raw,'5p','v120 ordinary 5-pin must not be promoted to aka '+JSON.stringify(v120RedRepair));
 
     const v121RedInkRuntime=await page.evaluate(()=>{
