@@ -94,7 +94,7 @@ test('v120 repairs red-five suit confusion and visual aka metadata',()=>{
   assert(camera.includes('redFiveContextSuit'));
   assert(camera.includes('redInkShareFromCanvas'));
   assert(camera.includes("r.redRepair=directSuit?'context-suit':'local-majority-suit'"));
-  assert(camera.includes("r.redRepair='visual-red'"));
+  assert(camera.includes("do not infer red-five solely from red-pixel share"));
   assert(camera.includes("const groupKey=/^0[mps]$/.test(raw)?(r.label+'|'+raw):r.label"));
 });
 
