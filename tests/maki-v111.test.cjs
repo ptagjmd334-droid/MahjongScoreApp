@@ -49,7 +49,7 @@ test('winner and ron/tsumo already entered in agariFlow are reused instead of as
 test('v111 service worker cache contains the new module',()=>{
   const sw=read('sw.js');
   const manifest=read('manifest.webmanifest');
-  assert(sw.includes('mahjong-score-app-m7-v136'));
+  assert(sw.includes('mahjong-score-app-m7-v137'));
   assert(sw.includes('./maki-v111-hand-entry.js'));
   assert(sw.includes('./m7-benchmark-v123.js'));
   assert(sw.includes('manifest.webmanifest?v=m7v137'));
@@ -75,7 +75,7 @@ test('v118 adds manual dora, aka-dora and ura-dora foundation for future camera 
 test('v119 wires camera red-dora metadata and dora-indicator camera into v118 dora state',()=>{
   const hand=read('maki-v111-hand-entry.js');
   const camera=read('m7-camera-v36.js');
-  assert(hand.includes('MAKI v136'));
+  assert(hand.includes('MAKI v137'));
   assert(hand.includes('maki-v119-dora-camera'));
   assert(hand.includes('window.MAKIV119DoraCamera'));
   assert(hand.includes('doraTileFromIndicatorRaw'));
