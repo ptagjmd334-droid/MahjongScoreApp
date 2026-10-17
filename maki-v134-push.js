@@ -1,7 +1,7 @@
-// MAKI v138: reliable OneSignal Web Push opt-in for the installed PWA.
+// MAKI v139: reliable OneSignal Web Push opt-in for the installed PWA.
 (()=>{
 'use strict';
-const VERSION='MAKI v138';
+const VERSION='MAKI v139';
 const APP_ID='e83fdccd-24a1-485b-8140-81fbe61f9dda';
 const HOME_URL='https://ptagjmd334-droid.github.io/MahjongScoreApp/';
 const WORKER_PATH='onesignal/OneSignalSDKWorker.js';
@@ -10,6 +10,10 @@ let sdkReady=null;
 let initError=null;
 let loading=false;
 let initTimer=null;
+let lastStage='起動';
+function detail(error){return String(error?.message||error||'不明なエラー').slice(0,350);}
+function showDiagnostic(){const message='MAKI通知診断 v139\\n段階: '+lastStage+'\\nエラー: '+detail(initError)+'\\n通知許可: '+(typeof Notification!=='undefined'?Notification.permission:'APIなし')+'\\nService Worker: '+(!!navigator.serviceWorker)+'\\nホーム画面: '+standalone();alert(message);}
+
 function standalone(){return !!(window.matchMedia?.('(display-mode: standalone)').matches||navigator.standalone);}
 function button(){return document.getElementById('maki-v134-push');}
 function status(message){const b=button();if(b)b.textContent=message;}
@@ -26,10 +30,11 @@ async function refresh(){
 function loadSdk(){
  mount();
  if(sdkReady||loading)return;
- loading=true;initError=null;refresh();
+ loading=true;initError=null;lastStage='SDK読込開始';refresh();
  const onFailure=error=>{
   if(sdkReady)return;
   initError=error||new Error('OneSignal initialization timed out');
+  lastStage='初期化失敗';
   loading=false;
   clearTimeout(initTimer);
   console.warn('MAKI push init failed',initError);
@@ -39,8 +44,9 @@ function loadSdk(){
  window.OneSignalDeferred=window.OneSignalDeferred||[];
  window.OneSignalDeferred.push(async function(OneSignal){
   try{
+   lastStage='OneSignal初期化中';
    await OneSignal.init({appId:APP_ID,serviceWorkerPath:WORKER_PATH,serviceWorkerParam:{scope:WORKER_SCOPE},notifyButton:{enable:false},allowLocalhostAsSecureOrigin:false});
-   sdkReady=OneSignal;initError=null;loading=false;clearTimeout(initTimer);
+   sdkReady=OneSignal;initError=null;loading=false;clearTimeout(initTimer);lastStage='初期化成功';
    OneSignal.User.PushSubscription.addEventListener('change',refresh);
    refresh();
   }catch(error){onFailure(error);}
@@ -60,18 +66,20 @@ function mount(){
  b.style.cssText='position:fixed;right:max(8px,env(safe-area-inset-right));bottom:max(8px,env(safe-area-inset-bottom));z-index:2147483000;border:1px solid rgba(255,255,255,.4);border-radius:999px;background:#123c2b;color:#fff;padding:7px 11px;font:800 11px/1.1 -apple-system,BlinkMacSystemFont,sans-serif;box-shadow:0 3px 12px rgba(0,0,0,.25)';
  b.addEventListener('click',async()=>{
   if(!standalone()){alert('iPhoneではホーム画面のMAKIから開いて「更新通知をON」を押してください。');return;}
+  if(initError&&sdkReady){showDiagnostic();return;}
   if(!sdkReady){
-   if(initError){loadSdk();status('通知を再接続中');}
+   if(initError){showDiagnostic();loadSdk();status('通知を再接続中');}
    else status('通知を準備中');
    return;
   }
   b.disabled=true;
-  try{
+  try{lastStage='通知許可の確認';
    await sdkReady.Notifications.requestPermission();
    if(!sdkReady.Notifications.permission){status('通知が許可されていません');return;}
+   lastStage='端末登録中';
    await sdkReady.User.PushSubscription.optIn();
    await refresh();
-  }catch(error){status('通知登録を確認');b.title=String(error);console.warn('MAKI push subscription failed',error);}
+  }catch(error){initError=error;lastStage='端末登録失敗';status('通知診断を見る');b.title=String(error);console.warn('MAKI push subscription failed',error);}
   finally{b.disabled=false;}
  });
  document.body.appendChild(b);
