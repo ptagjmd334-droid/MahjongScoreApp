@@ -6,6 +6,7 @@ const read=name=>fs.readFileSync(path.join(__dirname,'..',name),'utf8');
 test('v138 OneSignal service worker has dedicated nested scope',()=>{
  const code=read('maki-v134-push.js');
  assert(code.includes('serviceWorkerPath:WORKER_PATH'));
+ assert(code.includes("WORKER_PATH='/MahjongScoreApp/onesignal/OneSignalSDKWorker.js'"));
  assert(code.includes('scope:WORKER_SCOPE'));
  assert(code.includes("WORKER_SCOPE='/MahjongScoreApp/onesignal/'"));
  assert(read('onesignal/OneSignalSDKWorker.js').includes('OneSignalSDK.sw.js'));
