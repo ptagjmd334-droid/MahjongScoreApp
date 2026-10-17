@@ -12,11 +12,11 @@ test('v136 adds benchmark-driven medium-confidence 4-man precision guard',()=>{
   assert(camera.includes('YOLO_V135_MAN4_MAX_UNVERIFIED_SCORE=.88'));
   assert(camera.includes('YOLO_V135_MAN4_OWN_MAX_DISTANCE=.095'));
   assert(camera.includes("String(r.label||'')!=='4萬'"));
-  assert(camera.includes('v136ManzuFourPrecisionConflictIndexes'));
-  const pGuard=camera.indexOf('const v136ManzuFourPrecisionConflictIndexes=yoloV135ManzuFourPrecisionConflicts');
+  assert(camera.includes('v135ManzuFourPrecisionConflictIndexes'));
+  const pGuard=camera.indexOf('const v135ManzuFourPrecisionConflictIndexes=yoloV135ManzuFourPrecisionConflicts');
   const pBlocked=camera.indexOf('const initialBlocked=[...new Set',pGuard);
   assert(pGuard>0&&pBlocked>pGuard);
-  assert(camera.slice(pBlocked,pBlocked+900).includes('v136ManzuFourPrecisionConflictIndexes'));
+  assert(camera.slice(pBlocked,pBlocked+900).includes('v135ManzuFourPrecisionConflictIndexes'));
 });
 
 test('v136 keeps strong/high-confidence 4-man outside the new guard and requires positive template evidence for medium confidence',()=>{
@@ -28,7 +28,7 @@ test('v136 keeps strong/high-confidence 4-man outside the new guard and requires
 
 test('v136 public version wiring is consistent',()=>{
   assert.equal(version.version,'MAKI v136');
-  assert.equal(version.build,135);
+  assert.equal(version.build,136);
   assert(index.includes('MAKI v136'));
   assert(index.includes('?v=m7v136'));
   assert(index.includes('maki-v136-final-badge'));
