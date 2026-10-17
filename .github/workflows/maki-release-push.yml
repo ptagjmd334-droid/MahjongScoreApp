@@ -6,11 +6,14 @@ on:
     types: [completed]
     branches: [main]
   workflow_dispatch:
+  push:
+    paths:
+      - '.github/maki-push-test-request.txt'
 permissions:
   contents: read
 jobs:
   notify:
-    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     steps:
       - name: Check published build and send OneSignal notification
@@ -39,19 +42,23 @@ jobs:
           import json, os, urllib.request, uuid
           version=json.load(urllib.request.urlopen('https://raw.githubusercontent.com/'+os.environ['GITHUB_REPOSITORY']+'/main/version.json'))['version']
           url=os.environ['MAKI_URL']
+          is_test=os.environ.get('GITHUB_EVENT_NAME')=='push'
           body={'app_id':os.environ['ONESIGNAL_APP_ID'],
                 'included_segments':['Subscribed Users'],
-                'headings':{'en':'MAKI update','ja':'MAKIを更新しました'},
-                'contents':{'en':version+' is available. Tap to open MAKI.','ja':version+' が公開されました。タップして開く'},
+                'headings':{'en':'MAKI notification test' if is_test else 'MAKI update','ja':'MAKI通知テスト' if is_test else 'MAKIを更新しました'},
+                'contents':{'en':'If you see this, MAKI push works.' if is_test else version+' is available. Tap to open MAKI.','ja':'通知テスト成功！MAKIから届きました。' if is_test else version+' が公開されました。タップして開く'},
                 'url':url,
                 'web_url':url,
-                'idempotency_key':str(uuid.uuid5(uuid.NAMESPACE_URL,os.environ['GITHUB_REPOSITORY']+':'+version))}
+                'idempotency_key':str(uuid.uuid5(uuid.NAMESPACE_URL,os.environ['GITHUB_REPOSITORY']+':'+('test:'+os.environ['GITHUB_RUN_ID'] if is_test else version))}
           req=urllib.request.Request('https://api.onesignal.com/notifications',
                 data=json.dumps(body).encode(),method='POST',
                 headers={'Content-Type':'application/json','Authorization':'Key '+os.environ['ONESIGNAL_REST_API_KEY']})
           try:
             with urllib.request.urlopen(req,timeout=30) as response:
-              print('OneSignal response:',response.status,response.read().decode()[:1000])
+              payload=json.loads(response.read().decode())
+              print('OneSignal response:',response.status,json.dumps(payload,ensure_ascii=False)[:1000])
+              if payload.get('errors') or not payload.get('id'):
+                raise RuntimeError('OneSignal did not accept any subscribed recipients')
           except urllib.error.HTTPError as error:
             print('OneSignal HTTP error:',error.code,error.read().decode()[:1000])
             raise
