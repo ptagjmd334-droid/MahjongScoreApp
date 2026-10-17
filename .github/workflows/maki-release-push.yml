@@ -41,8 +41,8 @@ jobs:
           url=os.environ['MAKI_URL']
           body={'app_id':os.environ['ONESIGNAL_APP_ID'],
                 'included_segments':['Subscribed Users'],
-                'headings':{'ja':'MAKIを更新しました'},
-                'contents':{'ja':version+' が公開されました。タップして開く'},
+                'headings':{'en':'MAKI update','ja':'MAKIを更新しました'},
+                'contents':{'en':version+' is available. Tap to open MAKI.','ja':version+' が公開されました。タップして開く'},
                 'url':url,
                 'web_url':url,
                 'idempotency_key':str(uuid.uuid5(uuid.NAMESPACE_URL,os.environ['GITHUB_REPOSITORY']+':'+version))}
