@@ -60,14 +60,14 @@ test('v128 corrected-crop export API remains available under v130 copy UI',()=>{
   const logger=fs.readFileSync(path.join(root,'m7-benchmark-v123.js'),'utf8');
   assert(logger.includes("training.textContent='修正crop準備中'"));
   assert(logger.includes("training.textContent=copyCache.cropsJson?'修正cropコピー'"));
-  assert(logger.includes("'MAKI_v135_corrected_crops.json'"));
-  assert(logger.includes("'MAKI_v135_benchmark_index.json'"));
+  assert(logger.includes("'MAKI_v136_corrected_crops.json'"));
+  assert(logger.includes("'MAKI_v136_benchmark_index.json'"));
   assert(logger.includes('window.MAKIV128Benchmark=frozen'));
 });
 
 test('v128 build/cache markers are current',()=>{
   assert(index.includes('MAKI v136'));
   assert(index.includes('v=m7v136'));
-  assert(sw.includes('mahjong-score-app-m7-v135'));
+  assert(sw.includes('mahjong-score-app-m7-v136'));
   assert.doesNotThrow(()=>new Function(sw));
 });
