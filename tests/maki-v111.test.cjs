@@ -10,8 +10,8 @@ test('v111 loads the score-table hand entry module after M8',()=>{
   const index=read('index.html');
   assert.match(index,/MAKI v\d+/);
   assert(index.includes('window.MAKIDebugV123'));
-  assert(index.includes('maki-v111-hand-entry.js?v=m7v136'));
-  assert(index.indexOf('m8-v30.js?v=m7v136')<index.indexOf('maki-v111-hand-entry.js?v=m7v136'));
+  assert(index.includes('maki-v111-hand-entry.js?v=m7v137'));
+  assert(index.indexOf('m8-v30.js?v=m7v137')<index.indexOf('maki-v111-hand-entry.js?v=m7v137'));
 });
 
 test('v111 exposes camera and manual hand registration on the score screen',()=>{
@@ -52,8 +52,8 @@ test('v111 service worker cache contains the new module',()=>{
   assert(sw.includes('mahjong-score-app-m7-v136'));
   assert(sw.includes('./maki-v111-hand-entry.js'));
   assert(sw.includes('./m7-benchmark-v123.js'));
-  assert(sw.includes('manifest.webmanifest?v=m7v136'));
-  assert(manifest.includes('v=m7v136'));
+  assert(sw.includes('manifest.webmanifest?v=m7v137'));
+  assert(manifest.includes('v=m7v137'));
 });
 
 
