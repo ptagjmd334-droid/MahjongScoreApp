@@ -3144,7 +3144,10 @@
       }
       const five=String(r.rawLabel||raw).match(/^5([mps])$/);
       const redShare=Number(redInkShares?.[i])||0;
-      if(five&&score>=.25&&redShare>=.36){
+      // v136: bright-area false-red protection. A normal 5 can contain red
+      // decorative ink, so do not promote it to red based on red-pixel share
+      // alone. Preserve detector evidence and abstain from this promotion.
+      if(five&&score>=.25&&redShare>=.36&&false){
         r.rawLabel='0'+five[1];
         r.label=yoloLabelToAppTile(r.rawLabel);
         r.redRepair='visual-red';
