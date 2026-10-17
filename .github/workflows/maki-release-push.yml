@@ -36,7 +36,7 @@ jobs:
             exit 1
           fi
           python3 - <<'PY'
-          import json, os, urllib.request
+          import json, os, urllib.request, uuid
           version=json.load(urllib.request.urlopen('https://raw.githubusercontent.com/'+os.environ['GITHUB_REPOSITORY']+'/main/version.json'))['version']
           url=os.environ['MAKI_URL']
           body={'app_id':os.environ['ONESIGNAL_APP_ID'],
@@ -45,7 +45,7 @@ jobs:
                 'contents':{'ja':version+' が公開されました。タップして開く'},
                 'url':url,
                 'web_url':url,
-                'idempotency_key':os.environ['GITHUB_RUN_ID'].zfill(32)[-32:]}
+                'idempotency_key':str(uuid.uuid5(uuid.NAMESPACE_URL,os.environ['GITHUB_REPOSITORY']+':'+version))}
           req=urllib.request.Request('https://api.onesignal.com/notifications',
                 data=json.dumps(body).encode(),method='POST',
                 headers={'Content-Type':'application/json','Authorization':'Key '+os.environ['ONESIGNAL_REST_API_KEY']})
