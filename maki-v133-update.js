@@ -1,7 +1,7 @@
-// MAKI v136: detect a newly deployed build when the app is opened/resumed.
+// MAKI v137: detect a newly deployed build when the app is opened/resumed.
 (()=>{
 'use strict';
-const VERSION='MAKI v136',CHECK_URL='./version.json',KEY='maki-last-notified-version';
+const VERSION='MAKI v137',CHECK_URL='./version.json',KEY='maki-last-notified-version';
 function numberOf(v){const m=String(v||'').match(/v(\d+)/i);return m?Number(m[1]):0;}
 function show(version){
  if(document.getElementById('maki-update-notice-v133'))return;
