@@ -49,7 +49,7 @@ jobs:
                 'contents':{'en':'If you see this, MAKI push works.' if is_test else version+' is available. Tap to open MAKI.','ja':'通知テスト成功！MAKIから届きました。' if is_test else version+' が公開されました。タップして開く'},
                 'url':url,
                 'web_url':url,
-                'idempotency_key':str(uuid.uuid5(uuid.NAMESPACE_URL,os.environ['GITHUB_REPOSITORY']+':'+('test:'+os.environ['GITHUB_RUN_ID'] if is_test else version))}
+                'idempotency_key':str(uuid.uuid5(uuid.NAMESPACE_URL,os.environ['GITHUB_REPOSITORY']+':'+('test:'+os.environ['GITHUB_RUN_ID'] if is_test else version)))}
           req=urllib.request.Request('https://api.onesignal.com/notifications',
                 data=json.dumps(body).encode(),method='POST',
                 headers={'Content-Type':'application/json','Authorization':'Key '+os.environ['ONESIGNAL_REST_API_KEY']})
