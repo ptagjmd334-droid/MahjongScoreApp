@@ -353,7 +353,7 @@ test('camera v36 is loaded before ui-fixes so verified clicks train the active c
   assert(index.includes('manifest.webmanifest?v=m7v136'));
   assert(index.includes('apple-mobile-web-app-title" content="MAKI"'));
   assert(index.includes('application-name" content="MAKI"'));
-  assert(index.includes('icon-180.png?v=m7v135'));
+  assert(index.includes('icon-180.png?v=m7v136'));
   assert(index.includes('<h1>MAKI</h1>'));
   assert(camera.includes("content:attr(data-tile)"));
   assert(script.includes("setAttribute('aria-label',name)"));
