@@ -35,7 +35,7 @@ test('v124 diagnostics expose both new safety guards',()=>{
 });
 
 test('v124 benchmark fixes null slot reconstruction and improves confirmed capture/share UX',()=>{
-  assert(benchmark.includes("const VERSION='MAKI v135'"));
+  assert(benchmark.includes("const VERSION='MAKI v136'"));
   assert(benchmark.includes("singleMissing!==null&&singleMissing!==undefined&&singleMissing!==''"));
   assert(benchmark.includes("droppedOverlap!==null&&droppedOverlap!==undefined&&droppedOverlap!==''"));
   assert(benchmark.includes("window.addEventListener('maki:verified-hand'"));
@@ -46,8 +46,8 @@ test('v124 benchmark fixes null slot reconstruction and improves confirmed captu
 });
 
 test('v124 build/cache version is visible and benchmark remains loaded before ui owner',()=>{
-  assert(index.includes('MAKI v135'));
-  assert(index.includes('v=m7v135'));
+  assert(index.includes('MAKI v136'));
+  assert(index.includes('v=m7v136'));
   assert.equal(index.includes('\\n  <script'),false,'index must not ship a literal backslash-n between script tags');
   assert.doesNotThrow(()=>new Function(sw));
   assert(sw.includes('mahjong-score-app-m7-v135'));
