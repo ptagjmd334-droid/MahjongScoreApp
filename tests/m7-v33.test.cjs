@@ -350,7 +350,7 @@ test('camera v36 is loaded before ui-fixes so verified clicks train the active c
   assert(script.includes('acceptVerifiedHandM8V87'));
 
   assert(index.includes('<title>MAKI｜麻雀対局管理</title>'));
-  assert(index.includes('manifest.webmanifest?v=m7v135'));
+  assert(index.includes('manifest.webmanifest?v=m7v136'));
   assert(index.includes('apple-mobile-web-app-title" content="MAKI"'));
   assert(index.includes('application-name" content="MAKI"'));
   assert(index.includes('icon-180.png?v=m7v135'));
