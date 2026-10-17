@@ -1,7 +1,7 @@
-// MAKI v140: reliable OneSignal Web Push opt-in for the installed PWA.
+// MAKI v141: reliable OneSignal Web Push opt-in for the installed PWA.
 (()=>{
 'use strict';
-const VERSION='MAKI v140';
+const VERSION='MAKI v141';
 const APP_ID='e83fdccd-24a1-485b-8140-81fbe61f9dda';
 const HOME_URL='https://ptagjmd334-droid.github.io/MahjongScoreApp/';
 const WORKER_PATH='/MahjongScoreApp/onesignal/OneSignalSDKWorker.js';
