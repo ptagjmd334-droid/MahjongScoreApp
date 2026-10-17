@@ -66,8 +66,8 @@ test('v128 corrected-crop export API remains available under v130 copy UI',()=>{
 });
 
 test('v128 build/cache markers are current',()=>{
-  assert(index.includes('MAKI v137'));
-  assert(index.includes('v=m7v137'));
-  assert(sw.includes('mahjong-score-app-m7-v137'));
+  assert(index.includes('MAKI v138'));
+  assert(index.includes('v=m7v138'));
+  assert(sw.includes('mahjong-score-app-m7-v138'));
   assert.doesNotThrow(()=>new Function(sw));
 });
