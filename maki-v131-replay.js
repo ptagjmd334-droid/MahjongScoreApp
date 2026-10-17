@@ -1,7 +1,7 @@
-// MAKI v135: one-file diagnostic export, replay benchmark and dataset audit.
+// MAKI v136: one-file diagnostic export, replay benchmark and dataset audit.
 (()=>{
 'use strict';
-const VERSION='MAKI v135';
+const VERSION='MAKI v136';
 function api(){return window.MAKIV135Benchmark||window.MAKIV134Benchmark||window.MAKIV132Benchmark||window.MAKIV131Benchmark||window.MAKIV130Benchmark||window.MAKIV129Benchmark||window.MAKIV123Benchmark;}
 function tileKey(x){return String(x||'').trim();}
 function hash(s){let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}return (h>>>0).toString(16).padStart(8,'0');}
